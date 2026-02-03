@@ -36,34 +36,29 @@
             const [currentTime, setCurrentTime] = useState(new Date());
             
             // State for simulated Google Sheet data
+            // New structure: { date, timeIn, timeOut, name }
             const [sheetData, setSheetData] = useState([
-                // Initial dummy data for visualization
-                { timestamp: new Date(Date.now() - 10000000).toLocaleString(), name: "Alice", action: "CLOCK IN" },
-                { timestamp: new Date(Date.now() - 3600000).toLocaleString(), name: "Bob", action: "CLOCK IN" },
+                { date: new Date().toLocaleDateString(), timeIn: "08:00:00 AM", timeOut: "05:00:00 PM", name: "Alice" },
+                { date: new Date().toLocaleDateString(), timeIn: "09:00:00 AM", timeOut: "", name: "Bob" },
             ]);
 
             // State for employees
             const [employees, setEmployees] = useState([
                 { id: 1, name: 'Alice', isClockedIn: false, department: 'Sales' },
-                { id: 2, name: 'Bob', isClockedIn: true, department: 'Support' }, // Bob starts clocked in for demo
+                { id: 2, name: 'Bob', isClockedIn: true, department: 'Support' },
                 { id: 3, name: 'Charlie', isClockedIn: false, department: 'Dev' },
                 { id: 4, name: 'Dave', isClockedIn: false, department: 'Sales' },
                 { id: 5, name: 'Eve', isClockedIn: false, department: 'Admin' },
             ]);
 
-            // State for currently selected employee
             const [selectedId, setSelectedId] = useState(null);
-            
-            // Notification state
             const [notification, setNotification] = useState(null);
 
-            // Update clock every second
             useEffect(() => {
                 const timer = setInterval(() => setCurrentTime(new Date()), 1000);
                 return () => clearInterval(timer);
             }, []);
 
-            // Clear notification after 3 seconds
             useEffect(() => {
                 if (notification) {
                     const timer = setTimeout(() => setNotification(null), 3000);
@@ -75,17 +70,15 @@
 
             const handleClockIn = () => {
                 if (!selectedEmployee) return;
-                
                 updateEmployeeStatus(selectedId, true);
-                logAction(selectedEmployee.name, "CLOCK IN");
+                logAction(selectedEmployee.name, "CLOCK_IN");
                 setNotification({ type: 'success', message: `Welcome back, ${selectedEmployee.name}!` });
             };
 
             const handleClockOut = () => {
                 if (!selectedEmployee) return;
-
                 updateEmployeeStatus(selectedId, false);
-                logAction(selectedEmployee.name, "CLOCK OUT");
+                logAction(selectedEmployee.name, "CLOCK_OUT");
                 setNotification({ type: 'info', message: `Goodbye, ${selectedEmployee.name}. Have a good evening!` });
             };
 
@@ -95,41 +88,69 @@
                 ));
             };
 
-            const logAction = (name, action) => {
-                const newEntry = {
-                    timestamp: new Date().toLocaleString(),
-                    name: name,
-                    action: action
-                };
-                setSheetData(prev => [newEntry, ...prev]);
+            const logAction = (name, actionType) => {
+                const now = new Date();
+                const dateStr = now.toLocaleDateString();
+                const timeStr = now.toLocaleTimeString();
 
-                // Send to Google Sheets if URL is configured
+                let payload = {};
+
+                if (actionType === "CLOCK_IN") {
+                    // Create new row
+                    const newEntry = {
+                        date: dateStr,
+                        timeIn: timeStr,
+                        timeOut: "",
+                        name: name
+                    };
+                    setSheetData(prev => [newEntry, ...prev]);
+                    
+                    payload = {
+                        action: "CLOCK_IN",
+                        date: dateStr,
+                        time: timeStr,
+                        name: name
+                    };
+                } else {
+                    // CLOCK_OUT: Update existing row locally
+                    setSheetData(prev => {
+                        // We need to find the most recent entry for this person that has NO time out
+                        // Since we prepend new items, the first match we find is likely the correct one
+                        const newData = [...prev];
+                        const index = newData.findIndex(row => row.name === name && row.timeOut === "");
+                        
+                        if (index !== -1) {
+                            newData[index] = { ...newData[index], timeOut: timeStr };
+                        }
+                        return newData;
+                    });
+
+                    payload = {
+                        action: "CLOCK_OUT",
+                        time: timeStr,
+                        name: name
+                    };
+                }
+
+                // Send to Google Sheets
                 if (GOOGLE_SCRIPT_URL) {
-                    console.log("Sending data to Google Sheet..."); 
+                    console.log("Sending data...", payload);
                     fetch(GOOGLE_SCRIPT_URL, {
                         method: "POST",
-                        mode: "no-cors", // This is CRITICAL for Google Apps Script
-                        headers: { 
-                            "Content-Type": "text/plain" // 'text/plain' avoids preflight CORS checks better than 'application/json'
-                        },
-                        body: JSON.stringify(newEntry)
+                        mode: "no-cors",
+                        headers: { "Content-Type": "text/plain" },
+                        body: JSON.stringify(payload)
                     })
-                    .then(() => {
-                        // Because mode is 'no-cors', we won't get a readable JSON response, 
-                        // but if we get here, the request was sent successfully.
-                        console.log("Data sent to Google Sheet");
-                    })
-                    .catch(err => console.error("Error saving to sheet:", err));
-                } else {
-                    console.warn("GOOGLE_SCRIPT_URL is missing. Data not saved to backend.");
+                    .then(() => console.log("Sent successfully"))
+                    .catch(err => console.error("Error:", err));
                 }
             };
 
             const downloadCSV = () => {
                 let csvContent = "data:text/csv;charset=utf-8,";
-                csvContent += "Timestamp,Name,Action\n";
+                csvContent += "Day,Time In,Time Out,Name\n";
                 sheetData.forEach(row => {
-                    csvContent += `${row.timestamp},${row.name},${row.action}\n`;
+                    csvContent += `${row.date},${row.timeIn},${row.timeOut},${row.name}\n`;
                 });
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement("a");
@@ -246,10 +267,11 @@
                             
                             <div className="bg-gray-50 rounded-lg border border-gray-200 flex-1 overflow-hidden flex flex-col">
                                 {/* Table Header */}
-                                <div className="grid grid-cols-3 bg-gray-100 border-b border-gray-200 p-3 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                    <div>Timestamp</div>
-                                    <div>Name</div>
-                                    <div className="text-right">Action</div>
+                                <div className="grid grid-cols-4 bg-gray-100 border-b border-gray-200 p-3 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                    <div>Day</div>
+                                    <div>Time In</div>
+                                    <div>Time Out</div>
+                                    <div className="text-right">Name</div>
                                 </div>
                                 
                                 {/* Table Body */}
@@ -258,12 +280,11 @@
                                         <div className="p-4 text-center text-gray-400 text-sm">No records yet</div>
                                     ) : (
                                         sheetData.map((row, index) => (
-                                            <div key={index} className="grid grid-cols-3 p-3 border-b border-gray-100 text-sm hover:bg-white transition-colors">
-                                                <div className="text-gray-600 truncate">{row.timestamp}</div>
-                                                <div className="font-medium text-gray-900">{row.name}</div>
-                                                <div className={`text-right font-bold ${row.action === 'CLOCK IN' ? 'text-green-600' : 'text-red-500'}`}>
-                                                    {row.action}
-                                                </div>
+                                            <div key={index} className="grid grid-cols-4 p-3 border-b border-gray-100 text-sm hover:bg-white transition-colors">
+                                                <div className="text-gray-600 truncate">{row.date}</div>
+                                                <div className="text-green-600 font-medium">{row.timeIn}</div>
+                                                <div className="text-red-500 font-medium">{row.timeOut || '-'}</div>
+                                                <div className="text-right font-bold text-gray-900">{row.name}</div>
                                             </div>
                                         ))
                                     )}
