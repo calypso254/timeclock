@@ -28,10 +28,11 @@
         const { useState, useEffect } = React;
 
         function App() {
-            // CONFIGURATION: Paste your Google Apps Script Web App URL here
-            // See INSTRUCTIONS.md for setup steps
-            const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyMF819sv6nvlpudLgCj20tLp0Jk-cOPKd6dQsnXSeM5xRYqpQP3eoY4-dckVgOwZi2hQ/exec";
+            // CONFIGURATION: Google Apps Script Web App URL
+            // Updated with the URL provided
+            const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyMF819sv6nvlpudLgCj20tLp0Jk-cOPKd6dQsnXSeM5xRYqpQP3eoY4-dckVgOwZi2hQ/exec"; 
 
+            // State for the live clock
             const [currentTime, setCurrentTime] = useState(new Date());
             
             // State for simulated Google Sheet data
@@ -101,6 +102,27 @@
                     action: action
                 };
                 setSheetData(prev => [newEntry, ...prev]);
+
+                // Send to Google Sheets if URL is configured
+                if (GOOGLE_SCRIPT_URL) {
+                    console.log("Sending data to Google Sheet..."); 
+                    fetch(GOOGLE_SCRIPT_URL, {
+                        method: "POST",
+                        mode: "no-cors", // This is CRITICAL for Google Apps Script
+                        headers: { 
+                            "Content-Type": "text/plain" // 'text/plain' avoids preflight CORS checks better than 'application/json'
+                        },
+                        body: JSON.stringify(newEntry)
+                    })
+                    .then(() => {
+                        // Because mode is 'no-cors', we won't get a readable JSON response, 
+                        // but if we get here, the request was sent successfully.
+                        console.log("Data sent to Google Sheet");
+                    })
+                    .catch(err => console.error("Error saving to sheet:", err));
+                } else {
+                    console.warn("GOOGLE_SCRIPT_URL is missing. Data not saved to backend.");
+                }
             };
 
             const downloadCSV = () => {
