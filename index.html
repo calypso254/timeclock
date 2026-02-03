@@ -28,7 +28,10 @@
         const { useState, useEffect } = React;
 
         function App() {
-            // State for the live clock
+            // CONFIGURATION: Paste your Google Apps Script Web App URL here
+            // See INSTRUCTIONS.md for setup steps
+            const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyMF819sv6nvlpudLgCj20tLp0Jk-cOPKd6dQsnXSeM5xRYqpQP3eoY4-dckVgOwZi2hQ/exec";
+
             const [currentTime, setCurrentTime] = useState(new Date());
             
             // State for simulated Google Sheet data
