@@ -35,6 +35,31 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
+        // --- HELPER FUNCTIONS ---
+        
+        const calculateHours = (start, end) => {
+            if (!start || !end) return "-";
+            // Create dummy dates to compare times
+            // Using a fixed date ensures we only compare the time portion
+            const startDate = new Date("01/01/2000 " + start);
+            const endDate = new Date("01/01/2000 " + end);
+            
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "-";
+
+            let diff = endDate - startDate;
+            
+            // Handle overnight shifts (if end time is earlier than start time, add 24 hours)
+            if (diff < 0) {
+                diff += 24 * 60 * 60 * 1000;
+            }
+
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            
+            // Format: "8h 30m"
+            return `${hours}h ${minutes}m`;
+        };
+
         // --- SUB-COMPONENTS ---
 
         const PinPad = ({ pinInput, handlePinPress, handlePinClear, selectedEmployee }) => (
@@ -70,7 +95,7 @@
                 <div className="flex justify-between items-center mb-4">
                     <div>
                         <h3 className="font-bold text-gray-700">My Timesheet</h3>
-                        <span className="text-xs text-gray-400">Week of {new Date().toLocaleDateString()}</span>
+                        <span className="text-xs text-gray-400">Current Week</span>
                     </div>
                     <button 
                         onClick={onDone}
@@ -87,19 +112,23 @@
                                 <th className="px-4 py-3">Day</th>
                                 <th className="px-4 py-3">In</th>
                                 <th className="px-4 py-3">Out</th>
+                                <th className="px-4 py-3">Total</th>
                                 <th className="px-4 py-3">Note</th>
                                 <th className="px-4 py-3 text-right">Edit</th>
                             </tr>
                         </thead>
                         <tbody>
                             {personalData.length === 0 ? (
-                                <tr><td colSpan="5" className="p-4 text-center text-gray-400">No records found</td></tr>
+                                <tr><td colSpan="6" className="p-4 text-center text-gray-400">No records found</td></tr>
                             ) : (
                                 personalData.map((row, idx) => (
                                     <tr key={idx} className="bg-white border-b hover:bg-gray-50">
                                         <td className="px-4 py-3 font-medium text-gray-900">{row.date}</td>
                                         <td className="px-4 py-3 text-green-600">{row.timeIn}</td>
                                         <td className="px-4 py-3 text-red-500">{row.timeOut || '-'}</td>
+                                        <td className="px-4 py-3 font-bold text-gray-700">
+                                            {calculateHours(row.timeIn, row.timeOut)}
+                                        </td>
                                         <td className="px-4 py-3 text-gray-500 italic truncate max-w-[100px]">{row.reason}</td>
                                         <td className="px-4 py-3 text-right">
                                             <button onClick={() => startEdit(row)} className="text-blue-600 hover:text-blue-800">
@@ -126,7 +155,7 @@
 
                 <div className="space-y-4 flex-1">
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Time In</label>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Time In (e.g., 08:00 AM)</label>
                         <input 
                             type="text" 
                             value={editForm.timeIn}
@@ -135,7 +164,7 @@
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Time Out</label>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Time Out (e.g., 05:00 PM)</label>
                         <input 
                             type="text" 
                             value={editForm.timeOut}
