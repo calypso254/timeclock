@@ -35,20 +35,138 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
+        // --- SUB-COMPONENTS (Defined outside App to prevent re-render focus loss) ---
+
+        const PinPad = ({ pinInput, handlePinPress, handlePinClear, selectedEmployee }) => (
+            <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+                <div className="mb-6 text-center">
+                    <h3 className="text-xl font-bold text-gray-700">Enter PIN</h3>
+                    <p className="text-sm text-gray-500">Access for {selectedEmployee?.name}</p>
+                </div>
+                
+                <div className="flex gap-2 mb-6 h-12">
+                    {[0, 1, 2, 3].map(i => (
+                        <div key={i} className={`w-3 h-3 rounded-full transition-all ${i < pinInput.length ? 'bg-blue-600 scale-110' : 'bg-gray-200'}`}></div>
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 w-64">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+                        <button key={num} onClick={() => handlePinPress(num.toString())} className="pin-btn bg-white rounded-full shadow-sm text-xl font-bold text-gray-700 border border-gray-100 hover:shadow-md">
+                            {num}
+                        </button>
+                    ))}
+                    <div className="flex items-center justify-center"></div>
+                    <button onClick={() => handlePinPress("0")} className="pin-btn bg-white rounded-full shadow-sm text-xl font-bold text-gray-700 border border-gray-100 hover:shadow-md">0</button>
+                    <button onClick={handlePinClear} className="pin-btn bg-red-50 rounded-full text-red-500 hover:bg-red-100 border border-transparent">
+                        <i className="fas fa-backspace"></i>
+                    </button>
+                </div>
+            </div>
+        );
+
+        const PersonalDashboard = ({ personalData, startEdit }) => (
+            <div className="flex flex-col h-full animate-fade-in">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-gray-700">My Timesheet</h3>
+                    <span className="text-xs text-gray-400">Week of {new Date().toLocaleDateString()}</span>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto bg-gray-50 rounded-lg border border-gray-200">
+                    <table className="w-full text-sm text-left">
+                        <thead className="text-xs text-gray-500 uppercase bg-gray-100 sticky top-0">
+                            <tr>
+                                <th className="px-4 py-3">Day</th>
+                                <th className="px-4 py-3">In</th>
+                                <th className="px-4 py-3">Out</th>
+                                <th className="px-4 py-3">Note</th>
+                                <th className="px-4 py-3 text-right">Edit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {personalData.length === 0 ? (
+                                <tr><td colSpan="5" className="p-4 text-center text-gray-400">No records found</td></tr>
+                            ) : (
+                                personalData.map((row, idx) => (
+                                    <tr key={idx} className="bg-white border-b hover:bg-gray-50">
+                                        <td className="px-4 py-3 font-medium text-gray-900">{row.date}</td>
+                                        <td className="px-4 py-3 text-green-600">{row.timeIn}</td>
+                                        <td className="px-4 py-3 text-red-500">{row.timeOut || '-'}</td>
+                                        <td className="px-4 py-3 text-gray-500 italic truncate max-w-[100px]">{row.reason}</td>
+                                        <td className="px-4 py-3 text-right">
+                                            <button onClick={() => startEdit(row)} className="text-blue-600 hover:text-blue-800">
+                                                <i className="fas fa-pencil-alt"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+
+        const EditForm = ({ editTarget, editForm, setEditForm, saveEdit, setViewMode }) => (
+            <div className="h-full flex flex-col animate-fade-in">
+                <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <button onClick={() => setViewMode('DASHBOARD')} className="text-gray-400 hover:text-gray-600">
+                        <i className="fas fa-arrow-left"></i>
+                    </button>
+                    Edit Entry: {editTarget.date}
+                </h3>
+
+                <div className="space-y-4 flex-1">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Time In</label>
+                        <input 
+                            type="text" 
+                            value={editForm.timeIn}
+                            onChange={e => setEditForm({...editForm, timeIn: e.target.value})}
+                            className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Time Out</label>
+                        <input 
+                            type="text" 
+                            value={editForm.timeOut}
+                            onChange={e => setEditForm({...editForm, timeOut: e.target.value})}
+                            className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Reason for Edit</label>
+                        <textarea 
+                            value={editForm.reason}
+                            onChange={e => setEditForm({...editForm, reason: e.target.value})}
+                            className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none h-24"
+                            placeholder="E.g., Forgot to clock out, System error..."
+                        ></textarea>
+                    </div>
+                </div>
+
+                <div className="mt-6">
+                    <button onClick={saveEdit} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-blue-700 transition-colors">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        );
+
+        // --- MAIN APP COMPONENT ---
+
         function App() {
-            // URL Configuration
             const scriptUrl = "https://script.google.com/macros/s/AKfycbwqafnd8M9XV0EVv2HJNom8kp9EwgRNLMavas1MIi9VbdfDZDQkujc9i5aJ1xM0hxCzkQ/exec";
 
-            // --- STATE MANAGEMENT ---
             const [currentTime, setCurrentTime] = useState(new Date());
-            const [viewMode, setViewMode] = useState('PINPAD'); // PINPAD, DASHBOARD, EDIT
+            const [viewMode, setViewMode] = useState('PINPAD'); 
             const [pinInput, setPinInput] = useState("");
             const [selectedId, setSelectedId] = useState(null);
             const [isAuthenticated, setIsAuthenticated] = useState(false);
-            const [editTarget, setEditTarget] = useState(null); // Which row is being edited
+            const [editTarget, setEditTarget] = useState(null);
             const [editForm, setEditForm] = useState({ timeIn: '', timeOut: '', reason: '' });
 
-            // Employee Data (Hardcoded PINs here)
             const [employees, setEmployees] = useState([
                 { id: 1, name: 'Alice', isClockedIn: false, department: 'Sales', pin: '1234' },
                 { id: 2, name: 'Bob', isClockedIn: true, department: 'Support', pin: '1234' },
@@ -57,15 +175,13 @@
                 { id: 5, name: 'Eve', isClockedIn: false, department: 'Admin', pin: '1234' },
             ]);
 
-            // Simulated Data (In a real app, you might fetch this on auth)
             const [sheetData, setSheetData] = useState([
-                { date: new Date().toLocaleDateString(), timeIn: "08:00:00 AM", timeOut: "05:00:00 PM", name: "Alice", reason: "" },
-                { date: new Date().toLocaleDateString(), timeIn: "09:00:00 AM", timeOut: "", name: "Bob", reason: "" },
+                { date: new Date().toLocaleDateString(), timeIn: "08:00 AM", timeOut: "05:00 PM", name: "Alice", reason: "" },
+                { date: new Date().toLocaleDateString(), timeIn: "09:00 AM", timeOut: "", name: "Bob", reason: "" },
             ]);
 
             const [notification, setNotification] = useState(null);
 
-            // --- EFFECTS ---
             useEffect(() => {
                 const timer = setInterval(() => setCurrentTime(new Date()), 1000);
                 return () => clearInterval(timer);
@@ -78,14 +194,11 @@
                 }
             }, [notification]);
 
-            // --- HELPERS ---
             const selectedEmployee = employees.find(e => e.id === selectedId);
             const personalData = selectedEmployee 
                 ? sheetData.filter(row => row.name === selectedEmployee.name) 
                 : [];
 
-            // --- HANDLERS ---
-            
             const handleEmployeeSelect = (id) => {
                 setSelectedId(id);
                 setPinInput("");
@@ -98,21 +211,19 @@
                 if (pinInput.length < 4) {
                     const newPin = pinInput + num;
                     setPinInput(newPin);
-                    
-                    // Auto-submit on 4th digit
-                    if (newPin.length === 4) {
-                        validatePin(newPin);
-                    }
+                    if (newPin.length === 4) validatePin(newPin);
                 }
             };
 
             const handlePinClear = () => setPinInput("");
 
             const validatePin = (inputPin) => {
-                if (inputPin === selectedEmployee.pin) {
+                // Find fresh employee object (to capture current pin if needed)
+                const emp = employees.find(e => e.id === selectedId);
+                if (inputPin === emp.pin) {
                     setIsAuthenticated(true);
                     setViewMode('DASHBOARD');
-                    setNotification({ type: 'success', message: `Identity Verified: ${selectedEmployee.name}` });
+                    setNotification({ type: 'success', message: `Identity Verified: ${emp.name}` });
                 } else {
                     setNotification({ type: 'error', message: "Incorrect PIN" });
                     setPinInput("");
@@ -142,7 +253,6 @@
             };
 
             const saveEdit = () => {
-                // Update Local State
                 setSheetData(prev => prev.map(row => {
                     if (row === editTarget) {
                         return { 
@@ -155,7 +265,6 @@
                     return row;
                 }));
 
-                // Send to Google Sheet
                 const payload = {
                     action: "EDIT",
                     date: editTarget.date,
@@ -179,7 +288,7 @@
             const logAction = (name, actionType) => {
                 const now = new Date();
                 const dateStr = now.toLocaleDateString();
-                const timeStr = now.toLocaleTimeString();
+                const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); // Removed seconds
                 let payload = {};
 
                 if (actionType === "CLOCK_IN") {
@@ -209,126 +318,6 @@
                 }
             };
 
-            // --- UI SUB-COMPONENTS ---
-            
-            const PinPad = () => (
-                <div className="flex flex-col items-center justify-center h-full animate-fade-in">
-                    <div className="mb-6 text-center">
-                        <h3 className="text-xl font-bold text-gray-700">Enter PIN</h3>
-                        <p className="text-sm text-gray-500">Access for {selectedEmployee?.name}</p>
-                    </div>
-                    
-                    <div className="flex gap-2 mb-6 h-12">
-                        {[0, 1, 2, 3].map(i => (
-                            <div key={i} className={`w-3 h-3 rounded-full transition-all ${i < pinInput.length ? 'bg-blue-600 scale-110' : 'bg-gray-200'}`}></div>
-                        ))}
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4 w-64">
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                            <button key={num} onClick={() => handlePinPress(num.toString())} className="pin-btn bg-white rounded-full shadow-sm text-xl font-bold text-gray-700 border border-gray-100 hover:shadow-md">
-                                {num}
-                            </button>
-                        ))}
-                        <div className="flex items-center justify-center"></div>
-                        <button onClick={() => handlePinPress("0")} className="pin-btn bg-white rounded-full shadow-sm text-xl font-bold text-gray-700 border border-gray-100 hover:shadow-md">0</button>
-                        <button onClick={handlePinClear} className="pin-btn bg-red-50 rounded-full text-red-500 hover:bg-red-100 border border-transparent">
-                            <i className="fas fa-backspace"></i>
-                        </button>
-                    </div>
-                </div>
-            );
-
-            const PersonalDashboard = () => (
-                <div className="flex flex-col h-full animate-fade-in">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-bold text-gray-700">My Timesheet</h3>
-                        <span className="text-xs text-gray-400">Week of {new Date().toLocaleDateString()}</span>
-                    </div>
-                    
-                    <div className="flex-1 overflow-y-auto bg-gray-50 rounded-lg border border-gray-200">
-                        <table className="w-full text-sm text-left">
-                            <thead className="text-xs text-gray-500 uppercase bg-gray-100 sticky top-0">
-                                <tr>
-                                    <th className="px-4 py-3">Day</th>
-                                    <th className="px-4 py-3">In</th>
-                                    <th className="px-4 py-3">Out</th>
-                                    <th className="px-4 py-3">Note</th>
-                                    <th className="px-4 py-3 text-right">Edit</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {personalData.length === 0 ? (
-                                    <tr><td colSpan="5" className="p-4 text-center text-gray-400">No records found</td></tr>
-                                ) : (
-                                    personalData.map((row, idx) => (
-                                        <tr key={idx} className="bg-white border-b hover:bg-gray-50">
-                                            <td className="px-4 py-3 font-medium text-gray-900">{row.date}</td>
-                                            <td className="px-4 py-3 text-green-600">{row.timeIn}</td>
-                                            <td className="px-4 py-3 text-red-500">{row.timeOut || '-'}</td>
-                                            <td className="px-4 py-3 text-gray-500 italic truncate max-w-[100px]">{row.reason}</td>
-                                            <td className="px-4 py-3 text-right">
-                                                <button onClick={() => startEdit(row)} className="text-blue-600 hover:text-blue-800">
-                                                    <i className="fas fa-pencil-alt"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            );
-
-            const EditForm = () => (
-                <div className="h-full flex flex-col animate-fade-in">
-                    <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
-                        <button onClick={() => setViewMode('DASHBOARD')} className="text-gray-400 hover:text-gray-600">
-                            <i className="fas fa-arrow-left"></i>
-                        </button>
-                        Edit Entry: {editTarget.date}
-                    </h3>
-
-                    <div className="space-y-4 flex-1">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">Time In</label>
-                            <input 
-                                type="text" 
-                                value={editForm.timeIn}
-                                onChange={e => setEditForm({...editForm, timeIn: e.target.value})}
-                                className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">Time Out</label>
-                            <input 
-                                type="text" 
-                                value={editForm.timeOut}
-                                onChange={e => setEditForm({...editForm, timeOut: e.target.value})}
-                                className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">Reason for Edit</label>
-                            <textarea 
-                                value={editForm.reason}
-                                onChange={e => setEditForm({...editForm, reason: e.target.value})}
-                                className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none h-24"
-                                placeholder="E.g., Forgot to clock out, System error..."
-                            ></textarea>
-                        </div>
-                    </div>
-
-                    <div className="mt-6">
-                        <button onClick={saveEdit} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-blue-700 transition-colors">
-                            Save Changes
-                        </button>
-                    </div>
-                </div>
-            );
-
-            // --- MAIN RENDER ---
             return (
                 <div className="min-h-screen p-4 md:p-8 flex flex-col items-center">
                     
@@ -339,7 +328,7 @@
                             <p className="text-gray-500 text-sm">{currentTime.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
                         </div>
                         <div className="text-4xl font-mono font-bold text-gray-900">
-                            {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 
                         </div>
                     </div>
 
@@ -360,12 +349,14 @@
                                             onClick={() => handleEmployeeSelect(emp.id)}
                                             className={`
                                                 p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative
-                                                ${selectedId === emp.id ? 'ring-2 ring-blue-500 ring-offset-2 border-blue-500 bg-blue-50' : 'hover:border-blue-200 border-transparent bg-gray-50'}
+                                                ${selectedId === emp.id ? 'ring-2 ring-blue-500 ring-offset-2' : 'hover:border-blue-200 border-transparent'}
+                                                ${emp.isClockedIn ? 'bg-green-100 text-green-900 border-green-200' : 'bg-white text-gray-800 border-gray-100 shadow-sm'}
                                             `}
                                         >
-                                            <div className={`w-2 h-2 rounded-full absolute top-2 right-2 ${emp.isClockedIn ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                                            <span className="font-bold text-gray-800">{emp.name}</span>
-                                            <span className="text-xs text-gray-500">{emp.department}</span>
+                                            <div className={`w-2 h-2 rounded-full absolute top-2 right-2 ${emp.isClockedIn ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`}></div>
+                                            <span className="font-bold">{emp.name}</span>
+                                            <span className="text-xs opacity-70">{emp.department}</span>
+                                            {emp.isClockedIn && <span className="text-[10px] font-bold text-green-700 uppercase">Clocked In</span>}
                                         </button>
                                     ))}
                                 </div>
@@ -392,12 +383,6 @@
                                         >
                                             <i className="fas fa-sign-out-alt"></i> Clock Out
                                         </button>
-                                        <button 
-                                            onClick={() => setViewMode('DASHBOARD')}
-                                            className="col-span-2 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200"
-                                        >
-                                            <i className="fas fa-list-alt mr-2"></i> View/Edit My Timesheet
-                                        </button>
                                     </div>
                                 ) : (
                                     <div className="text-center py-8 text-gray-400 border border-dashed rounded-xl">
@@ -418,9 +403,9 @@
                                     </div>
                                 ) : (
                                     <>
-                                        {viewMode === 'PINPAD' && <PinPad />}
-                                        {viewMode === 'DASHBOARD' && <PersonalDashboard />}
-                                        {viewMode === 'EDIT' && <EditForm />}
+                                        {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinClear={handlePinClear} selectedEmployee={selectedEmployee} />}
+                                        {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} />}
+                                        {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} setViewMode={setViewMode} />}
                                     </>
                                 )}
                             </div>
