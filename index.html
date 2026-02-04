@@ -28,15 +28,13 @@
         const { useState, useEffect } = React;
 
         function App() {
-            // CONFIGURATION: Google Apps Script Web App URL
-            // Updated with the URL provided
-            const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyMF819sv6nvlpudLgCj20tLp0Jk-cOPKd6dQsnXSeM5xRYqpQP3eoY4-dckVgOwZi2hQ/exec"; 
-
+            // Default URL - customizable in the UI now
+            const [scriptUrl, setScriptUrl] = useState("https://script.google.com/macros/s/AKfycbyMF819sv6nvlpudLgCj20tLp0Jk-cOPKd6dQsnXSeM5xRYqpQP3eoY4-dckVgOwZi2hQ/exec");
+            
             // State for the live clock
             const [currentTime, setCurrentTime] = useState(new Date());
             
             // State for simulated Google Sheet data
-            // New structure: { date, timeIn, timeOut, name }
             const [sheetData, setSheetData] = useState([
                 { date: new Date().toLocaleDateString(), timeIn: "08:00:00 AM", timeOut: "05:00:00 PM", name: "Alice" },
                 { date: new Date().toLocaleDateString(), timeIn: "09:00:00 AM", timeOut: "", name: "Bob" },
@@ -61,7 +59,7 @@
 
             useEffect(() => {
                 if (notification) {
-                    const timer = setTimeout(() => setNotification(null), 3000);
+                    const timer = setTimeout(() => setNotification(null), 5000); // Increased to 5s for reading errors
                     return () => clearTimeout(timer);
                 }
             }, [notification]);
@@ -72,14 +70,12 @@
                 if (!selectedEmployee) return;
                 updateEmployeeStatus(selectedId, true);
                 logAction(selectedEmployee.name, "CLOCK_IN");
-                setNotification({ type: 'success', message: `Welcome back, ${selectedEmployee.name}!` });
             };
 
             const handleClockOut = () => {
                 if (!selectedEmployee) return;
                 updateEmployeeStatus(selectedId, false);
                 logAction(selectedEmployee.name, "CLOCK_OUT");
-                setNotification({ type: 'info', message: `Goodbye, ${selectedEmployee.name}. Have a good evening!` });
             };
 
             const updateEmployeeStatus = (id, status) => {
@@ -96,53 +92,49 @@
                 let payload = {};
 
                 if (actionType === "CLOCK_IN") {
-                    // Create new row
-                    const newEntry = {
-                        date: dateStr,
-                        timeIn: timeStr,
-                        timeOut: "",
-                        name: name
-                    };
+                    // Update local simulated view
+                    const newEntry = { date: dateStr, timeIn: timeStr, timeOut: "", name: name };
                     setSheetData(prev => [newEntry, ...prev]);
                     
-                    payload = {
-                        action: "CLOCK_IN",
-                        date: dateStr,
-                        time: timeStr,
-                        name: name
-                    };
+                    payload = { action: "CLOCK_IN", date: dateStr, time: timeStr, name: name };
+                    setNotification({ type: 'success', message: `Clocking in ${name}...` });
                 } else {
-                    // CLOCK_OUT: Update existing row locally
+                    // Update local simulated view
                     setSheetData(prev => {
-                        // We need to find the most recent entry for this person that has NO time out
-                        // Since we prepend new items, the first match we find is likely the correct one
                         const newData = [...prev];
                         const index = newData.findIndex(row => row.name === name && row.timeOut === "");
-                        
-                        if (index !== -1) {
-                            newData[index] = { ...newData[index], timeOut: timeStr };
-                        }
+                        if (index !== -1) newData[index] = { ...newData[index], timeOut: timeStr };
                         return newData;
                     });
 
-                    payload = {
-                        action: "CLOCK_OUT",
-                        time: timeStr,
-                        name: name
-                    };
+                    payload = { action: "CLOCK_OUT", time: timeStr, name: name };
+                    setNotification({ type: 'info', message: `Clocking out ${name}...` });
                 }
 
                 // Send to Google Sheets
-                if (GOOGLE_SCRIPT_URL) {
-                    console.log("Sending data...", payload);
-                    fetch(GOOGLE_SCRIPT_URL, {
+                if (scriptUrl) {
+                    console.log("Sending payload to:", scriptUrl);
+                    
+                    // We use 'no-cors' mode. This means the browser will SEND the data,
+                    // but it will NOT let us read the response to see if it worked.
+                    // However, it should still appear in your Google Executions log.
+                    fetch(scriptUrl, {
                         method: "POST",
-                        mode: "no-cors",
+                        mode: "no-cors", 
                         headers: { "Content-Type": "text/plain" },
                         body: JSON.stringify(payload)
                     })
-                    .then(() => console.log("Sent successfully"))
-                    .catch(err => console.error("Error:", err));
+                    .then(response => {
+                        console.log("Request sent (Opaque response due to no-cors)");
+                        setNotification({ type: 'success', message: `Data sent for ${name}!` });
+                    })
+                    .catch(err => {
+                        console.error("Network Error:", err);
+                        setNotification({ type: 'error', message: `Network Error: ${err.message}` });
+                        alert("Connection Failed. Check Console for details.");
+                    });
+                } else {
+                    setNotification({ type: 'error', message: "No Google Script URL provided!" });
                 }
             };
 
@@ -266,15 +258,12 @@
                             </div>
                             
                             <div className="bg-gray-50 rounded-lg border border-gray-200 flex-1 overflow-hidden flex flex-col">
-                                {/* Table Header */}
                                 <div className="grid grid-cols-4 bg-gray-100 border-b border-gray-200 p-3 text-xs font-bold text-gray-500 uppercase tracking-wider">
                                     <div>Day</div>
                                     <div>Time In</div>
                                     <div>Time Out</div>
                                     <div className="text-right">Name</div>
                                 </div>
-                                
-                                {/* Table Body */}
                                 <div className="overflow-y-auto flex-1 p-0">
                                     {sheetData.length === 0 ? (
                                         <div className="p-4 text-center text-gray-400 text-sm">No records yet</div>
@@ -290,9 +279,16 @@
                                     )}
                                 </div>
                             </div>
-                            <p className="text-xs text-gray-400 mt-3 text-center">
-                                * This panel simulates the Google Sheet connection.
-                            </p>
+                            <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                                <label className="block text-xs font-bold text-blue-800 mb-1">GOOGLE SCRIPT URL (Paste here to test)</label>
+                                <input 
+                                    type="text" 
+                                    value={scriptUrl} 
+                                    onChange={(e) => setScriptUrl(e.target.value)}
+                                    className="w-full text-xs p-2 border rounded font-mono text-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    placeholder="https://script.google.com/macros/s/.../exec"
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -300,9 +296,11 @@
                     {notification && (
                         <div className={`
                             fixed bottom-8 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl text-white font-medium flex items-center gap-3 animate-bounce
-                            ${notification.type === 'success' ? 'bg-gray-800' : 'bg-blue-600'}
+                            ${notification.type === 'success' ? 'bg-gray-800' : 
+                              notification.type === 'error' ? 'bg-red-600' : 'bg-blue-600'}
                         `}>
-                            <i className={`fas ${notification.type === 'success' ? 'fa-check-circle' : 'fa-info-circle'}`}></i>
+                            <i className={`fas ${notification.type === 'success' ? 'fa-check-circle' : 
+                                               notification.type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle'}`}></i>
                             {notification.message}
                         </div>
                     )}
