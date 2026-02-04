@@ -33,9 +33,9 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
-        // --- SUB-COMPONENTS (Defined outside App to prevent re-render focus loss) ---
+        // --- SUB-COMPONENTS ---
 
         const PinPad = ({ pinInput, handlePinPress, handlePinClear, selectedEmployee }) => (
             <div className="flex flex-col items-center justify-center h-full animate-fade-in">
@@ -65,11 +65,19 @@
             </div>
         );
 
-        const PersonalDashboard = ({ personalData, startEdit }) => (
-            <div className="flex flex-col h-full animate-fade-in">
+        const PersonalDashboard = ({ personalData, startEdit, onDone }) => (
+            <div className="flex flex-col h-full animate-fade-in relative">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-gray-700">My Timesheet</h3>
-                    <span className="text-xs text-gray-400">Week of {new Date().toLocaleDateString()}</span>
+                    <div>
+                        <h3 className="font-bold text-gray-700">My Timesheet</h3>
+                        <span className="text-xs text-gray-400">Week of {new Date().toLocaleDateString()}</span>
+                    </div>
+                    <button 
+                        onClick={onDone}
+                        className="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition-colors"
+                    >
+                        <i className="fas fa-check mr-2"></i> Done
+                    </button>
                 </div>
                 
                 <div className="flex-1 overflow-y-auto bg-gray-50 rounded-lg border border-gray-200">
@@ -182,11 +190,13 @@
 
             const [notification, setNotification] = useState(null);
 
+            // Clock Effect
             useEffect(() => {
                 const timer = setInterval(() => setCurrentTime(new Date()), 1000);
                 return () => clearInterval(timer);
             }, []);
 
+            // Notification Effect
             useEffect(() => {
                 if (notification) {
                     const timer = setTimeout(() => setNotification(null), 4000);
@@ -194,10 +204,51 @@
                 }
             }, [notification]);
 
+            // --- AUTO-TIMEOUT LOGIC ---
+            useEffect(() => {
+                let timeout;
+                
+                const resetTimer = () => {
+                    // Only start timer if user is authenticated and viewing Dashboard or Edit
+                    if (isAuthenticated) {
+                        clearTimeout(timeout);
+                        timeout = setTimeout(() => {
+                            setNotification({ type: 'info', message: "Session timed out due to inactivity" });
+                            handleLogout();
+                        }, 30000); // 30 seconds
+                    }
+                };
+
+                // Listeners for activity
+                window.addEventListener('click', resetTimer);
+                window.addEventListener('keypress', resetTimer);
+                window.addEventListener('mousemove', resetTimer);
+                window.addEventListener('touchstart', resetTimer);
+
+                // Initial start if auth
+                resetTimer();
+
+                return () => {
+                    clearTimeout(timeout);
+                    window.removeEventListener('click', resetTimer);
+                    window.removeEventListener('keypress', resetTimer);
+                    window.removeEventListener('mousemove', resetTimer);
+                    window.removeEventListener('touchstart', resetTimer);
+                };
+            }, [isAuthenticated]); // Re-run when auth state changes
+
             const selectedEmployee = employees.find(e => e.id === selectedId);
             const personalData = selectedEmployee 
                 ? sheetData.filter(row => row.name === selectedEmployee.name) 
                 : [];
+
+            const handleLogout = () => {
+                setSelectedId(null);
+                setPinInput("");
+                setIsAuthenticated(false);
+                setViewMode('PINPAD');
+                setEditTarget(null);
+            };
 
             const handleEmployeeSelect = (id) => {
                 setSelectedId(id);
@@ -218,7 +269,6 @@
             const handlePinClear = () => setPinInput("");
 
             const validatePin = (inputPin) => {
-                // Find fresh employee object (to capture current pin if needed)
                 const emp = employees.find(e => e.id === selectedId);
                 if (inputPin === emp.pin) {
                     setIsAuthenticated(true);
@@ -288,7 +338,7 @@
             const logAction = (name, actionType) => {
                 const now = new Date();
                 const dateStr = now.toLocaleDateString();
-                const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); // Removed seconds
+                const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); 
                 let payload = {};
 
                 if (actionType === "CLOCK_IN") {
@@ -404,7 +454,7 @@
                                 ) : (
                                     <>
                                         {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinClear={handlePinClear} selectedEmployee={selectedEmployee} />}
-                                        {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} />}
+                                        {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} onDone={handleLogout} />}
                                         {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} setViewMode={setViewMode} />}
                                     </>
                                 )}
