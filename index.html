@@ -11,8 +11,10 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body {
-            background-color: #f3f4f6;
+            /* Default fallback color, overwritten by React inline style */
+            background-color: #f3f4f6; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            transition: background-color 0.5s ease;
         }
         .glass-panel {
             background: rgba(255, 255, 255, 0.95);
@@ -213,7 +215,14 @@
 
             // Dynamic Data State
             const [employees, setEmployees] = useState([]);
-            const [sheetData, setSheetData] = useState([]); // Now starts empty, populated by fetch
+            const [sheetData, setSheetData] = useState([]);
+            
+            // Settings State (Branding)
+            const [settings, setSettings] = useState({
+                companyName: "Company Timeclock",
+                logoUrl: "",
+                themeColor: "#f3f4f6" // Default fallback
+            });
 
             const [notification, setNotification] = useState(null);
 
@@ -236,19 +245,27 @@
                         setIsLoadingEmployees(false);
                     }
 
-                    // 2. Fetch Logs
-                    setIsFetchingLogs(true);
+                    // 2. Fetch Settings
                     try {
-                        const response = await fetch(`${scriptUrl}?type=logs`);
-                        if (!response.ok) throw new Error('Failed to fetch logs');
-                        const logData = await response.json();
-                        setSheetData(logData.reverse()); // Reverse to show newest first
-                        setIsFetchingLogs(false);
+                        const response = await fetch(`${scriptUrl}?type=settings`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            // If we got valid settings back, update state
+                            if (data.companyName || data.themeColor) {
+                                setSettings(prev => ({
+                                    companyName: data.companyName || prev.companyName,
+                                    logoUrl: data.logoUrl || "",
+                                    themeColor: data.themeColor || prev.themeColor
+                                }));
+                            }
+                        }
                     } catch (error) {
-                        console.error("Error fetching logs:", error);
-                        // We don't block the app if logs fail, just show empty
-                        setIsFetchingLogs(false);
+                        console.error("Error fetching settings:", error);
                     }
+
+                    // 3. Fetch Logs (Wait for user selection usually, but we pre-fetch for speed here if needed, 
+                    //    though technically we only need logs when a user logs in. 
+                    //    Let's keep the generic log fetch for now if we want to show status based on last log)
                 };
 
                 fetchData();
@@ -307,11 +324,25 @@
                 setEditTarget(null);
             };
 
-            const handleEmployeeSelect = (id) => {
+            const handleEmployeeSelect = async (id) => {
                 setSelectedId(id);
                 setPinInput("");
                 setIsAuthenticated(false);
                 setViewMode('PINPAD');
+                
+                // Fetch fresh logs when selecting an employee to ensure latest data
+                setIsFetchingLogs(true);
+                try {
+                    const response = await fetch(`${scriptUrl}?type=logs`);
+                    if (response.ok) {
+                        const logData = await response.json();
+                        setSheetData(logData.reverse()); 
+                    }
+                } catch (error) {
+                    console.error("Error refreshing logs:", error);
+                } finally {
+                    setIsFetchingLogs(false);
+                }
             };
 
             const handlePinPress = (num) => {
@@ -426,13 +457,21 @@
             };
 
             return (
-                <div className="min-h-screen p-4 md:p-8 flex flex-col items-center">
+                <div 
+                    className="min-h-screen p-4 md:p-8 flex flex-col items-center transition-colors duration-500" 
+                    style={{ backgroundColor: settings.themeColor }}
+                >
                     
                     {/* Header */}
                     <div className="w-full max-w-7xl flex justify-between items-center mb-8 glass-panel bg-white p-6 rounded-2xl shadow-sm">
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-800">Company Timeclock</h1>
-                            <p className="text-gray-500 text-sm">{currentTime.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                        <div className="flex items-center gap-4">
+                            {settings.logoUrl && (
+                                <img src={settings.logoUrl} alt="Logo" className="h-12 w-auto object-contain" />
+                            )}
+                            <div>
+                                <h1 className="text-2xl font-bold text-gray-800">{settings.companyName}</h1>
+                                <p className="text-gray-500 text-sm">{currentTime.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                            </div>
                         </div>
                         <div className="text-4xl font-mono font-bold text-gray-900">
                             {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 
