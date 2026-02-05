@@ -88,19 +88,22 @@
             </div>
         );
 
-        const PersonalDashboard = ({ personalData, startEdit, onDone }) => (
+        const PersonalDashboard = ({ personalData, startEdit, onDone, isFetchingLogs }) => (
             <div className="flex flex-col h-full animate-fade-in relative">
                 <div className="flex justify-between items-center mb-4">
                     <div>
                         <h3 className="font-bold text-gray-700">My Timesheet</h3>
-                        <span className="text-xs text-gray-400">Current Week</span>
+                        <span className="text-xs text-gray-400">Recent Activity</span>
                     </div>
-                    <button 
-                        onClick={onDone}
-                        className="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition-colors"
-                    >
-                        <i className="fas fa-check mr-2"></i> Done
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {isFetchingLogs && <span className="text-xs text-blue-500"><i className="fas fa-sync fa-spin mr-1"></i> Syncing...</span>}
+                        <button 
+                            onClick={onDone}
+                            className="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition-colors"
+                        >
+                            <i className="fas fa-check mr-2"></i> Done
+                        </button>
+                    </div>
                 </div>
                 
                 <div className="flex-1 overflow-y-auto bg-gray-50 rounded-lg border border-gray-200">
@@ -205,32 +208,26 @@
             
             // Loading State
             const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
+            const [isFetchingLogs, setIsFetchingLogs] = useState(false);
             const [fetchError, setFetchError] = useState(null);
 
-            // Dynamic Employees State
+            // Dynamic Data State
             const [employees, setEmployees] = useState([]);
-
-            const [sheetData, setSheetData] = useState([
-                // Dummy data for visual structure on load
-                { date: new Date().toLocaleDateString(), timeIn: "08:00 AM", timeOut: "05:00 PM", name: "Example User", reason: "Demo Data" },
-            ]);
+            const [sheetData, setSheetData] = useState([]); // Now starts empty, populated by fetch
 
             const [notification, setNotification] = useState(null);
 
-            // Fetch Employees on Mount
+            // Fetch Data on Mount
             useEffect(() => {
-                const fetchEmployees = async () => {
+                const fetchData = async () => {
+                    // 1. Fetch Employees (Default)
                     try {
-                        const response = await fetch(scriptUrl);
-                        if (!response.ok) throw new Error('Failed to fetch');
+                        const response = await fetch(`${scriptUrl}?type=employees`);
+                        if (!response.ok) throw new Error('Failed to fetch employees');
                         const data = await response.json();
                         
-                        // Add local clock-in status tracking (defaults to false on reload)
-                        const formattedEmployees = data.map(emp => ({
-                            ...emp,
-                            isClockedIn: false // We start false, system doesn't persist status across reloads yet
-                        }));
-                        
+                        // Add local clock-in status tracking
+                        const formattedEmployees = data.map(emp => ({ ...emp, isClockedIn: false }));
                         setEmployees(formattedEmployees);
                         setIsLoadingEmployees(false);
                     } catch (error) {
@@ -238,9 +235,23 @@
                         setFetchError("Could not load employees. Please check the Google Sheet setup.");
                         setIsLoadingEmployees(false);
                     }
+
+                    // 2. Fetch Logs
+                    setIsFetchingLogs(true);
+                    try {
+                        const response = await fetch(`${scriptUrl}?type=logs`);
+                        if (!response.ok) throw new Error('Failed to fetch logs');
+                        const logData = await response.json();
+                        setSheetData(logData.reverse()); // Reverse to show newest first
+                        setIsFetchingLogs(false);
+                    } catch (error) {
+                        console.error("Error fetching logs:", error);
+                        // We don't block the app if logs fail, just show empty
+                        setIsFetchingLogs(false);
+                    }
                 };
 
-                fetchEmployees();
+                fetchData();
             }, []);
 
             // Clock Effect
@@ -514,7 +525,7 @@
                                 ) : (
                                     <>
                                         {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinClear={handlePinClear} selectedEmployee={selectedEmployee} />}
-                                        {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} onDone={handleLogout} />}
+                                        {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} onDone={handleLogout} isFetchingLogs={isFetchingLogs} />}
                                         {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} setViewMode={setViewMode} />}
                                     </>
                                 )}
