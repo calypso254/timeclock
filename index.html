@@ -27,6 +27,12 @@
             transform: scale(0.95);
             background-color: #e5e7eb;
         }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
     </style>
 </head>
 <body>
@@ -39,24 +45,16 @@
         
         const calculateHours = (start, end) => {
             if (!start || !end) return "-";
-            // Create dummy dates to compare times
-            // Using a fixed date ensures we only compare the time portion
             const startDate = new Date("01/01/2000 " + start);
             const endDate = new Date("01/01/2000 " + end);
             
             if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "-";
 
             let diff = endDate - startDate;
-            
-            // Handle overnight shifts (if end time is earlier than start time, add 24 hours)
-            if (diff < 0) {
-                diff += 24 * 60 * 60 * 1000;
-            }
+            if (diff < 0) diff += 24 * 60 * 60 * 1000;
 
             const hours = Math.floor(diff / 3600000);
             const minutes = Math.floor((diff % 3600000) / 60000);
-            
-            // Format: "8h 30m"
             return `${hours}h ${minutes}m`;
         };
 
@@ -194,6 +192,7 @@
         // --- MAIN APP COMPONENT ---
 
         function App() {
+            // NOTE: Ensure this URL matches your deployed script (New Version)
             const scriptUrl = "https://script.google.com/macros/s/AKfycbwqafnd8M9XV0EVv2HJNom8kp9EwgRNLMavas1MIi9VbdfDZDQkujc9i5aJ1xM0hxCzkQ/exec";
 
             const [currentTime, setCurrentTime] = useState(new Date());
@@ -203,21 +202,46 @@
             const [isAuthenticated, setIsAuthenticated] = useState(false);
             const [editTarget, setEditTarget] = useState(null);
             const [editForm, setEditForm] = useState({ timeIn: '', timeOut: '', reason: '' });
+            
+            // Loading State
+            const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
+            const [fetchError, setFetchError] = useState(null);
 
-            const [employees, setEmployees] = useState([
-                { id: 1, name: 'Alice', isClockedIn: false, department: 'Sales', pin: '1234' },
-                { id: 2, name: 'Bob', isClockedIn: true, department: 'Support', pin: '1234' },
-                { id: 3, name: 'Charlie', isClockedIn: false, department: 'Dev', pin: '1234' },
-                { id: 4, name: 'Dave', isClockedIn: false, department: 'Sales', pin: '1234' },
-                { id: 5, name: 'Eve', isClockedIn: false, department: 'Admin', pin: '1234' },
-            ]);
+            // Dynamic Employees State
+            const [employees, setEmployees] = useState([]);
 
             const [sheetData, setSheetData] = useState([
-                { date: new Date().toLocaleDateString(), timeIn: "08:00 AM", timeOut: "05:00 PM", name: "Alice", reason: "" },
-                { date: new Date().toLocaleDateString(), timeIn: "09:00 AM", timeOut: "", name: "Bob", reason: "" },
+                // Dummy data for visual structure on load
+                { date: new Date().toLocaleDateString(), timeIn: "08:00 AM", timeOut: "05:00 PM", name: "Example User", reason: "Demo Data" },
             ]);
 
             const [notification, setNotification] = useState(null);
+
+            // Fetch Employees on Mount
+            useEffect(() => {
+                const fetchEmployees = async () => {
+                    try {
+                        const response = await fetch(scriptUrl);
+                        if (!response.ok) throw new Error('Failed to fetch');
+                        const data = await response.json();
+                        
+                        // Add local clock-in status tracking (defaults to false on reload)
+                        const formattedEmployees = data.map(emp => ({
+                            ...emp,
+                            isClockedIn: false // We start false, system doesn't persist status across reloads yet
+                        }));
+                        
+                        setEmployees(formattedEmployees);
+                        setIsLoadingEmployees(false);
+                    } catch (error) {
+                        console.error("Error fetching employees:", error);
+                        setFetchError("Could not load employees. Please check the Google Sheet setup.");
+                        setIsLoadingEmployees(false);
+                    }
+                };
+
+                fetchEmployees();
+            }, []);
 
             // Clock Effect
             useEffect(() => {
@@ -233,30 +257,23 @@
                 }
             }, [notification]);
 
-            // --- AUTO-TIMEOUT LOGIC ---
+            // Auto-Timeout Logic
             useEffect(() => {
                 let timeout;
-                
                 const resetTimer = () => {
-                    // Only start timer if user is authenticated and viewing Dashboard or Edit
                     if (isAuthenticated) {
                         clearTimeout(timeout);
                         timeout = setTimeout(() => {
                             setNotification({ type: 'info', message: "Session timed out due to inactivity" });
                             handleLogout();
-                        }, 30000); // 30 seconds
+                        }, 30000); 
                     }
                 };
-
-                // Listeners for activity
                 window.addEventListener('click', resetTimer);
                 window.addEventListener('keypress', resetTimer);
                 window.addEventListener('mousemove', resetTimer);
                 window.addEventListener('touchstart', resetTimer);
-
-                // Initial start if auth
                 resetTimer();
-
                 return () => {
                     clearTimeout(timeout);
                     window.removeEventListener('click', resetTimer);
@@ -264,7 +281,7 @@
                     window.removeEventListener('mousemove', resetTimer);
                     window.removeEventListener('touchstart', resetTimer);
                 };
-            }, [isAuthenticated]); // Re-run when auth state changes
+            }, [isAuthenticated]);
 
             const selectedEmployee = employees.find(e => e.id === selectedId);
             const personalData = selectedEmployee 
@@ -417,28 +434,42 @@
                         <div className="lg:col-span-5 flex flex-col gap-6">
                             
                             {/* Employee List */}
-                            <div className="bg-white rounded-2xl shadow-lg p-6">
+                            <div className="bg-white rounded-2xl shadow-lg p-6 min-h-[300px]">
                                 <h2 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
                                     <i className="fas fa-users text-blue-500"></i> Select Employee
                                 </h2>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                    {employees.map(emp => (
-                                        <button
-                                            key={emp.id}
-                                            onClick={() => handleEmployeeSelect(emp.id)}
-                                            className={`
-                                                p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative
-                                                ${selectedId === emp.id ? 'ring-2 ring-blue-500 ring-offset-2' : 'hover:border-blue-200 border-transparent'}
-                                                ${emp.isClockedIn ? 'bg-green-100 text-green-900 border-green-200' : 'bg-white text-gray-800 border-gray-100 shadow-sm'}
-                                            `}
-                                        >
-                                            <div className={`w-2 h-2 rounded-full absolute top-2 right-2 ${emp.isClockedIn ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`}></div>
-                                            <span className="font-bold">{emp.name}</span>
-                                            <span className="text-xs opacity-70">{emp.department}</span>
-                                            {emp.isClockedIn && <span className="text-[10px] font-bold text-green-700 uppercase">Clocked In</span>}
-                                        </button>
-                                    ))}
-                                </div>
+
+                                {isLoadingEmployees ? (
+                                    <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-3">
+                                        <i className="fas fa-circle-notch spinner text-2xl text-blue-500"></i>
+                                        <p>Loading employees...</p>
+                                    </div>
+                                ) : fetchError ? (
+                                    <div className="flex flex-col items-center justify-center h-48 text-red-400 gap-3 text-center">
+                                        <i className="fas fa-exclamation-circle text-2xl"></i>
+                                        <p>{fetchError}</p>
+                                        <button onClick={() => window.location.reload()} className="text-xs bg-red-50 p-2 rounded">Retry</button>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                        {employees.map(emp => (
+                                            <button
+                                                key={emp.id}
+                                                onClick={() => handleEmployeeSelect(emp.id)}
+                                                className={`
+                                                    p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative
+                                                    ${selectedId === emp.id ? 'ring-2 ring-blue-500 ring-offset-2' : 'hover:border-blue-200 border-transparent'}
+                                                    ${emp.isClockedIn ? 'bg-green-100 text-green-900 border-green-200' : 'bg-white text-gray-800 border-gray-100 shadow-sm'}
+                                                `}
+                                            >
+                                                <div className={`w-2 h-2 rounded-full absolute top-2 right-2 ${emp.isClockedIn ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`}></div>
+                                                <span className="font-bold text-center leading-tight">{emp.name}</span>
+                                                <span className="text-xs opacity-70">{emp.department}</span>
+                                                {emp.isClockedIn && <span className="text-[10px] font-bold text-green-700 uppercase">Clocked In</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Actions (Only visible if Authenticated) */}
