@@ -35,6 +35,16 @@
         .spinner {
             animation: spin 1s linear infinite;
         }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        /* Hide scrollbar for clean UI but allow scroll */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body>
@@ -46,24 +56,51 @@
         // --- HELPER FUNCTIONS ---
         
         const calculateHours = (start, end) => {
-            if (!start || !end) return "-";
-            const startDate = new Date("01/01/2000 " + start);
-            const endDate = new Date("01/01/2000 " + end);
-            
-            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "-";
+            if (!start || !end || start === '-' || end === '-') return "-";
+            try {
+                // Prepend a standard date so JS can reliably parse AM/PM strings
+                const s = new Date("2000/01/01 " + start);
+                const e = new Date("2000/01/01 " + end);
+                
+                if (isNaN(s.getTime()) || isNaN(e.getTime())) return "-";
+                
+                let diff = e - s;
+                if (diff < 0) diff += 24 * 60 * 60 * 1000;
 
-            let diff = endDate - startDate;
-            if (diff < 0) diff += 24 * 60 * 60 * 1000;
+                const hours = Math.floor(diff / 3600000);
+                const minutes = Math.floor((diff % 3600000) / 60000);
+                return `${hours}h ${minutes}m`;
+            } catch(e) {
+                return "-";
+            }
+        };
 
-            const hours = Math.floor(diff / 3600000);
-            const minutes = Math.floor((diff % 3600000) / 60000);
-            return `${hours}h ${minutes}m`;
+        const normalizeDate = (dStr) => {
+            // If already in YYYY-MM-DD format, safely return it to prevent UTC shifting
+            if (typeof dStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dStr)) {
+                return dStr.substring(0, 10);
+            }
+            const d = new Date(dStr);
+            if (isNaN(d)) return dStr;
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        };
+
+        const formatDisplayDate = (dStr) => {
+            if (!dStr) return '';
+            // If date is YYYY-MM-DD format, convert to M/D/YYYY for the UI
+            if (dStr.includes('-')) {
+                const parts = dStr.split('-');
+                if (parts.length >= 3) {
+                    return `${parseInt(parts[1])}/${parseInt(parts[2])}/${parts[0]}`;
+                }
+            }
+            return dStr; // Fallback if it's already M/D/YYYY
         };
 
         // --- SUB-COMPONENTS ---
 
-        const PinPad = ({ pinInput, handlePinPress, handlePinClear, selectedEmployee }) => (
-            <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+        const PinPad = ({ pinInput, handlePinPress, handlePinClear, selectedEmployee, onCancel }) => (
+            <div className="flex flex-col items-center justify-center h-full animate-fade-in relative">
                 <div className="mb-6 text-center">
                     <h3 className="text-xl font-bold text-gray-700">Enter PIN</h3>
                     <p className="text-sm text-gray-500">Access for {selectedEmployee?.name}</p>
@@ -87,6 +124,10 @@
                         <i className="fas fa-backspace"></i>
                     </button>
                 </div>
+
+                <button onClick={onCancel} className="mt-8 text-gray-400 hover:text-gray-600 text-sm font-bold flex items-center gap-2 px-4 py-2 rounded-full hover:bg-gray-100 transition-colors lg:hidden">
+                    <i className="fas fa-arrow-left"></i> Back to Names
+                </button>
             </div>
         );
 
@@ -108,11 +149,12 @@
                     </div>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex-1 overflow-y-auto bg-gray-50 rounded-lg border border-gray-200 no-scrollbar">
                     <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-gray-500 uppercase bg-gray-100 sticky top-0">
+                        <thead className="text-xs text-gray-500 uppercase bg-gray-100 sticky top-0 shadow-sm">
                             <tr>
                                 <th className="px-4 py-3">Day</th>
+                                <th className="px-4 py-3">Schedule</th>
                                 <th className="px-4 py-3">In</th>
                                 <th className="px-4 py-3">Out</th>
                                 <th className="px-4 py-3">Total</th>
@@ -122,19 +164,20 @@
                         </thead>
                         <tbody>
                             {personalData.length === 0 ? (
-                                <tr><td colSpan="6" className="p-4 text-center text-gray-400">No records found</td></tr>
+                                <tr><td colSpan="7" className="p-4 text-center text-gray-400">No records found</td></tr>
                             ) : (
                                 personalData.map((row, idx) => (
-                                    <tr key={idx} className="bg-white border-b hover:bg-gray-50">
-                                        <td className="px-4 py-3 font-medium text-gray-900">{row.date}</td>
-                                        <td className="px-4 py-3 text-green-600">{row.timeIn}</td>
-                                        <td className="px-4 py-3 text-red-500">{row.timeOut || '-'}</td>
+                                    <tr key={idx} className="bg-white border-b hover:bg-gray-50 transition-colors">
+                                        <td className="px-4 py-3 font-medium text-gray-900">{formatDisplayDate(row.date)}</td>
+                                        <td className="px-4 py-3 text-gray-400 italic text-xs">{row.schedIn || '-'} - {row.schedOut || '-'}</td>
+                                        <td className="px-4 py-3 text-green-600 font-semibold">{row.timeIn}</td>
+                                        <td className="px-4 py-3 text-red-500 font-semibold">{row.timeOut || '-'}</td>
                                         <td className="px-4 py-3 font-bold text-gray-700">
                                             {calculateHours(row.timeIn, row.timeOut)}
                                         </td>
-                                        <td className="px-4 py-3 text-gray-500 italic truncate max-w-[100px]">{row.reason}</td>
+                                        <td className="px-4 py-3 text-gray-500 italic text-xs truncate max-w-[120px]">{row.reason || '-'}</td>
                                         <td className="px-4 py-3 text-right">
-                                            <button onClick={() => startEdit(row)} className="text-blue-600 hover:text-blue-800">
+                                            <button onClick={() => startEdit(row)} className="text-blue-600 hover:text-blue-800 p-2">
                                                 <i className="fas fa-pencil-alt"></i>
                                             </button>
                                         </td>
@@ -153,7 +196,7 @@
                     <button onClick={() => setViewMode('DASHBOARD')} className="text-gray-400 hover:text-gray-600">
                         <i className="fas fa-arrow-left"></i>
                     </button>
-                    Edit Entry: {editTarget.date}
+                    Edit Entry: {formatDisplayDate(editTarget.date)}
                 </h3>
 
                 <div className="space-y-4 flex-1">
@@ -176,12 +219,20 @@
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Reason for Edit</label>
+                        {editForm.oldReason && (
+                            <div className="mb-3">
+                                <label className="block text-xs font-bold text-gray-500 mb-1">Previous Notes / Flags</label>
+                                <div className="w-full p-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 text-sm italic">
+                                    {editForm.oldReason}
+                                </div>
+                            </div>
+                        )}
+                        <label className="block text-xs font-bold text-blue-600 mb-1">Reason for Edit (Required)</label>
                         <textarea 
-                            value={editForm.reason}
-                            onChange={e => setEditForm({...editForm, reason: e.target.value})}
-                            className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none h-24"
-                            placeholder="E.g., Forgot to clock out, System error..."
+                            value={editForm.newReason}
+                            onChange={e => setEditForm({...editForm, newReason: e.target.value})}
+                            className="w-full p-3 rounded-lg border border-blue-200 bg-blue-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none h-24"
+                            placeholder="E.g., Forgot to clock in, System error..."
                         ></textarea>
                     </div>
                 </div>
@@ -194,11 +245,136 @@
             </div>
         );
 
+        const TeamScheduleModal = ({ isOpen, onClose, sheetData }) => {
+            const [currentWeekStart, setCurrentWeekStart] = useState(null);
+
+            // Initialize to the Sunday of the current week when opened
+            useEffect(() => {
+                if (isOpen) {
+                    const today = new Date();
+                    const day = today.getDay(); // 0 is Sunday
+                    const diff = today.getDate() - day;
+                    setCurrentWeekStart(new Date(today.getFullYear(), today.getMonth(), diff));
+                }
+            }, [isOpen]);
+
+            if (!isOpen || !currentWeekStart) return null;
+
+            // Filter for logs that have a schedule attached
+            const schedLogs = sheetData.filter(l => l.schedIn || l.schedOut);
+
+            const nextWeek = () => {
+                const next = new Date(currentWeekStart);
+                next.setDate(next.getDate() + 7);
+                setCurrentWeekStart(next);
+            };
+
+            const prevWeek = () => {
+                const prev = new Date(currentWeekStart);
+                prev.setDate(prev.getDate() - 7);
+                setCurrentWeekStart(prev);
+            };
+
+            // Generate an array of 7 Date objects for the currently viewed week (Sun-Sat)
+            const weekDays = Array.from({ length: 7 }).map((_, i) => {
+                const d = new Date(currentWeekStart);
+                d.setDate(d.getDate() + i);
+                return d;
+            });
+
+            // Helper to get YYYY-MM-DD for comparing with the normalized dates in sheetData
+            const getYYYYMMDD = (d) => {
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            };
+
+            const formatShortDate = (d) => {
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            };
+            const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+            const todayYYYYMMDD = getYYYYMMDD(new Date());
+
+            return (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+                    <div className="bg-white rounded-3xl w-full max-w-7xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
+                        
+                        {/* Header & Controls */}
+                        <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center bg-gray-50 gap-4">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-800 text-center md:text-left">Schedule</h3>
+                                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest text-center md:text-left">Weekly View</p>
+                            </div>
+                            
+                            <div className="flex items-center gap-4 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200">
+                                <button onClick={prevWeek} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 transition-colors">
+                                    <i className="fas fa-chevron-left"></i>
+                                </button>
+                                <span className="font-bold text-gray-700 w-40 text-center text-sm">
+                                    {formatShortDate(currentWeekStart)} - {formatShortDate(weekDays[6])}
+                                </span>
+                                <button onClick={nextWeek} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 transition-colors">
+                                    <i className="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+
+                            <button onClick={onClose} className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-all absolute md:relative top-4 right-4 md:top-auto md:right-auto">
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+
+                        {/* Calendar Grid */}
+                        <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-white no-scrollbar">
+                            <div className="grid grid-cols-1 lg:grid-cols-7 gap-2 lg:gap-4 h-full">
+                                {weekDays.map((dayObj, i) => {
+                                    const dayKey = getYYYYMMDD(dayObj);
+                                    // Find all scheduled shifts that match this exact date
+                                    const dayShifts = schedLogs.filter(log => normalizeDate(log.date) === dayKey);
+                                    const isToday = todayYYYYMMDD === dayKey;
+                                    
+                                    return (
+                                        <div key={dayKey} className={`flex flex-row lg:flex-col rounded-xl lg:rounded-2xl border ${isToday ? 'border-blue-400 shadow-sm ring-1 lg:ring-2 ring-blue-100 bg-blue-50/30' : 'border-gray-200 bg-gray-50/50'} overflow-hidden lg:min-h-[150px]`}>
+                                            <div className={`p-2 lg:p-3 flex flex-col justify-center items-center border-r lg:border-r-0 lg:border-b w-16 lg:w-full shrink-0 ${isToday ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                                                <div className="text-[10px] lg:text-xs font-bold uppercase tracking-wider">{dayNames[i]}</div>
+                                                <div className={`text-lg lg:text-xl font-black mt-0.5 lg:mt-1 ${isToday ? 'text-blue-600' : 'text-gray-800'}`}>
+                                                    {dayObj.getDate()}
+                                                </div>
+                                            </div>
+                                            <div className="p-2 lg:p-3 flex-1 flex flex-col justify-center lg:justify-start gap-2">
+                                                {dayShifts.length > 0 ? (
+                                                    dayShifts.map((shift, shiftIdx) => (
+                                                        <div key={shiftIdx} className="bg-white border border-gray-200 rounded-lg lg:rounded-xl p-2 lg:p-3 shadow-sm hover:shadow-md transition-all border-l-4 border-l-blue-500 relative">
+                                                            {shift.status === 'Published' && (
+                                                                <div className="absolute top-2 right-2 text-blue-500" title="Published Schedule">
+                                                                    <i className="fas fa-check-circle text-xs lg:text-sm"></i>
+                                                                </div>
+                                                            )}
+                                                            <div className="font-bold text-gray-800 text-xs lg:text-sm leading-tight pr-4">{shift.name}</div>
+                                                            <div className="text-gray-500 text-[10px] lg:text-xs font-medium mt-0.5 lg:mt-1">
+                                                                <i className="far fa-clock mr-1 text-blue-400"></i>
+                                                                {shift.schedIn} - {shift.schedOut}
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="flex items-center justify-start lg:justify-center h-full text-xs text-gray-400 font-medium italic px-2 lg:px-0">
+                                                        No shifts
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         // --- MAIN APP COMPONENT ---
 
         function App() {
-            // NOTE: Ensure this URL matches your deployed script (New Version)
-            const scriptUrl = "https://script.google.com/macros/s/AKfycbwqafnd8M9XV0EVv2HJNom8kp9EwgRNLMavas1MIi9VbdfDZDQkujc9i5aJ1xM0hxCzkQ/exec";
+            // Updated API URL to your current endpoint
+            const scriptUrl = "https://script.google.com/macros/s/AKfycbyBSb9xytD4j4ibexlizkWCxkSW2Pz6n52qznfpYDPpcywNoCiq2Pgs15mDtN2cO99hiw/exec";
 
             const [currentTime, setCurrentTime] = useState(new Date());
             const [viewMode, setViewMode] = useState('PINPAD'); 
@@ -206,7 +382,8 @@
             const [selectedId, setSelectedId] = useState(null);
             const [isAuthenticated, setIsAuthenticated] = useState(false);
             const [editTarget, setEditTarget] = useState(null);
-            const [editForm, setEditForm] = useState({ timeIn: '', timeOut: '', reason: '' });
+            const [editForm, setEditForm] = useState({ timeIn: '', timeOut: '', oldReason: '', newReason: '' });
+            const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
             
             // Loading State
             const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
@@ -219,9 +396,9 @@
             
             // Settings State (Branding)
             const [settings, setSettings] = useState({
-                companyName: "Company Timeclock",
+                companyName: "PENGEMS",
                 logoUrl: "",
-                themeColor: "#f3f4f6" // Default fallback
+                themeColor: "#f8fafc" // Default fallback
             });
 
             const [notification, setNotification] = useState(null);
@@ -229,7 +406,7 @@
             // Fetch Data on Mount
             useEffect(() => {
                 const fetchData = async () => {
-                    // 1. Fetch Employees (Default)
+                    // 1. Fetch Employees
                     try {
                         const response = await fetch(`${scriptUrl}?type=employees`);
                         if (!response.ok) throw new Error('Failed to fetch employees');
@@ -250,7 +427,6 @@
                         const response = await fetch(`${scriptUrl}?type=settings`);
                         if (response.ok) {
                             const data = await response.json();
-                            // If we got valid settings back, update state
                             if (data.companyName || data.themeColor) {
                                 setSettings(prev => ({
                                     companyName: data.companyName || prev.companyName,
@@ -263,9 +439,14 @@
                         console.error("Error fetching settings:", error);
                     }
 
-                    // 3. Fetch Logs (Wait for user selection usually, but we pre-fetch for speed here if needed, 
-                    //    though technically we only need logs when a user logs in. 
-                    //    Let's keep the generic log fetch for now if we want to show status based on last log)
+                    // 3. Pre-Fetch Logs for Schedule display
+                    try {
+                        const response = await fetch(`${scriptUrl}?type=logs`);
+                        if (response.ok) {
+                            const logData = await response.json();
+                            setSheetData(logData.reverse()); 
+                        }
+                    } catch (error) {}
                 };
 
                 fetchData();
@@ -384,20 +565,35 @@
                 setEditTarget(row);
                 setEditForm({ 
                     timeIn: row.timeIn, 
-                    timeOut: row.timeOut, 
-                    reason: row.reason || '' 
+                    timeOut: row.timeOut || '', 
+                    oldReason: row.reason || '',
+                    newReason: ''
                 });
                 setViewMode('EDIT');
             };
 
             const saveEdit = () => {
+                // Validation: Prevent saving if the new reason is empty
+                if (!editForm.newReason.trim()) {
+                    setNotification({ type: 'error', message: "A reason for editing is required." });
+                    return;
+                }
+
+                // Create the audit trail string
+                const timestamp = new Date().toLocaleDateString([], {month: 'short', day: 'numeric'});
+                const formattedNewNote = `[Edit ${timestamp}]: ${editForm.newReason.trim()}`;
+                
+                const combinedReason = editForm.oldReason 
+                    ? `${editForm.oldReason} | ${formattedNewNote}` 
+                    : formattedNewNote;
+
                 setSheetData(prev => prev.map(row => {
                     if (row === editTarget) {
                         return { 
                             ...row, 
                             timeIn: editForm.timeIn, 
                             timeOut: editForm.timeOut, 
-                            reason: editForm.reason 
+                            reason: combinedReason 
                         };
                     }
                     return row;
@@ -405,11 +601,11 @@
 
                 const payload = {
                     action: "EDIT",
-                    date: editTarget.date,
+                    date: normalizeDate(editTarget.date), // Fix: Forces YYYY-MM-DD format for backend matching
                     name: editTarget.name,
                     newTimeIn: editForm.timeIn,
                     newTimeOut: editForm.timeOut,
-                    reason: editForm.reason
+                    reason: combinedReason
                 };
 
                 sendToSheet(payload);
@@ -425,34 +621,79 @@
 
             const logAction = (name, actionType) => {
                 const now = new Date();
-                const dateStr = now.toLocaleDateString();
-                const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); 
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const localDate = `${year}-${month}-${day}`;
+                const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }); 
+                
                 let payload = {};
 
                 if (actionType === "CLOCK_IN") {
-                    const newEntry = { date: dateStr, timeIn: timeStr, timeOut: "", name: name, reason: "" };
-                    setSheetData(prev => [newEntry, ...prev]);
-                    payload = { action: "CLOCK_IN", date: dateStr, time: timeStr, name: name };
+                    // Check if there is an existing scheduled row for this user today
+                    const schedIndex = sheetData.findIndex(row => row.name === name && normalizeDate(row.date) === localDate && !row.timeIn);
+                    let note = "";
+
+                    if (schedIndex !== -1) {
+                        const schedRow = sheetData[schedIndex];
+                        // If there is a schedule, calculate if they are late
+                        if (schedRow.schedIn) {
+                            const schedTime = new Date(`2000/01/01 ${schedRow.schedIn}`);
+                            const actualTime = new Date(`2000/01/01 ${timeStr}`);
+                            if (!isNaN(schedTime) && !isNaN(actualTime)) {
+                                const diffMins = (actualTime - schedTime) / 60000;
+                                if (diffMins > 5) {
+                                    note = "Late Start";
+                                }
+                            }
+                        }
+
+                        // Merge into the existing scheduled row locally instead of duplicating
+                        setSheetData(prev => {
+                            const newData = [...prev];
+                            newData[schedIndex] = { ...newData[schedIndex], timeIn: timeStr, reason: note };
+                            return newData;
+                        });
+                    } else {
+                        // No scheduled row exists, create a new one
+                        const newEntry = { date: localDate, timeIn: timeStr, timeOut: "", name: name, reason: "", schedIn: "", schedOut: "" };
+                        setSheetData(prev => [newEntry, ...prev]);
+                    }
+
+                    // Pass the calculated reason back to Apps Script
+                    payload = { action: "CLOCK_IN", date: localDate, time: timeStr, name: name, reason: note };
                 } else {
                     setSheetData(prev => {
                         const newData = [...prev];
-                        const index = newData.findIndex(row => row.name === name && row.timeOut === "");
+                        const index = newData.findIndex(row => row.name === name && !row.timeOut);
                         if (index !== -1) newData[index] = { ...newData[index], timeOut: timeStr };
                         return newData;
                     });
-                    payload = { action: "CLOCK_OUT", time: timeStr, name: name };
+                    payload = { action: "CLOCK_OUT", date: localDate, time: timeStr, name: name };
                 }
                 sendToSheet(payload);
             };
 
-            const sendToSheet = (payload) => {
+            const sendToSheet = async (payload) => {
                 if (scriptUrl) {
-                    fetch(scriptUrl, {
-                        method: "POST",
-                        mode: "no-cors", 
-                        headers: { "Content-Type": "text/plain" },
-                        body: JSON.stringify(payload)
-                    }).catch(err => console.error("Network Error:", err));
+                    try {
+                        await fetch(scriptUrl, {
+                            method: "POST",
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        // Refetch logs after a delay to ensure Apps Script has updated the sheet
+                        setTimeout(async () => {
+                            const response = await fetch(`${scriptUrl}?type=logs`);
+                            if (response.ok) {
+                                const logData = await response.json();
+                                setSheetData(logData.reverse());
+                            }
+                        }, 1500);
+                        
+                    } catch (err) {
+                        console.error("Network Error:", err);
+                    }
                 }
             };
 
@@ -461,6 +702,7 @@
                     className="min-h-screen p-4 md:p-8 flex flex-col items-center transition-colors duration-500" 
                     style={{ backgroundColor: settings.themeColor }}
                 >
+                    <TeamScheduleModal isOpen={isScheduleModalOpen} onClose={() => setScheduleModalOpen(false)} sheetData={sheetData} />
                     
                     {/* Header */}
                     <div className="w-full max-w-7xl flex justify-between items-center mb-8 glass-panel bg-white p-6 rounded-2xl shadow-sm">
@@ -473,7 +715,7 @@
                                 <p className="text-gray-500 text-sm">{currentTime.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
                             </div>
                         </div>
-                        <div className="text-4xl font-mono font-bold text-gray-900">
+                        <div className="text-3xl md:text-4xl font-mono font-bold text-gray-900">
                             {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 
                         </div>
                     </div>
@@ -483,8 +725,8 @@
                         {/* LEFT: Employee Selection & Actions */}
                         <div className="lg:col-span-5 flex flex-col gap-6">
                             
-                            {/* Employee List */}
-                            <div className="bg-white rounded-2xl shadow-lg p-6 min-h-[300px]">
+                            {/* Employee List (Hides on mobile when a user is selected) */}
+                            <div className={`bg-white rounded-2xl shadow-lg p-6 min-h-[300px] transition-all duration-300 ${selectedId ? 'hidden lg:block' : 'block'}`}>
                                 <h2 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
                                     <i className="fas fa-users text-blue-500"></i> Select Employee
                                 </h2>
@@ -522,11 +764,11 @@
                                 )}
                             </div>
 
-                            {/* Actions (Only visible if Authenticated) */}
-                            <div className={`bg-white rounded-2xl shadow-lg p-6 transition-all duration-500 ${isAuthenticated ? 'opacity-100 translate-y-0' : 'opacity-50 translate-y-4 pointer-events-none grayscale'}`}>
-                                <h2 className="text-lg font-semibold text-gray-700 mb-4">Actions</h2>
-                                {isAuthenticated ? (
-                                    <div className="grid grid-cols-2 gap-4">
+                            {/* Actions (ONLY rendered if Authenticated) */}
+                            {isAuthenticated && (
+                                <div className="bg-white rounded-2xl shadow-lg p-6 transition-all duration-500 animate-fade-in">
+                                    <h2 className="text-lg font-semibold text-gray-700 mb-4">Actions</h2>
+                                    <div className="grid grid-cols-2 gap-4 mb-6">
                                         <button 
                                             onClick={() => handleClockAction("CLOCK_IN")}
                                             disabled={selectedEmployee?.isClockedIn}
@@ -544,26 +786,27 @@
                                             <i className="fas fa-sign-out-alt"></i> Clock Out
                                         </button>
                                     </div>
-                                ) : (
-                                    <div className="text-center py-8 text-gray-400 border border-dashed rounded-xl">
-                                        <i className="fas fa-lock mb-2 text-2xl"></i>
-                                        <p>Enter PIN to unlock actions</p>
-                                    </div>
-                                )}
-                            </div>
+                                    
+                                    {/* Global Schedule Button Moved Here */}
+                                    <button onClick={() => setScheduleModalOpen(true)} className="w-full py-3 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-sm">
+                                        <i className="fas fa-calendar-day"></i> See Team Schedule
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* RIGHT: Dynamic Panel (Pin Pad / Dashboard / Edit) */}
-                        <div className="lg:col-span-7">
+                        {/* Hides on mobile until a user is selected to prevent scrolling */}
+                        <div className={`lg:col-span-7 transition-all duration-300 ${!selectedId ? 'hidden lg:block' : 'block'}`}>
                             <div className="bg-white rounded-2xl shadow-lg p-6 h-[600px] sticky top-8 border-t-4 border-blue-500">
                                 {!selectedId ? (
-                                    <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                                    <div className="h-full flex flex-col items-center justify-center text-gray-400 animate-fade-in">
                                         <i className="fas fa-hand-pointer text-4xl mb-4 opacity-50"></i>
                                         <p>Select your name to begin</p>
                                     </div>
                                 ) : (
                                     <>
-                                        {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinClear={handlePinClear} selectedEmployee={selectedEmployee} />}
+                                        {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinClear={handlePinClear} selectedEmployee={selectedEmployee} onCancel={handleLogout} />}
                                         {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} onDone={handleLogout} isFetchingLogs={isFetchingLogs} />}
                                         {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} setViewMode={setViewMode} />}
                                     </>
