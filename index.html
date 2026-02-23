@@ -30,7 +30,7 @@
         body {
             /* Creamy pastel yellow background */
             background-color: #fef3c7; 
-            color: #000000;
+            color: #060606; /* Softer black for high readability */
             transition: background-color 0.5s ease;
         }
         
@@ -48,8 +48,8 @@
             box-shadow: 4px 4px 0px 0px #000000;
             transition: transform 0.1s ease, box-shadow 0.1s ease;
             font-family: 'Poppins', sans-serif;
-            font-weight: 800; /* Extra bold (800) instead of black (900) */
-            color: #000000;
+            font-weight: 700; /* Bold (700) instead of Extrabold */
+            color: #060606;
             cursor: pointer;
         }
         
@@ -70,6 +70,7 @@
             background-color: #ffffff;
             transition: all 0.2s ease;
             font-family: 'Roboto', sans-serif;
+            color: #060606;
         }
         .brutal-input:focus {
             outline: none;
@@ -167,7 +168,7 @@
         const PinPad = ({ pinInput, handlePinPress, handlePinClear, selectedEmployee, onCancel }) => (
             <div className="flex flex-col items-center justify-center h-full animate-fade-in relative py-2 md:py-4">
                 <div className="mb-2 md:mb-8 text-center shrink-0">
-                    <h3 className="text-2xl md:text-3xl font-extrabold font-poppins text-black">Enter PIN</h3>
+                    <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606]">Enter PIN</h3>
                     <p className="text-sm md:text-lg font-bold text-gray-500 mt-0 md:mt-1">Hello, {selectedEmployee?.name}!</p>
                 </div>
                 
@@ -190,7 +191,7 @@
                     </button>
                 </div>
 
-                <button onClick={onCancel} className="mt-4 md:mt-8 text-gray-500 hover:text-black font-bold flex items-center gap-2 px-4 py-2 transition-colors lg:hidden shrink-0 text-sm">
+                <button onClick={onCancel} className="mt-4 md:mt-8 text-gray-500 hover:text-[#060606] font-bold flex items-center gap-2 px-4 py-2 transition-colors lg:hidden shrink-0 text-sm">
                     <i className="fas fa-arrow-left"></i> Back to Names
                 </button>
             </div>
@@ -200,15 +201,16 @@
             const visibleData = personalData.filter(row => row.timeIn || row.scheduleStatus === 'Published');
 
             return (
-                <div className="flex flex-col h-full animate-fade-in relative">
+                <div className="flex flex-col h-full animate-fade-in relative overflow-hidden">
                     <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
-                        <h3 className="text-xl md:text-2xl font-extrabold font-poppins">My Timesheet</h3>
+                        <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">My Timesheet</h3>
                         <div className="flex items-center gap-4">
                             {isFetchingLogs && <span className="text-[10px] md:text-sm font-bold text-[#38bdf8]"><i className="fas fa-sync fa-spin mr-1"></i> Syncing...</span>}
                         </div>
                     </div>
                     
-                    <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pb-4">
+                    {/* Inner padding specifically to prevent shadow clipping */}
+                    <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pb-4 pt-1 pl-1 pr-3 md:pr-4">
                         {visibleData.length === 0 ? (
                             <div className="p-8 text-center text-gray-400 font-bold text-sm md:text-lg border-2 border-dashed border-gray-300 rounded-xl">No records found</div>
                         ) : (
@@ -224,9 +226,9 @@
                                         
                                         {/* Date Block (Lavender) */}
                                         <div className={`p-2 md:p-4 flex flex-col justify-center items-center border-r-2 border-black w-20 md:w-28 shrink-0 ${isLocked ? 'bg-gray-200' : 'bg-[#e9d5ff]'}`}>
-                                            <div className="text-[10px] md:text-sm font-extrabold font-poppins uppercase tracking-wider">{dayName}</div>
-                                            <div className="text-2xl md:text-4xl font-extrabold font-poppins mt-0.5 md:mt-1">{dayNum}</div>
-                                            <div className="text-[10px] md:text-xs font-bold uppercase mt-0.5">{monthName}</div>
+                                            <div className="text-[10px] md:text-sm font-bold font-poppins text-[#060606] uppercase tracking-wider">{dayName}</div>
+                                            <div className="text-2xl md:text-4xl font-bold font-poppins text-[#060606] mt-0.5 md:mt-1">{dayNum}</div>
+                                            <div className="text-[10px] md:text-xs font-bold text-[#060606] uppercase mt-0.5">{monthName}</div>
                                         </div>
 
                                         {/* Shift Details Block */}
@@ -234,15 +236,15 @@
                                             <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase">In</span>
-                                                    <span className={`font-extrabold font-poppins text-sm md:text-lg ${isLocked ? 'text-gray-600' : 'text-[#10b981]'}`}>{row.timeIn}</span>
+                                                    <span className={`font-bold font-poppins text-sm md:text-lg ${isLocked ? 'text-gray-600' : 'text-[#10b981]'}`}>{row.timeIn}</span>
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase">Out</span>
-                                                    <span className={`font-extrabold font-poppins text-sm md:text-lg ${isLocked ? 'text-gray-600' : 'text-[#f43f5e]'}`}>{row.timeOut || '-'}</span>
+                                                    <span className={`font-bold font-poppins text-sm md:text-lg ${isLocked ? 'text-gray-600' : 'text-[#f43f5e]'}`}>{row.timeOut || '-'}</span>
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase">Total</span>
-                                                    <span className="font-extrabold font-poppins text-sm md:text-lg text-black">{calculateHours(row.timeIn, row.timeOut)}</span>
+                                                    <span className="font-bold font-poppins text-sm md:text-lg text-[#060606]">{calculateHours(row.timeIn, row.timeOut)}</span>
                                                 </div>
                                                 <div className="flex flex-col col-span-2 md:col-span-1">
                                                     <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase">Note</span>
@@ -273,17 +275,18 @@
         };
 
         const EditForm = ({ editTarget, editForm, setEditForm, saveEdit, setViewMode }) => (
-            <div className="h-full flex flex-col animate-fade-in">
-                <h3 className="text-lg md:text-2xl font-extrabold font-poppins mb-4 md:mb-6 flex items-center gap-2 md:gap-3 shrink-0">
+            <div className="h-full flex flex-col animate-fade-in overflow-hidden">
+                <h3 className="text-lg md:text-2xl font-bold font-poppins text-[#060606] mb-4 md:mb-6 flex items-center gap-2 md:gap-3 shrink-0">
                     <button onClick={() => setViewMode('DASHBOARD')} className="brutal-btn bg-white w-8 h-8 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100">
                         <i className="fas fa-arrow-left text-sm md:text-base"></i>
                     </button>
                     <span className="truncate">Edit Entry: <span className="text-[#38bdf8]">{formatDisplayDate(editTarget.date)}</span></span>
                 </h3>
 
-                <div className="space-y-3 md:space-y-5 flex-1 overflow-y-auto no-scrollbar pb-4">
+                {/* Padding to prevent input shadow clipping */}
+                <div className="space-y-3 md:space-y-5 flex-1 overflow-y-auto no-scrollbar pb-4 pt-1 pl-1 pr-3 md:pr-4">
                     <div>
-                        <label className="block text-xs md:text-sm font-extrabold font-poppins mb-1 md:mb-2">Time In <span className="text-gray-500 font-bold font-sans">(e.g., 8:00 AM)</span></label>
+                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-1 md:mb-2">Time In <span className="text-gray-500 font-bold font-sans">(e.g., 8:00 AM)</span></label>
                         <input 
                             type="text" 
                             value={editForm.timeIn}
@@ -292,7 +295,7 @@
                         />
                     </div>
                     <div>
-                        <label className="block text-xs md:text-sm font-extrabold font-poppins mb-1 md:mb-2">Time Out <span className="text-gray-500 font-bold font-sans">(e.g., 5:00 PM)</span></label>
+                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-1 md:mb-2">Time Out <span className="text-gray-500 font-bold font-sans">(e.g., 5:00 PM)</span></label>
                         <input 
                             type="text" 
                             value={editForm.timeOut}
@@ -303,13 +306,13 @@
                     <div>
                         {editForm.oldReason && (
                             <div className="mb-3 md:mb-4">
-                                <label className="block text-xs md:text-sm font-extrabold font-poppins mb-1 md:mb-2 text-gray-500">Previous Notes / Flags</label>
+                                <label className="block text-xs md:text-sm font-bold font-poppins mb-1 md:mb-2 text-gray-500">Previous Notes / Flags</label>
                                 <div className="brutal-input w-full p-3 md:p-4 bg-gray-100 text-gray-600 font-bold text-xs md:text-sm">
                                     {editForm.oldReason}
                                 </div>
                             </div>
                         )}
-                        <label className="block text-xs md:text-sm font-extrabold font-poppins mb-1 md:mb-2 text-[#f43f5e]">Reason for Edit (Required)</label>
+                        <label className="block text-xs md:text-sm font-bold font-poppins mb-1 md:mb-2 text-[#f43f5e]">Reason for Edit (Required)</label>
                         <textarea 
                             value={editForm.newReason}
                             onChange={e => setEditForm({...editForm, newReason: e.target.value})}
@@ -320,7 +323,7 @@
                 </div>
 
                 <div className="mt-2 md:mt-4 shrink-0">
-                    <button onClick={saveEdit} className="brutal-btn w-full bg-[#38bdf8] hover:bg-[#0ea5e9] py-3 md:py-4 text-lg md:text-xl">
+                    <button onClick={saveEdit} className="brutal-btn w-full bg-[#38bdf8] hover:bg-[#0ea5e9] py-3 md:py-4 text-lg md:text-xl text-[#060606]">
                         Save Changes
                     </button>
                 </div>
@@ -378,23 +381,23 @@
                         {/* Header & Controls */}
                         <div className="p-4 md:p-6 border-b-3 border-black flex flex-col md:flex-row justify-between items-center bg-[#fde047] gap-4">
                             <div>
-                                <h3 className="text-2xl font-extrabold font-poppins text-black text-center md:text-left">Schedule</h3>
-                                <p className="text-sm font-bold mt-1 text-black/70 text-center md:text-left">Weekly View</p>
+                                <h3 className="text-2xl font-bold font-poppins text-[#060606] text-center md:text-left">Schedule</h3>
+                                <p className="text-sm font-bold mt-1 text-[#060606]/70 text-center md:text-left">Weekly View</p>
                             </div>
                             
                             <div className="flex items-center gap-4 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
-                                <button onClick={prevWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-black transition-colors font-extrabold font-poppins text-lg">
+                                <button onClick={prevWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
                                     <i className="fas fa-chevron-left"></i>
                                 </button>
-                                <span className="font-extrabold font-poppins text-black w-40 text-center text-lg">
+                                <span className="font-bold font-poppins text-[#060606] w-40 text-center text-lg">
                                     {formatShortDate(currentWeekStart)} - {formatShortDate(weekDays[6])}
                                 </span>
-                                <button onClick={nextWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-black transition-colors font-extrabold font-poppins text-lg">
+                                <button onClick={nextWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
                                     <i className="fas fa-chevron-right"></i>
                                 </button>
                             </div>
 
-                            <button onClick={onClose} className="brutal-btn w-12 h-12 bg-white flex items-center justify-center text-black hover:bg-gray-100 text-xl absolute md:relative top-4 right-4 md:top-auto md:right-auto">
+                            <button onClick={onClose} className="brutal-btn w-12 h-12 bg-white flex items-center justify-center text-[#060606] hover:bg-gray-100 text-xl absolute md:relative top-4 right-4 md:top-auto md:right-auto">
                                 <i className="fas fa-times"></i>
                             </button>
                         </div>
@@ -409,9 +412,9 @@
                                     
                                     return (
                                         <div key={dayKey} className={`flex flex-row lg:flex-col rounded-xl lg:rounded-2xl border-2 border-black overflow-hidden lg:min-h-[150px] shadow-[4px_4px_0px_0px_#000000] ${isToday ? 'bg-[#e0f2fe]' : 'bg-white'}`}>
-                                            <div className={`p-2 lg:p-3 flex flex-col justify-center items-center border-r-2 lg:border-r-0 lg:border-b-2 border-black w-20 lg:w-full shrink-0 ${isToday ? 'bg-[#38bdf8] text-black' : 'bg-gray-50 text-black'}`}>
-                                                <div className="text-[11px] lg:text-sm font-extrabold font-poppins uppercase tracking-wider">{dayNames[i]}</div>
-                                                <div className={`text-xl lg:text-2xl font-extrabold font-poppins mt-0.5 lg:mt-1`}>
+                                            <div className={`p-2 lg:p-3 flex flex-col justify-center items-center border-r-2 lg:border-r-0 lg:border-b-2 border-black w-20 lg:w-full shrink-0 ${isToday ? 'bg-[#38bdf8] text-[#060606]' : 'bg-gray-50 text-[#060606]'}`}>
+                                                <div className="text-[11px] lg:text-sm font-bold font-poppins uppercase tracking-wider">{dayNames[i]}</div>
+                                                <div className={`text-xl lg:text-2xl font-bold font-poppins mt-0.5 lg:mt-1`}>
                                                     {dayObj.getDate()}
                                                 </div>
                                             </div>
@@ -424,7 +427,7 @@
                                                                     <i className="fas fa-check-circle text-sm lg:text-base"></i>
                                                                 </div>
                                                             )}
-                                                            <div className="font-extrabold font-poppins text-black text-sm lg:text-base leading-tight pr-5">{shift.name}</div>
+                                                            <div className="font-bold font-poppins text-[#060606] text-sm lg:text-base leading-tight pr-5">{shift.name}</div>
                                                             <div className="text-gray-600 text-[11px] lg:text-sm font-bold mt-1">
                                                                 <i className="far fa-clock mr-1 text-[#fb7185]"></i>
                                                                 {shift.schedIn} - {shift.schedOut}
@@ -461,6 +464,12 @@
             const [editTarget, setEditTarget] = useState(null);
             const [editForm, setEditForm] = useState({ timeIn: '', timeOut: '', oldReason: '', newReason: '' });
             const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
+            
+            // Timeout Logic States
+            const lastActivityRef = useRef(Date.now());
+            const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+            const IDLE_LIMIT = 30000; // 30 seconds idle
+            const WARNING_TIME = 15000; // 15 seconds warning countdown
             
             // Loading State
             const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
@@ -522,12 +531,6 @@
                 fetchData();
             }, []);
 
-            // Clock Effect
-            useEffect(() => {
-                const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-                return () => clearInterval(timer);
-            }, []);
-
             // Notification Effect
             useEffect(() => {
                 if (notification) {
@@ -536,30 +539,59 @@
                 }
             }, [notification]);
 
-            // Auto-Timeout Logic
+            const handleLogout = () => {
+                setSelectedId(null);
+                setPinInput("");
+                setIsAuthenticated(false);
+                setViewMode('PINPAD');
+                setEditTarget(null);
+                setShowTimeoutWarning(false);
+                lastActivityRef.current = Date.now();
+            };
+
+            // Activity Tracker
             useEffect(() => {
-                let timeout;
-                const resetTimer = () => {
-                    if (isAuthenticated) {
-                        clearTimeout(timeout);
-                        timeout = setTimeout(() => {
-                            setNotification({ type: 'info', message: "Session timed out due to inactivity" });
-                            handleLogout();
-                        }, 30000); 
+                const handleActivity = () => {
+                    // Only update activity if warning is NOT showing.
+                    // If warning is showing, we require explicit click to dismiss.
+                    if (!showTimeoutWarning) {
+                        lastActivityRef.current = Date.now();
                     }
                 };
-                window.addEventListener('click', resetTimer);
-                window.addEventListener('keypress', resetTimer);
-                window.addEventListener('mousemove', resetTimer);
-                window.addEventListener('touchstart', resetTimer);
-                resetTimer();
+
+                window.addEventListener('click', handleActivity);
+                window.addEventListener('keypress', handleActivity);
+                window.addEventListener('mousemove', handleActivity);
+                window.addEventListener('touchstart', handleActivity);
+
                 return () => {
-                    clearTimeout(timeout);
-                    window.removeEventListener('click', resetTimer);
-                    window.removeEventListener('keypress', resetTimer);
-                    window.removeEventListener('mousemove', resetTimer);
-                    window.removeEventListener('touchstart', resetTimer);
+                    window.removeEventListener('click', handleActivity);
+                    window.removeEventListener('keypress', handleActivity);
+                    window.removeEventListener('mousemove', handleActivity);
+                    window.removeEventListener('touchstart', handleActivity);
                 };
+            }, [showTimeoutWarning]);
+
+            // Clock & Timeout Effect 
+            useEffect(() => {
+                const timer = setInterval(() => {
+                    setCurrentTime(new Date());
+
+                    // Check timeout logic if logged in
+                    if (isAuthenticated) {
+                        const idleTime = Date.now() - lastActivityRef.current;
+                        if (idleTime >= (IDLE_LIMIT + WARNING_TIME)) {
+                            handleLogout();
+                            setNotification({ type: 'info', message: "Session timed out due to inactivity" });
+                        } else if (idleTime >= IDLE_LIMIT) {
+                            setShowTimeoutWarning(true);
+                        }
+                    } else {
+                        setShowTimeoutWarning(false);
+                        lastActivityRef.current = Date.now(); // keep fresh while logged out
+                    }
+                }, 1000);
+                return () => clearInterval(timer);
             }, [isAuthenticated]);
 
             const selectedEmployee = employees.find(e => e.id === selectedId);
@@ -567,19 +599,12 @@
                 ? sheetData.filter(row => row.name === selectedEmployee.name) 
                 : [];
 
-            const handleLogout = () => {
-                setSelectedId(null);
-                setPinInput("");
-                setIsAuthenticated(false);
-                setViewMode('PINPAD');
-                setEditTarget(null);
-            };
-
             const handleEmployeeSelect = async (id) => {
                 setSelectedId(id);
                 setPinInput("");
                 setIsAuthenticated(false);
                 setViewMode('PINPAD');
+                lastActivityRef.current = Date.now(); // Reset activity when interacting
                 
                 setIsFetchingLogs(true);
                 try {
@@ -789,11 +814,11 @@
                                 </div>
                             )}
                             <div className="min-w-0">
-                                <h1 className="text-lg md:text-3xl font-extrabold font-poppins truncate">{settings.companyName}</h1>
+                                <h1 className="text-lg md:text-3xl font-bold font-poppins text-[#060606] truncate">{settings.companyName}</h1>
                                 <p className="text-gray-600 font-bold text-[10px] md:text-base truncate">{currentTime.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</p>
                             </div>
                         </div>
-                        <div className="text-xl md:text-5xl font-extrabold font-poppins tracking-tighter shrink-0 ml-2">
+                        <div className="text-xl md:text-5xl font-bold font-poppins text-[#060606] tracking-tighter shrink-0 ml-2">
                             {currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} 
                         </div>
                     </div>
@@ -801,16 +826,16 @@
                     <div className="w-full max-w-[1400px] grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8">
                         
                         {/* LEFT: Employee Selection & Actions */}
-                        <div className="lg:col-span-4 flex flex-col gap-4 lg:gap-8">
+                        <div className="lg:col-span-5 flex flex-col gap-4 lg:gap-8">
                             
                             {/* Employee List (Hides when a user is authenticated, or on mobile when selected) */}
                             <div className={`brutal-card p-4 md:p-6 transition-all duration-300 ${!selectedId ? 'block' : isAuthenticated ? 'hidden' : 'hidden lg:block'}`}>
-                                <h2 className="text-lg md:text-xl font-extrabold font-poppins mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
+                                <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
                                     <i className="fas fa-users text-[#f43f5e] text-xl md:text-2xl"></i> Select Name
                                 </h2>
 
                                 {isLoadingEmployees ? (
-                                    <div className="flex flex-col items-center justify-center h-32 md:h-48 text-black font-bold gap-3">
+                                    <div className="flex flex-col items-center justify-center h-32 md:h-48 text-[#060606] font-bold gap-3">
                                         <i className="fas fa-circle-notch spinner text-3xl md:text-4xl text-[#38bdf8]"></i>
                                         <p className="text-sm md:text-base">Loading team...</p>
                                     </div>
@@ -836,8 +861,8 @@
                                                         <div className="w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full bg-[#10b981] border border-black animate-pulse"></div>
                                                     </div>
                                                 )}
-                                                <span className="font-extrabold font-poppins text-center text-sm md:text-base lg:text-lg leading-tight">{emp.name}</span>
-                                                <span className="text-[9px] md:text-[10px] lg:text-xs font-bold opacity-70">{emp.department}</span>
+                                                <span className="font-bold font-poppins text-[#060606] text-center text-sm md:text-base lg:text-lg leading-tight">{emp.name}</span>
+                                                <span className="text-[9px] md:text-[10px] lg:text-xs font-bold opacity-70 text-[#060606]">{emp.department}</span>
                                             </button>
                                         ))}
                                     </div>
@@ -847,7 +872,7 @@
                             {/* Actions (ONLY rendered if Authenticated) */}
                             {isAuthenticated && (
                                 <div className="brutal-card p-4 md:p-6 animate-fade-in bg-white">
-                                    <h2 className="text-lg md:text-xl font-extrabold font-poppins mb-4 md:mb-6">Actions</h2>
+                                    <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-4 md:mb-6">Actions</h2>
                                     <div className="grid grid-cols-2 gap-3 lg:gap-4">
                                         <button 
                                             onClick={() => handleClockAction("CLOCK_IN")}
@@ -869,14 +894,14 @@
                                         </button>
                                         <button 
                                             onClick={() => setScheduleModalOpen(true)} 
-                                            className="brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3 bg-white hover:bg-gray-50 text-black"
+                                            className="brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3 bg-white hover:bg-gray-50 text-[#060606]"
                                         >
                                             <i className="fas fa-calendar-day text-xl md:text-3xl lg:text-2xl text-[#38bdf8]"></i> 
                                             <span>Schedule</span>
                                         </button>
                                         <button 
                                             onClick={handleLogout} 
-                                            className="brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3 bg-white hover:bg-gray-50 text-black"
+                                            className="brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3 bg-white hover:bg-gray-50 text-[#060606]"
                                         >
                                             <i className="fas fa-check text-xl md:text-3xl lg:text-2xl text-[#10b981]"></i> 
                                             <span>Done</span>
@@ -887,13 +912,37 @@
                         </div>
 
                         {/* RIGHT: Dynamic Panel */}
-                        <div className={`lg:col-span-8 transition-all duration-300 ${!selectedId ? 'hidden lg:block' : 'block'}`}>
-                            {/* Adding relative positioning so absolute children (toast) anchor here */}
-                            <div className="brutal-card p-3 md:p-8 min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px] mb-4 md:mb-8 sticky top-4 md:top-8 flex flex-col relative">
+                        <div className={`lg:col-span-7 transition-all duration-300 ${!selectedId ? 'hidden lg:block' : 'block'}`}>
+                            
+                            {/* Adding relative positioning so absolute children (toast) anchor exactly here */}
+                            <div className="brutal-card p-3 md:p-8 min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px] mb-4 md:mb-8 sticky top-4 md:top-8 flex flex-col relative overflow-hidden">
+                                
+                                {/* TIMEOUT WARNING OVERLAY */}
+                                {showTimeoutWarning && (
+                                    <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                                        <div className="brutal-card p-6 flex flex-col items-center bg-white shadow-[6px_6px_0px_0px_#000000] max-w-sm w-full mx-auto">
+                                            <i className="fas fa-stopwatch text-4xl text-[#38bdf8] mb-4"></i>
+                                            <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606] mb-2 text-center">Need more time?</h3>
+                                            <p className="text-[#060606] font-bold mb-6 text-center text-sm md:text-base">
+                                                Session expires in <span className="text-[#f43f5e] text-xl ml-1">{Math.max(0, Math.ceil((IDLE_LIMIT + WARNING_TIME - (Date.now() - lastActivityRef.current)) / 1000))}</span>s
+                                            </p>
+                                            <button 
+                                                onClick={() => {
+                                                    lastActivityRef.current = Date.now();
+                                                    setShowTimeoutWarning(false);
+                                                }} 
+                                                className="brutal-btn bg-[#4ade80] hover:bg-[#22c55e] py-3 px-8 text-lg w-full flex items-center justify-center gap-2"
+                                            >
+                                                <i className="fas fa-check"></i> Yes, I'm here
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {!selectedId ? (
                                     <div className="h-full flex flex-col items-center justify-center text-gray-400 animate-fade-in">
-                                        <i className="fas fa-hand-pointer text-4xl md:text-6xl mb-4 md:mb-6 opacity-30 text-black"></i>
-                                        <p className="font-extrabold font-poppins text-lg md:text-2xl text-black opacity-30">Select a name to begin</p>
+                                        <i className="fas fa-hand-pointer text-4xl md:text-6xl mb-4 md:mb-6 opacity-30 text-[#060606]"></i>
+                                        <p className="font-bold font-poppins text-lg md:text-2xl text-[#060606] opacity-30">Select a name to begin</p>
                                     </div>
                                 ) : (
                                     <div className="flex-1 overflow-hidden">
@@ -903,10 +952,10 @@
                                     </div>
                                 )}
                                 
-                                {/* Notification Toast nested inside the panel */}
+                                {/* Notification Toast perfectly centered in the right panel */}
                                 {notification && (
                                     <div className={`
-                                        absolute bottom-6 md:bottom-10 left-1/2 transform -translate-x-1/2 w-max max-w-[90%] px-6 py-3 md:px-8 md:py-4 rounded-xl border-3 border-black shadow-[6px_6px_0px_0px_#000000] text-black font-extrabold font-poppins text-sm md:text-lg flex items-center gap-3 animate-fade-in z-[60]
+                                        absolute bottom-6 md:bottom-10 left-0 right-0 mx-auto w-max max-w-[90%] px-6 py-3 md:px-8 md:py-4 rounded-xl border-3 border-black shadow-[6px_6px_0px_0px_#000000] text-[#060606] font-bold font-poppins text-sm md:text-lg flex items-center gap-3 animate-fade-in z-[60]
                                         ${notification.type === 'success' ? 'bg-[#a7f3d0]' : 
                                           notification.type === 'error' ? 'bg-[#fecdd3]' : 'bg-[#bae6fd]'}
                                     `}>
