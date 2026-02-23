@@ -3,32 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Team Timeclock Pro</title>
+    <title>ClockKoala</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Friendly, rounded font to match the koala/neo-brutalist vibe -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         body {
-            /* Default fallback color, overwritten by React inline style */
-            background-color: #f3f4f6; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* Creamy pastel yellow background */
+            background-color: #fef3c7; 
+            font-family: 'Nunito', sans-serif;
+            color: #000000;
             transition: background-color 0.5s ease;
         }
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
+        
+        /* Soft Brutalism CSS Classes */
+        .brutal-card {
+            background-color: #ffffff;
+            border: 3px solid #000000;
+            border-radius: 1.5rem;
+            box-shadow: 6px 6px 0px 0px #000000;
         }
+        
+        .brutal-btn {
+            border: 2px solid #000000;
+            border-radius: 1rem;
+            box-shadow: 4px 4px 0px 0px #000000;
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+            font-weight: 800;
+            color: #000000;
+            cursor: pointer;
+        }
+        
+        .brutal-btn:active:not(:disabled) {
+            box-shadow: 0px 0px 0px 0px #000000;
+            transform: translate(4px, 4px);
+        }
+        
+        .brutal-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: #e5e7eb !important;
+        }
+
+        .brutal-input {
+            border: 2px solid #000000;
+            border-radius: 0.75rem;
+            background-color: #ffffff;
+            transition: all 0.2s ease;
+        }
+        .brutal-input:focus {
+            outline: none;
+            box-shadow: 4px 4px 0px 0px #000000;
+            background-color: #f0fdf4; /* Light mint focus */
+        }
+
+        /* Table Brutalism */
+        .brutal-table th, .brutal-table td {
+            border-bottom: 2px solid #000000;
+        }
+        .brutal-table thead th {
+            border-bottom: 3px solid #000000;
+            background-color: #f3f4f6;
+        }
+
+        /* Specialized Pin Pad Buttons */
         .pin-btn {
             aspect-ratio: 1;
-            transition: all 0.1s;
+            font-size: 1.5rem;
         }
-        .pin-btn:active {
-            transform: scale(0.95);
-            background-color: #e5e7eb;
-        }
+
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
@@ -76,7 +123,6 @@
         };
 
         const normalizeDate = (dStr) => {
-            // If already in YYYY-MM-DD format, safely return it to prevent UTC shifting
             if (typeof dStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dStr)) {
                 return dStr.substring(0, 10);
             }
@@ -87,158 +133,162 @@
 
         const formatDisplayDate = (dStr) => {
             if (!dStr) return '';
-            // If date is YYYY-MM-DD format, convert to M/D/YYYY for the UI
             if (dStr.includes('-')) {
                 const parts = dStr.split('-');
                 if (parts.length >= 3) {
                     return `${parseInt(parts[1])}/${parseInt(parts[2])}/${parts[0]}`;
                 }
             }
-            return dStr; // Fallback if it's already M/D/YYYY
+            return dStr; 
         };
 
         // --- SUB-COMPONENTS ---
 
         const PinPad = ({ pinInput, handlePinPress, handlePinClear, selectedEmployee, onCancel }) => (
-            <div className="flex flex-col items-center justify-center h-full animate-fade-in relative">
-                <div className="mb-6 text-center">
-                    <h3 className="text-xl font-bold text-gray-700">Enter PIN</h3>
-                    <p className="text-sm text-gray-500">Access for {selectedEmployee?.name}</p>
+            <div className="flex flex-col items-center justify-center h-full animate-fade-in relative py-4">
+                <div className="mb-8 text-center shrink-0">
+                    <h3 className="text-3xl font-black text-black">Enter PIN</h3>
+                    <p className="text-lg font-bold text-gray-500 mt-1">Hello, {selectedEmployee?.name}!</p>
                 </div>
                 
-                <div className="flex gap-2 mb-6 h-12">
+                <div className="flex gap-3 mb-8 h-12 shrink-0">
                     {[0, 1, 2, 3].map(i => (
-                        <div key={i} className={`w-3 h-3 rounded-full transition-all ${i < pinInput.length ? 'bg-blue-600 scale-110' : 'bg-gray-200'}`}></div>
+                        <div key={i} className={`w-4 h-4 rounded-full border-2 border-black transition-all ${i < pinInput.length ? 'bg-[#38bdf8] scale-125' : 'bg-gray-200'}`}></div>
                     ))}
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 w-64">
+                <div className="grid grid-cols-3 gap-4 w-72 shrink-0">
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                        <button key={num} onClick={() => handlePinPress(num.toString())} className="pin-btn bg-white rounded-full shadow-sm text-xl font-bold text-gray-700 border border-gray-100 hover:shadow-md">
+                        <button key={num} onClick={() => handlePinPress(num.toString())} className="brutal-btn pin-btn bg-white hover:bg-gray-50">
                             {num}
                         </button>
                     ))}
                     <div className="flex items-center justify-center"></div>
-                    <button onClick={() => handlePinPress("0")} className="pin-btn bg-white rounded-full shadow-sm text-xl font-bold text-gray-700 border border-gray-100 hover:shadow-md">0</button>
-                    <button onClick={handlePinClear} className="pin-btn bg-red-50 rounded-full text-red-500 hover:bg-red-100 border border-transparent">
+                    <button onClick={() => handlePinPress("0")} className="brutal-btn pin-btn bg-white hover:bg-gray-50">0</button>
+                    <button onClick={handlePinClear} className="brutal-btn pin-btn bg-[#fb7185] hover:bg-[#f43f5e] text-white">
                         <i className="fas fa-backspace"></i>
                     </button>
                 </div>
 
-                <button onClick={onCancel} className="mt-8 text-gray-400 hover:text-gray-600 text-sm font-bold flex items-center gap-2 px-4 py-2 rounded-full hover:bg-gray-100 transition-colors lg:hidden">
+                <button onClick={onCancel} className="mt-8 text-gray-500 hover:text-black font-bold flex items-center gap-2 px-4 py-2 transition-colors lg:hidden shrink-0">
                     <i className="fas fa-arrow-left"></i> Back to Names
                 </button>
             </div>
         );
 
-        const PersonalDashboard = ({ personalData, startEdit, onDone, isFetchingLogs }) => (
-            <div className="flex flex-col h-full animate-fade-in relative">
-                <div className="flex justify-between items-center mb-4">
-                    <div>
-                        <h3 className="font-bold text-gray-700">My Timesheet</h3>
-                        <span className="text-xs text-gray-400">Recent Activity</span>
+        const PersonalDashboard = ({ personalData, startEdit, isFetchingLogs }) => {
+            const visibleData = personalData.filter(row => row.timeIn || row.scheduleStatus === 'Published');
+
+            return (
+                <div className="flex flex-col h-full animate-fade-in relative">
+                    <div className="flex justify-between items-center mb-6 shrink-0">
+                        <div>
+                            <h3 className="text-2xl font-black">My Timesheet</h3>
+                            <span className="text-sm font-bold text-gray-500">Recent Activity</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            {isFetchingLogs && <span className="text-sm font-bold text-[#38bdf8]"><i className="fas fa-sync fa-spin mr-1"></i> Syncing...</span>}
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        {isFetchingLogs && <span className="text-xs text-blue-500"><i className="fas fa-sync fa-spin mr-1"></i> Syncing...</span>}
-                        <button 
-                            onClick={onDone}
-                            className="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition-colors"
-                        >
-                            <i className="fas fa-check mr-2"></i> Done
-                        </button>
-                    </div>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto bg-gray-50 rounded-lg border border-gray-200 no-scrollbar">
-                    <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-gray-500 uppercase bg-gray-100 sticky top-0 shadow-sm">
-                            <tr>
-                                <th className="px-4 py-3">Day</th>
-                                <th className="px-4 py-3">Schedule</th>
-                                <th className="px-4 py-3">In</th>
-                                <th className="px-4 py-3">Out</th>
-                                <th className="px-4 py-3">Total</th>
-                                <th className="px-4 py-3">Note</th>
-                                <th className="px-4 py-3 text-right">Edit</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {personalData.length === 0 ? (
-                                <tr><td colSpan="7" className="p-4 text-center text-gray-400">No records found</td></tr>
-                            ) : (
-                                personalData.map((row, idx) => (
-                                    <tr key={idx} className="bg-white border-b hover:bg-gray-50 transition-colors">
-                                        <td className="px-4 py-3 font-medium text-gray-900">{formatDisplayDate(row.date)}</td>
-                                        <td className="px-4 py-3 text-gray-400 italic text-xs">{row.schedIn || '-'} - {row.schedOut || '-'}</td>
-                                        <td className="px-4 py-3 text-green-600 font-semibold">{row.timeIn}</td>
-                                        <td className="px-4 py-3 text-red-500 font-semibold">{row.timeOut || '-'}</td>
-                                        <td className="px-4 py-3 font-bold text-gray-700">
-                                            {calculateHours(row.timeIn, row.timeOut)}
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-500 italic text-xs truncate max-w-[120px]">{row.reason || '-'}</td>
-                                        <td className="px-4 py-3 text-right">
-                                            <button onClick={() => startEdit(row)} className="text-blue-600 hover:text-blue-800 p-2">
-                                                <i className="fas fa-pencil-alt"></i>
-                                            </button>
-                                        </td>
+                    
+                    {/* Fixed clipping issue by making this outer div hide overflow, and inner div scroll */}
+                    <div className="flex-1 rounded-xl border-2 border-black overflow-hidden flex flex-col bg-white">
+                        <div className="flex-1 overflow-y-auto no-scrollbar">
+                            <table className="w-full text-left brutal-table">
+                                <thead className="text-sm font-black uppercase">
+                                    <tr>
+                                        <th className="px-5 py-4">Day</th>
+                                        <th className="px-5 py-4">In</th>
+                                        <th className="px-5 py-4">Out</th>
+                                        <th className="px-5 py-4">Total</th>
+                                        <th className="px-5 py-4">Note</th>
+                                        <th className="px-5 py-4 text-center">Edit</th>
                                     </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                                </thead>
+                                <tbody className="font-semibold">
+                                    {visibleData.length === 0 ? (
+                                        <tr><td colSpan="6" className="p-8 text-center text-gray-400 font-bold text-lg">No records found</td></tr>
+                                    ) : (
+                                        visibleData.map((row, idx) => (
+                                            <tr key={idx} className={`hover:bg-gray-50 transition-colors ${row.payrollStatus === 'Locked' ? 'bg-gray-100 text-gray-500' : ''}`}>
+                                                <td className="px-5 py-4 whitespace-nowrap">{formatDisplayDate(row.date)}</td>
+                                                <td className={`px-5 py-4 ${row.payrollStatus === 'Locked' ? '' : 'text-[#10b981]'} font-black`}>{row.timeIn}</td>
+                                                <td className={`px-5 py-4 ${row.payrollStatus === 'Locked' ? '' : 'text-[#f43f5e]'} font-black`}>{row.timeOut || '-'}</td>
+                                                <td className="px-5 py-4 font-black">
+                                                    {calculateHours(row.timeIn, row.timeOut)}
+                                                </td>
+                                                <td className="px-5 py-4 text-xs max-w-[120px] truncate">{row.reason || '-'}</td>
+                                                <td className="px-5 py-4 text-center">
+                                                    {row.payrollStatus === 'Locked' ? (
+                                                        <span className="text-gray-400 p-2" title="Pay period locked">
+                                                            <i className="fas fa-lock"></i>
+                                                        </span>
+                                                    ) : (
+                                                        <button onClick={() => startEdit(row)} className="brutal-btn bg-[#fde047] p-2 hover:bg-[#facc15]" title="Edit Time">
+                                                            <i className="fas fa-pencil-alt"></i>
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        );
+            );
+        };
 
         const EditForm = ({ editTarget, editForm, setEditForm, saveEdit, setViewMode }) => (
             <div className="h-full flex flex-col animate-fade-in">
-                <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
-                    <button onClick={() => setViewMode('DASHBOARD')} className="text-gray-400 hover:text-gray-600">
+                <h3 className="text-2xl font-black mb-6 flex items-center gap-3 shrink-0">
+                    <button onClick={() => setViewMode('DASHBOARD')} className="brutal-btn bg-white w-10 h-10 flex items-center justify-center hover:bg-gray-100">
                         <i className="fas fa-arrow-left"></i>
                     </button>
-                    Edit Entry: {formatDisplayDate(editTarget.date)}
+                    Edit Entry: <span className="text-[#38bdf8]">{formatDisplayDate(editTarget.date)}</span>
                 </h3>
 
-                <div className="space-y-4 flex-1">
+                <div className="space-y-5 flex-1 overflow-y-auto no-scrollbar pb-4">
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Time In (e.g., 08:00 AM)</label>
+                        <label className="block text-sm font-black mb-2">Time In <span className="text-gray-500 font-semibold">(e.g., 08:00 AM)</span></label>
                         <input 
                             type="text" 
                             value={editForm.timeIn}
                             onChange={e => setEditForm({...editForm, timeIn: e.target.value})}
-                            className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+                            className="brutal-input w-full p-4 font-bold text-lg"
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">Time Out (e.g., 05:00 PM)</label>
+                        <label className="block text-sm font-black mb-2">Time Out <span className="text-gray-500 font-semibold">(e.g., 05:00 PM)</span></label>
                         <input 
                             type="text" 
                             value={editForm.timeOut}
                             onChange={e => setEditForm({...editForm, timeOut: e.target.value})}
-                            className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+                            className="brutal-input w-full p-4 font-bold text-lg"
                         />
                     </div>
                     <div>
                         {editForm.oldReason && (
-                            <div className="mb-3">
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Previous Notes / Flags</label>
-                                <div className="w-full p-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-500 text-sm italic">
+                            <div className="mb-4">
+                                <label className="block text-sm font-black mb-2 text-gray-500">Previous Notes / Flags</label>
+                                <div className="brutal-input w-full p-4 bg-gray-100 text-gray-600 font-semibold text-sm">
                                     {editForm.oldReason}
                                 </div>
                             </div>
                         )}
-                        <label className="block text-xs font-bold text-blue-600 mb-1">Reason for Edit (Required)</label>
+                        <label className="block text-sm font-black mb-2 text-[#f43f5e]">Reason for Edit (Required)</label>
                         <textarea 
                             value={editForm.newReason}
                             onChange={e => setEditForm({...editForm, newReason: e.target.value})}
-                            className="w-full p-3 rounded-lg border border-blue-200 bg-blue-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none h-24"
+                            className="brutal-input w-full p-4 font-semibold text-base h-28"
                             placeholder="E.g., Forgot to clock in, System error..."
                         ></textarea>
                     </div>
                 </div>
 
-                <div className="mt-6">
-                    <button onClick={saveEdit} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-blue-700 transition-colors">
+                <div className="mt-4 shrink-0">
+                    <button onClick={saveEdit} className="brutal-btn w-full bg-[#38bdf8] hover:bg-[#0ea5e9] py-4 text-xl">
                         Save Changes
                     </button>
                 </div>
@@ -248,11 +298,10 @@
         const TeamScheduleModal = ({ isOpen, onClose, sheetData }) => {
             const [currentWeekStart, setCurrentWeekStart] = useState(null);
 
-            // Initialize to the Sunday of the current week when opened
             useEffect(() => {
                 if (isOpen) {
                     const today = new Date();
-                    const day = today.getDay(); // 0 is Sunday
+                    const day = today.getDay(); 
                     const diff = today.getDate() - day;
                     setCurrentWeekStart(new Date(today.getFullYear(), today.getMonth(), diff));
                 }
@@ -260,8 +309,7 @@
 
             if (!isOpen || !currentWeekStart) return null;
 
-            // Filter for logs that have a schedule attached
-            const schedLogs = sheetData.filter(l => l.schedIn || l.schedOut);
+            const schedLogs = sheetData.filter(l => (l.schedIn || l.schedOut) && l.scheduleStatus === 'Published');
 
             const nextWeek = () => {
                 const next = new Date(currentWeekStart);
@@ -275,14 +323,12 @@
                 setCurrentWeekStart(prev);
             };
 
-            // Generate an array of 7 Date objects for the currently viewed week (Sun-Sat)
             const weekDays = Array.from({ length: 7 }).map((_, i) => {
                 const d = new Date(currentWeekStart);
                 d.setDate(d.getDate() + i);
                 return d;
             });
 
-            // Helper to get YYYY-MM-DD for comparing with the normalized dates in sheetData
             const getYYYYMMDD = (d) => {
                 return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             };
@@ -295,67 +341,66 @@
 
             return (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-                    <div className="bg-white rounded-3xl w-full max-w-7xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
+                    <div className="brutal-card w-full max-w-7xl overflow-hidden flex flex-col max-h-[95vh]">
                         
                         {/* Header & Controls */}
-                        <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center bg-gray-50 gap-4">
+                        <div className="p-4 md:p-6 border-b-3 border-black flex flex-col md:flex-row justify-between items-center bg-[#fde047] gap-4">
                             <div>
-                                <h3 className="text-xl font-bold text-gray-800 text-center md:text-left">Schedule</h3>
-                                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest text-center md:text-left">Weekly View</p>
+                                <h3 className="text-2xl font-black text-black text-center md:text-left">Schedule</h3>
+                                <p className="text-sm font-bold mt-1 text-black/70 text-center md:text-left">Weekly View</p>
                             </div>
                             
-                            <div className="flex items-center gap-4 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200">
-                                <button onClick={prevWeek} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 transition-colors">
+                            <div className="flex items-center gap-4 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
+                                <button onClick={prevWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-black transition-colors font-black text-lg">
                                     <i className="fas fa-chevron-left"></i>
                                 </button>
-                                <span className="font-bold text-gray-700 w-40 text-center text-sm">
+                                <span className="font-black text-black w-40 text-center text-lg">
                                     {formatShortDate(currentWeekStart)} - {formatShortDate(weekDays[6])}
                                 </span>
-                                <button onClick={nextWeek} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-600 transition-colors">
+                                <button onClick={nextWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-black transition-colors font-black text-lg">
                                     <i className="fas fa-chevron-right"></i>
                                 </button>
                             </div>
 
-                            <button onClick={onClose} className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-all absolute md:relative top-4 right-4 md:top-auto md:right-auto">
+                            <button onClick={onClose} className="brutal-btn w-12 h-12 bg-white flex items-center justify-center text-black hover:bg-gray-100 text-xl absolute md:relative top-4 right-4 md:top-auto md:right-auto">
                                 <i className="fas fa-times"></i>
                             </button>
                         </div>
 
                         {/* Calendar Grid */}
                         <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-white no-scrollbar">
-                            <div className="grid grid-cols-1 lg:grid-cols-7 gap-2 lg:gap-4 h-full">
+                            <div className="grid grid-cols-1 lg:grid-cols-7 gap-3 lg:gap-4 h-full">
                                 {weekDays.map((dayObj, i) => {
                                     const dayKey = getYYYYMMDD(dayObj);
-                                    // Find all scheduled shifts that match this exact date
                                     const dayShifts = schedLogs.filter(log => normalizeDate(log.date) === dayKey);
                                     const isToday = todayYYYYMMDD === dayKey;
                                     
                                     return (
-                                        <div key={dayKey} className={`flex flex-row lg:flex-col rounded-xl lg:rounded-2xl border ${isToday ? 'border-blue-400 shadow-sm ring-1 lg:ring-2 ring-blue-100 bg-blue-50/30' : 'border-gray-200 bg-gray-50/50'} overflow-hidden lg:min-h-[150px]`}>
-                                            <div className={`p-2 lg:p-3 flex flex-col justify-center items-center border-r lg:border-r-0 lg:border-b w-16 lg:w-full shrink-0 ${isToday ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                                                <div className="text-[10px] lg:text-xs font-bold uppercase tracking-wider">{dayNames[i]}</div>
-                                                <div className={`text-lg lg:text-xl font-black mt-0.5 lg:mt-1 ${isToday ? 'text-blue-600' : 'text-gray-800'}`}>
+                                        <div key={dayKey} className={`flex flex-row lg:flex-col rounded-xl lg:rounded-2xl border-2 border-black overflow-hidden lg:min-h-[150px] shadow-[4px_4px_0px_0px_#000000] ${isToday ? 'bg-[#e0f2fe]' : 'bg-white'}`}>
+                                            <div className={`p-2 lg:p-3 flex flex-col justify-center items-center border-r-2 lg:border-r-0 lg:border-b-2 border-black w-20 lg:w-full shrink-0 ${isToday ? 'bg-[#38bdf8] text-black' : 'bg-gray-50 text-black'}`}>
+                                                <div className="text-[11px] lg:text-sm font-black uppercase tracking-wider">{dayNames[i]}</div>
+                                                <div className={`text-xl lg:text-2xl font-black mt-0.5 lg:mt-1`}>
                                                     {dayObj.getDate()}
                                                 </div>
                                             </div>
-                                            <div className="p-2 lg:p-3 flex-1 flex flex-col justify-center lg:justify-start gap-2">
+                                            <div className="p-3 lg:p-4 flex-1 flex flex-col justify-center lg:justify-start gap-3">
                                                 {dayShifts.length > 0 ? (
                                                     dayShifts.map((shift, shiftIdx) => (
-                                                        <div key={shiftIdx} className="bg-white border border-gray-200 rounded-lg lg:rounded-xl p-2 lg:p-3 shadow-sm hover:shadow-md transition-all border-l-4 border-l-blue-500 relative">
-                                                            {shift.status === 'Published' && (
-                                                                <div className="absolute top-2 right-2 text-blue-500" title="Published Schedule">
-                                                                    <i className="fas fa-check-circle text-xs lg:text-sm"></i>
+                                                        <div key={shiftIdx} className="bg-white border-2 border-black rounded-lg p-2 lg:p-3 shadow-[2px_2px_0px_0px_#000000] relative">
+                                                            {shift.scheduleStatus === 'Published' && (
+                                                                <div className="absolute top-2 right-2 text-[#38bdf8]" title="Published Schedule">
+                                                                    <i className="fas fa-check-circle text-sm lg:text-base"></i>
                                                                 </div>
                                                             )}
-                                                            <div className="font-bold text-gray-800 text-xs lg:text-sm leading-tight pr-4">{shift.name}</div>
-                                                            <div className="text-gray-500 text-[10px] lg:text-xs font-medium mt-0.5 lg:mt-1">
-                                                                <i className="far fa-clock mr-1 text-blue-400"></i>
+                                                            <div className="font-black text-black text-sm lg:text-base leading-tight pr-5">{shift.name}</div>
+                                                            <div className="text-gray-600 text-[11px] lg:text-sm font-bold mt-1">
+                                                                <i className="far fa-clock mr-1 text-[#fb7185]"></i>
                                                                 {shift.schedIn} - {shift.schedOut}
                                                             </div>
                                                         </div>
                                                     ))
                                                 ) : (
-                                                    <div className="flex items-center justify-start lg:justify-center h-full text-xs text-gray-400 font-medium italic px-2 lg:px-0">
+                                                    <div className="flex items-center justify-start lg:justify-center h-full text-sm text-gray-400 font-bold italic px-2 lg:px-0">
                                                         No shifts
                                                     </div>
                                                 )}
@@ -396,9 +441,8 @@
             
             // Settings State (Branding)
             const [settings, setSettings] = useState({
-                companyName: "PENGEMS",
+                companyName: "ClockKoala", // Default fallback name!
                 logoUrl: "",
-                themeColor: "#f8fafc" // Default fallback
             });
 
             const [notification, setNotification] = useState(null);
@@ -406,13 +450,10 @@
             // Fetch Data on Mount
             useEffect(() => {
                 const fetchData = async () => {
-                    // 1. Fetch Employees
                     try {
                         const response = await fetch(`${scriptUrl}?type=employees`);
                         if (!response.ok) throw new Error('Failed to fetch employees');
                         const data = await response.json();
-                        
-                        // Add local clock-in status tracking
                         const formattedEmployees = data.map(emp => ({ ...emp, isClockedIn: false }));
                         setEmployees(formattedEmployees);
                         setIsLoadingEmployees(false);
@@ -422,16 +463,14 @@
                         setIsLoadingEmployees(false);
                     }
 
-                    // 2. Fetch Settings
                     try {
                         const response = await fetch(`${scriptUrl}?type=settings`);
                         if (response.ok) {
                             const data = await response.json();
-                            if (data.companyName || data.themeColor) {
+                            if (data.companyName) {
                                 setSettings(prev => ({
                                     companyName: data.companyName || prev.companyName,
                                     logoUrl: data.logoUrl || "",
-                                    themeColor: data.themeColor || prev.themeColor
                                 }));
                             }
                         }
@@ -439,7 +478,6 @@
                         console.error("Error fetching settings:", error);
                     }
 
-                    // 3. Pre-Fetch Logs for Schedule display
                     try {
                         const response = await fetch(`${scriptUrl}?type=logs`);
                         if (response.ok) {
@@ -511,7 +549,6 @@
                 setIsAuthenticated(false);
                 setViewMode('PINPAD');
                 
-                // Fetch fresh logs when selecting an employee to ensure latest data
                 setIsFetchingLogs(true);
                 try {
                     const response = await fetch(`${scriptUrl}?type=logs`);
@@ -549,6 +586,22 @@
                 }
             };
 
+            // Keyboard listener for PIN entry
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (viewMode !== 'PINPAD' || !selectedId) return;
+                    
+                    if (e.key >= '0' && e.key <= '9') {
+                        handlePinPress(e.key);
+                    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+                        handlePinClear();
+                    }
+                };
+
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [viewMode, selectedId, pinInput, employees]); // Re-bind to ensure state closure is fresh
+
             const handleClockAction = (actionType) => {
                 if (actionType === "CLOCK_IN") {
                     updateEmployeeStatus(selectedId, true);
@@ -573,13 +626,11 @@
             };
 
             const saveEdit = () => {
-                // Validation: Prevent saving if the new reason is empty
                 if (!editForm.newReason.trim()) {
                     setNotification({ type: 'error', message: "A reason for editing is required." });
                     return;
                 }
 
-                // Create the audit trail string
                 const timestamp = new Date().toLocaleDateString([], {month: 'short', day: 'numeric'});
                 const formattedNewNote = `[Edit ${timestamp}]: ${editForm.newReason.trim()}`;
                 
@@ -601,7 +652,7 @@
 
                 const payload = {
                     action: "EDIT",
-                    date: normalizeDate(editTarget.date), // Fix: Forces YYYY-MM-DD format for backend matching
+                    date: normalizeDate(editTarget.date), 
                     name: editTarget.name,
                     newTimeIn: editForm.timeIn,
                     newTimeOut: editForm.timeOut,
@@ -625,18 +676,16 @@
                 const month = String(now.getMonth() + 1).padStart(2, '0');
                 const day = String(now.getDate()).padStart(2, '0');
                 const localDate = `${year}-${month}-${day}`;
-                const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }); 
+                const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }); 
                 
                 let payload = {};
 
                 if (actionType === "CLOCK_IN") {
-                    // Check if there is an existing scheduled row for this user today
                     const schedIndex = sheetData.findIndex(row => row.name === name && normalizeDate(row.date) === localDate && !row.timeIn);
                     let note = "";
 
                     if (schedIndex !== -1) {
                         const schedRow = sheetData[schedIndex];
-                        // If there is a schedule, calculate if they are late
                         if (schedRow.schedIn) {
                             const schedTime = new Date(`2000/01/01 ${schedRow.schedIn}`);
                             const actualTime = new Date(`2000/01/01 ${timeStr}`);
@@ -648,19 +697,16 @@
                             }
                         }
 
-                        // Merge into the existing scheduled row locally instead of duplicating
                         setSheetData(prev => {
                             const newData = [...prev];
                             newData[schedIndex] = { ...newData[schedIndex], timeIn: timeStr, reason: note };
                             return newData;
                         });
                     } else {
-                        // No scheduled row exists, create a new one
-                        const newEntry = { date: localDate, timeIn: timeStr, timeOut: "", name: name, reason: "", schedIn: "", schedOut: "" };
+                        const newEntry = { date: localDate, timeIn: timeStr, timeOut: "", name: name, reason: "", schedIn: "", schedOut: "", payrollStatus: "Open", scheduleStatus: "" };
                         setSheetData(prev => [newEntry, ...prev]);
                     }
 
-                    // Pass the calculated reason back to Apps Script
                     payload = { action: "CLOCK_IN", date: localDate, time: timeStr, name: name, reason: note };
                 } else {
                     setSheetData(prev => {
@@ -682,7 +728,6 @@
                             body: JSON.stringify(payload)
                         });
                         
-                        // Refetch logs after a delay to ensure Apps Script has updated the sheet
                         setTimeout(async () => {
                             const response = await fetch(`${scriptUrl}?type=logs`);
                             if (response.ok) {
@@ -698,66 +743,69 @@
             };
 
             return (
-                <div 
-                    className="min-h-screen p-4 md:p-8 flex flex-col items-center transition-colors duration-500" 
-                    style={{ backgroundColor: settings.themeColor }}
-                >
+                <div className="min-h-screen p-4 md:p-8 flex flex-col items-center">
                     <TeamScheduleModal isOpen={isScheduleModalOpen} onClose={() => setScheduleModalOpen(false)} sheetData={sheetData} />
                     
                     {/* Header */}
-                    <div className="w-full max-w-7xl flex justify-between items-center mb-8 glass-panel bg-white p-6 rounded-2xl shadow-sm">
+                    <div className="w-full max-w-[1400px] flex justify-between items-center mb-8 brutal-card p-5 md:p-6">
                         <div className="flex items-center gap-4">
-                            {settings.logoUrl && (
-                                <img src={settings.logoUrl} alt="Logo" className="h-12 w-auto object-contain" />
+                            {settings.logoUrl ? (
+                                <img src={settings.logoUrl} alt="Logo" className="h-12 w-auto object-contain drop-shadow-md" />
+                            ) : (
+                                <div className="w-12 h-12 bg-[#38bdf8] border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_#000000] flex items-center justify-center text-xl">
+                                    🐨
+                                </div>
                             )}
                             <div>
-                                <h1 className="text-2xl font-bold text-gray-800">{settings.companyName}</h1>
-                                <p className="text-gray-500 text-sm">{currentTime.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                                <h1 className="text-2xl md:text-3xl font-black">{settings.companyName}</h1>
+                                <p className="text-gray-600 font-bold text-sm md:text-base">{currentTime.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
                             </div>
                         </div>
-                        <div className="text-3xl md:text-4xl font-mono font-bold text-gray-900">
-                            {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 
+                        <div className="text-3xl md:text-5xl font-black tracking-tighter">
+                            {currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} 
                         </div>
                     </div>
 
-                    <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <div className="w-full max-w-[1400px] grid grid-cols-1 lg:grid-cols-12 gap-8">
                         
                         {/* LEFT: Employee Selection & Actions */}
-                        <div className="lg:col-span-5 flex flex-col gap-6">
+                        <div className="lg:col-span-4 flex flex-col gap-6 lg:gap-8">
                             
-                            {/* Employee List (Hides on mobile when a user is selected) */}
-                            <div className={`bg-white rounded-2xl shadow-lg p-6 min-h-[300px] transition-all duration-300 ${selectedId ? 'hidden lg:block' : 'block'}`}>
-                                <h2 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                                    <i className="fas fa-users text-blue-500"></i> Select Employee
+                            {/* Employee List (Hides when a user is authenticated, or on mobile when selected) */}
+                            <div className={`brutal-card p-5 md:p-6 transition-all duration-300 ${!selectedId ? 'block' : isAuthenticated ? 'hidden' : 'hidden lg:block'}`}>
+                                <h2 className="text-xl font-black mb-6 flex items-center gap-3">
+                                    <i className="fas fa-users text-[#f43f5e] text-2xl"></i> Select Name
                                 </h2>
 
                                 {isLoadingEmployees ? (
-                                    <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-3">
-                                        <i className="fas fa-circle-notch spinner text-2xl text-blue-500"></i>
-                                        <p>Loading employees...</p>
+                                    <div className="flex flex-col items-center justify-center h-48 text-black font-bold gap-3">
+                                        <i className="fas fa-circle-notch spinner text-4xl text-[#38bdf8]"></i>
+                                        <p>Loading team...</p>
                                     </div>
                                 ) : fetchError ? (
-                                    <div className="flex flex-col items-center justify-center h-48 text-red-400 gap-3 text-center">
-                                        <i className="fas fa-exclamation-circle text-2xl"></i>
-                                        <p>{fetchError}</p>
-                                        <button onClick={() => window.location.reload()} className="text-xs bg-red-50 p-2 rounded">Retry</button>
+                                    <div className="flex flex-col items-center justify-center h-48 text-[#f43f5e] gap-3 text-center">
+                                        <i className="fas fa-exclamation-circle text-4xl"></i>
+                                        <p className="font-bold">{fetchError}</p>
+                                        <button onClick={() => window.location.reload()} className="brutal-btn bg-white py-2 px-4 mt-2">Retry</button>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 lg:gap-4">
                                         {employees.map(emp => (
                                             <button
                                                 key={emp.id}
                                                 onClick={() => handleEmployeeSelect(emp.id)}
                                                 className={`
-                                                    p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative
-                                                    ${selectedId === emp.id ? 'ring-2 ring-blue-500 ring-offset-2' : 'hover:border-blue-200 border-transparent'}
-                                                    ${emp.isClockedIn ? 'bg-green-100 text-green-900 border-green-200' : 'bg-white text-gray-800 border-gray-100 shadow-sm'}
+                                                    brutal-btn p-3 flex flex-col items-center justify-center gap-1 relative h-24
+                                                    ${selectedId === emp.id ? 'bg-[#38bdf8]' : emp.isClockedIn ? 'bg-[#a7f3d0]' : 'bg-white hover:bg-gray-50'}
                                                 `}
                                             >
-                                                <div className={`w-2 h-2 rounded-full absolute top-2 right-2 ${emp.isClockedIn ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`}></div>
-                                                <span className="font-bold text-center leading-tight">{emp.name}</span>
-                                                <span className="text-xs opacity-70">{emp.department}</span>
-                                                {emp.isClockedIn && <span className="text-[10px] font-bold text-green-700 uppercase">Clocked In</span>}
+                                                {emp.isClockedIn && (
+                                                    <div className="absolute top-2 right-2 flex items-center gap-1">
+                                                        <div className="w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full bg-[#10b981] border border-black animate-pulse"></div>
+                                                    </div>
+                                                )}
+                                                <span className="font-black text-center text-base lg:text-lg leading-tight">{emp.name}</span>
+                                                <span className="text-[10px] lg:text-xs font-bold opacity-70">{emp.department}</span>
                                             </button>
                                         ))}
                                     </div>
@@ -766,50 +814,61 @@
 
                             {/* Actions (ONLY rendered if Authenticated) */}
                             {isAuthenticated && (
-                                <div className="bg-white rounded-2xl shadow-lg p-6 transition-all duration-500 animate-fade-in">
-                                    <h2 className="text-lg font-semibold text-gray-700 mb-4">Actions</h2>
-                                    <div className="grid grid-cols-2 gap-4 mb-6">
+                                <div className="brutal-card p-5 md:p-6 animate-fade-in bg-white">
+                                    <h2 className="text-xl font-black mb-6">Actions</h2>
+                                    <div className="grid grid-cols-2 gap-3 lg:gap-4">
                                         <button 
                                             onClick={() => handleClockAction("CLOCK_IN")}
                                             disabled={selectedEmployee?.isClockedIn}
-                                            className={`py-4 rounded-xl font-bold text-lg shadow-md transition-all flex items-center justify-center gap-2
-                                                ${selectedEmployee?.isClockedIn ? 'bg-gray-100 text-gray-400' : 'bg-green-500 text-white hover:bg-green-600'}`}
+                                            className={`brutal-btn py-4 lg:py-4 text-lg lg:text-base flex flex-col items-center justify-center gap-2
+                                                ${selectedEmployee?.isClockedIn ? 'bg-gray-200 text-gray-500' : 'bg-[#4ade80] hover:bg-[#22c55e]'}`}
                                         >
-                                            <i className="fas fa-sign-in-alt"></i> Clock In
+                                            <i className="fas fa-sign-in-alt text-3xl lg:text-2xl"></i> 
+                                            <span>Clock In</span>
                                         </button>
                                         <button 
                                             onClick={() => handleClockAction("CLOCK_OUT")}
                                             disabled={!selectedEmployee?.isClockedIn}
-                                            className={`py-4 rounded-xl font-bold text-lg shadow-md transition-all flex items-center justify-center gap-2
-                                                ${!selectedEmployee?.isClockedIn ? 'bg-gray-100 text-gray-400' : 'bg-red-500 text-white hover:bg-red-600'}`}
+                                            className={`brutal-btn py-4 lg:py-4 text-lg lg:text-base flex flex-col items-center justify-center gap-2
+                                                ${!selectedEmployee?.isClockedIn ? 'bg-gray-200 text-gray-500' : 'bg-[#fb7185] hover:bg-[#f43f5e]'}`}
                                         >
-                                            <i className="fas fa-sign-out-alt"></i> Clock Out
+                                            <i className="fas fa-sign-out-alt text-3xl lg:text-2xl"></i> 
+                                            <span>Clock Out</span>
+                                        </button>
+                                        <button 
+                                            onClick={() => setScheduleModalOpen(true)} 
+                                            className="brutal-btn py-4 lg:py-4 text-lg lg:text-base flex flex-col items-center justify-center gap-2 bg-white hover:bg-gray-50 text-black"
+                                        >
+                                            <i className="fas fa-calendar-day text-3xl lg:text-2xl text-[#38bdf8]"></i> 
+                                            <span>Schedule</span>
+                                        </button>
+                                        <button 
+                                            onClick={handleLogout} 
+                                            className="brutal-btn py-4 lg:py-4 text-lg lg:text-base flex flex-col items-center justify-center gap-2 bg-white hover:bg-gray-50 text-black"
+                                        >
+                                            <i className="fas fa-check text-3xl lg:text-2xl text-[#10b981]"></i> 
+                                            <span>Done</span>
                                         </button>
                                     </div>
-                                    
-                                    {/* Global Schedule Button Moved Here */}
-                                    <button onClick={() => setScheduleModalOpen(true)} className="w-full py-3 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-sm">
-                                        <i className="fas fa-calendar-day"></i> See Team Schedule
-                                    </button>
                                 </div>
                             )}
                         </div>
 
-                        {/* RIGHT: Dynamic Panel (Pin Pad / Dashboard / Edit) */}
-                        {/* Hides on mobile until a user is selected to prevent scrolling */}
-                        <div className={`lg:col-span-7 transition-all duration-300 ${!selectedId ? 'hidden lg:block' : 'block'}`}>
-                            <div className="bg-white rounded-2xl shadow-lg p-6 h-[600px] sticky top-8 border-t-4 border-blue-500">
+                        {/* RIGHT: Dynamic Panel */}
+                        <div className={`lg:col-span-8 transition-all duration-300 ${!selectedId ? 'hidden lg:block' : 'block'}`}>
+                            {/* Adjusted height to perfectly fit 1080p displays without vertical scrolling */}
+                            <div className="brutal-card p-5 md:p-8 min-h-[500px] lg:h-[calc(100vh-220px)] lg:max-h-[800px] mb-8 sticky top-8 flex flex-col">
                                 {!selectedId ? (
                                     <div className="h-full flex flex-col items-center justify-center text-gray-400 animate-fade-in">
-                                        <i className="fas fa-hand-pointer text-4xl mb-4 opacity-50"></i>
-                                        <p>Select your name to begin</p>
+                                        <i className="fas fa-hand-pointer text-6xl mb-6 opacity-30 text-black"></i>
+                                        <p className="font-black text-2xl text-black opacity-30">Select a name to begin</p>
                                     </div>
                                 ) : (
-                                    <>
+                                    <div className="flex-1 overflow-hidden">
                                         {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinClear={handlePinClear} selectedEmployee={selectedEmployee} onCancel={handleLogout} />}
-                                        {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} onDone={handleLogout} isFetchingLogs={isFetchingLogs} />}
+                                        {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} isFetchingLogs={isFetchingLogs} />}
                                         {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} setViewMode={setViewMode} />}
-                                    </>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -819,12 +878,12 @@
                     {/* Notification Toast */}
                     {notification && (
                         <div className={`
-                            fixed bottom-8 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl text-white font-medium flex items-center gap-3 animate-bounce z-50
-                            ${notification.type === 'success' ? 'bg-gray-800' : 
-                              notification.type === 'error' ? 'bg-red-600' : 'bg-blue-600'}
+                            fixed bottom-8 left-1/2 transform -translate-x-1/2 px-8 py-4 rounded-xl border-3 border-black shadow-[6px_6px_0px_0px_#000000] text-black font-black text-lg flex items-center gap-3 animate-fade-in z-[60]
+                            ${notification.type === 'success' ? 'bg-[#a7f3d0]' : 
+                              notification.type === 'error' ? 'bg-[#fecdd3]' : 'bg-[#bae6fd]'}
                         `}>
-                            <i className={`fas ${notification.type === 'success' ? 'fa-check-circle' : 
-                                               notification.type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle'}`}></i>
+                            <i className={`fas ${notification.type === 'success' ? 'fa-check-circle text-[#059669]' : 
+                                               notification.type === 'error' ? 'fa-exclamation-triangle text-[#e11d48]' : 'fa-info-circle text-[#0284c7]'}`}></i>
                             {notification.message}
                         </div>
                     )}
