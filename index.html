@@ -73,7 +73,7 @@
         /* Specialized Pin Pad Buttons */
         .pin-btn {
             aspect-ratio: 1;
-            font-size: 1.5rem;
+            /* Removed fixed font size here to allow responsive classes in React */
         }
 
         @keyframes spin {
@@ -145,32 +145,32 @@
         // --- SUB-COMPONENTS ---
 
         const PinPad = ({ pinInput, handlePinPress, handlePinClear, selectedEmployee, onCancel }) => (
-            <div className="flex flex-col items-center justify-center h-full animate-fade-in relative py-4">
-                <div className="mb-8 text-center shrink-0">
-                    <h3 className="text-3xl font-black text-black">Enter PIN</h3>
-                    <p className="text-lg font-bold text-gray-500 mt-1">Hello, {selectedEmployee?.name}!</p>
+            <div className="flex flex-col items-center justify-center h-full animate-fade-in relative py-2 md:py-4">
+                <div className="mb-2 md:mb-8 text-center shrink-0">
+                    <h3 className="text-2xl md:text-3xl font-black text-black">Enter PIN</h3>
+                    <p className="text-sm md:text-lg font-bold text-gray-500 mt-0 md:mt-1">Hello, {selectedEmployee?.name}!</p>
                 </div>
                 
-                <div className="flex gap-3 mb-8 h-12 shrink-0">
+                <div className="flex gap-2 md:gap-3 mb-4 md:mb-8 h-8 md:h-12 shrink-0 items-center">
                     {[0, 1, 2, 3].map(i => (
-                        <div key={i} className={`w-4 h-4 rounded-full border-2 border-black transition-all ${i < pinInput.length ? 'bg-[#38bdf8] scale-125' : 'bg-gray-200'}`}></div>
+                        <div key={i} className={`w-3 h-3 md:w-4 md:h-4 rounded-full border-2 border-black transition-all ${i < pinInput.length ? 'bg-[#38bdf8] scale-125' : 'bg-gray-200'}`}></div>
                     ))}
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 w-72 shrink-0">
+                <div className="grid grid-cols-3 gap-3 md:gap-4 w-56 md:w-72 shrink-0">
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                        <button key={num} onClick={() => handlePinPress(num.toString())} className="brutal-btn pin-btn bg-white hover:bg-gray-50">
+                        <button key={num} onClick={() => handlePinPress(num.toString())} className="brutal-btn pin-btn bg-white hover:bg-gray-50 text-xl md:text-2xl flex items-center justify-center">
                             {num}
                         </button>
                     ))}
                     <div className="flex items-center justify-center"></div>
-                    <button onClick={() => handlePinPress("0")} className="brutal-btn pin-btn bg-white hover:bg-gray-50">0</button>
-                    <button onClick={handlePinClear} className="brutal-btn pin-btn bg-[#fb7185] hover:bg-[#f43f5e] text-white">
+                    <button onClick={() => handlePinPress("0")} className="brutal-btn pin-btn bg-white hover:bg-gray-50 text-xl md:text-2xl flex items-center justify-center">0</button>
+                    <button onClick={handlePinClear} className="brutal-btn pin-btn bg-[#fb7185] hover:bg-[#f43f5e] text-white text-lg md:text-xl flex items-center justify-center">
                         <i className="fas fa-backspace"></i>
                     </button>
                 </div>
 
-                <button onClick={onCancel} className="mt-8 text-gray-500 hover:text-black font-bold flex items-center gap-2 px-4 py-2 transition-colors lg:hidden shrink-0">
+                <button onClick={onCancel} className="mt-4 md:mt-8 text-gray-500 hover:text-black font-bold flex items-center gap-2 px-4 py-2 transition-colors lg:hidden shrink-0 text-sm">
                     <i className="fas fa-arrow-left"></i> Back to Names
                 </button>
             </div>
@@ -181,13 +181,13 @@
 
             return (
                 <div className="flex flex-col h-full animate-fade-in relative">
-                    <div className="flex justify-between items-center mb-6 shrink-0">
+                    <div className="flex justify-between items-center mb-3 md:mb-6 shrink-0">
                         <div>
-                            <h3 className="text-2xl font-black">My Timesheet</h3>
-                            <span className="text-sm font-bold text-gray-500">Recent Activity</span>
+                            <h3 className="text-lg md:text-2xl font-black">My Timesheet</h3>
+                            <span className="text-[10px] md:text-sm font-bold text-gray-500">Recent Activity</span>
                         </div>
                         <div className="flex items-center gap-4">
-                            {isFetchingLogs && <span className="text-sm font-bold text-[#38bdf8]"><i className="fas fa-sync fa-spin mr-1"></i> Syncing...</span>}
+                            {isFetchingLogs && <span className="text-[10px] md:text-sm font-bold text-[#38bdf8]"><i className="fas fa-sync fa-spin mr-1"></i> Syncing...</span>}
                         </div>
                     </div>
                     
@@ -195,37 +195,37 @@
                     <div className="flex-1 rounded-xl border-2 border-black overflow-hidden flex flex-col bg-white">
                         <div className="flex-1 overflow-y-auto no-scrollbar">
                             <table className="w-full text-left brutal-table">
-                                <thead className="text-sm font-black uppercase">
+                                <thead className="text-[10px] md:text-sm font-black uppercase">
                                     <tr>
-                                        <th className="px-5 py-4">Day</th>
-                                        <th className="px-5 py-4">In</th>
-                                        <th className="px-5 py-4">Out</th>
-                                        <th className="px-5 py-4">Total</th>
-                                        <th className="px-5 py-4">Note</th>
-                                        <th className="px-5 py-4 text-center">Edit</th>
+                                        <th className="px-2 py-2 md:px-5 md:py-4">Day</th>
+                                        <th className="px-2 py-2 md:px-5 md:py-4">In</th>
+                                        <th className="px-2 py-2 md:px-5 md:py-4">Out</th>
+                                        <th className="px-2 py-2 md:px-5 md:py-4">Total</th>
+                                        <th className="px-2 py-2 md:px-5 md:py-4">Note</th>
+                                        <th className="px-2 py-2 md:px-5 md:py-4 text-center">Edit</th>
                                     </tr>
                                 </thead>
-                                <tbody className="font-semibold">
+                                <tbody className="font-semibold text-xs md:text-base">
                                     {visibleData.length === 0 ? (
-                                        <tr><td colSpan="6" className="p-8 text-center text-gray-400 font-bold text-lg">No records found</td></tr>
+                                        <tr><td colSpan="6" className="p-4 md:p-8 text-center text-gray-400 font-bold text-sm md:text-lg">No records found</td></tr>
                                     ) : (
                                         visibleData.map((row, idx) => (
                                             <tr key={idx} className={`hover:bg-gray-50 transition-colors ${row.payrollStatus === 'Locked' ? 'bg-gray-100 text-gray-500' : ''}`}>
-                                                <td className="px-5 py-4 whitespace-nowrap">{formatDisplayDate(row.date)}</td>
-                                                <td className={`px-5 py-4 ${row.payrollStatus === 'Locked' ? '' : 'text-[#10b981]'} font-black`}>{row.timeIn}</td>
-                                                <td className={`px-5 py-4 ${row.payrollStatus === 'Locked' ? '' : 'text-[#f43f5e]'} font-black`}>{row.timeOut || '-'}</td>
-                                                <td className="px-5 py-4 font-black">
+                                                <td className="px-2 py-2 md:px-5 md:py-4 whitespace-nowrap">{formatDisplayDate(row.date)}</td>
+                                                <td className={`px-2 py-2 md:px-5 md:py-4 whitespace-nowrap ${row.payrollStatus === 'Locked' ? '' : 'text-[#10b981]'} font-black`}>{row.timeIn}</td>
+                                                <td className={`px-2 py-2 md:px-5 md:py-4 whitespace-nowrap ${row.payrollStatus === 'Locked' ? '' : 'text-[#f43f5e]'} font-black`}>{row.timeOut || '-'}</td>
+                                                <td className="px-2 py-2 md:px-5 md:py-4 font-black whitespace-nowrap text-[11px] md:text-base">
                                                     {calculateHours(row.timeIn, row.timeOut)}
                                                 </td>
-                                                <td className="px-5 py-4 text-xs max-w-[120px] truncate">{row.reason || '-'}</td>
-                                                <td className="px-5 py-4 text-center">
+                                                <td className="px-2 py-2 md:px-5 md:py-4 text-[10px] md:text-xs max-w-[50px] md:max-w-[120px] truncate">{row.reason || '-'}</td>
+                                                <td className="px-2 py-2 md:px-5 md:py-4 text-center">
                                                     {row.payrollStatus === 'Locked' ? (
-                                                        <span className="text-gray-400 p-2" title="Pay period locked">
-                                                            <i className="fas fa-lock"></i>
+                                                        <span className="text-gray-400 p-1 md:p-2" title="Pay period locked">
+                                                            <i className="fas fa-lock text-[10px] md:text-sm"></i>
                                                         </span>
                                                     ) : (
-                                                        <button onClick={() => startEdit(row)} className="brutal-btn bg-[#fde047] p-2 hover:bg-[#facc15]" title="Edit Time">
-                                                            <i className="fas fa-pencil-alt"></i>
+                                                        <button onClick={() => startEdit(row)} className="brutal-btn bg-[#fde047] p-1 md:p-2 hover:bg-[#facc15]" title="Edit Time">
+                                                            <i className="fas fa-pencil-alt text-[10px] md:text-sm"></i>
                                                         </button>
                                                     )}
                                                 </td>
@@ -242,53 +242,53 @@
 
         const EditForm = ({ editTarget, editForm, setEditForm, saveEdit, setViewMode }) => (
             <div className="h-full flex flex-col animate-fade-in">
-                <h3 className="text-2xl font-black mb-6 flex items-center gap-3 shrink-0">
-                    <button onClick={() => setViewMode('DASHBOARD')} className="brutal-btn bg-white w-10 h-10 flex items-center justify-center hover:bg-gray-100">
-                        <i className="fas fa-arrow-left"></i>
+                <h3 className="text-lg md:text-2xl font-black mb-4 md:mb-6 flex items-center gap-2 md:gap-3 shrink-0">
+                    <button onClick={() => setViewMode('DASHBOARD')} className="brutal-btn bg-white w-8 h-8 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100">
+                        <i className="fas fa-arrow-left text-sm md:text-base"></i>
                     </button>
-                    Edit Entry: <span className="text-[#38bdf8]">{formatDisplayDate(editTarget.date)}</span>
+                    <span className="truncate">Edit Entry: <span className="text-[#38bdf8]">{formatDisplayDate(editTarget.date)}</span></span>
                 </h3>
 
-                <div className="space-y-5 flex-1 overflow-y-auto no-scrollbar pb-4">
+                <div className="space-y-3 md:space-y-5 flex-1 overflow-y-auto no-scrollbar pb-4">
                     <div>
-                        <label className="block text-sm font-black mb-2">Time In <span className="text-gray-500 font-semibold">(e.g., 8:00 AM)</span></label>
+                        <label className="block text-xs md:text-sm font-black mb-1 md:mb-2">Time In <span className="text-gray-500 font-semibold">(e.g., 8:00 AM)</span></label>
                         <input 
                             type="text" 
                             value={editForm.timeIn}
                             onChange={e => setEditForm({...editForm, timeIn: e.target.value})}
-                            className="brutal-input w-full p-4 font-bold text-lg"
+                            className="brutal-input w-full p-3 md:p-4 font-bold text-sm md:text-lg"
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-black mb-2">Time Out <span className="text-gray-500 font-semibold">(e.g., 5:00 PM)</span></label>
+                        <label className="block text-xs md:text-sm font-black mb-1 md:mb-2">Time Out <span className="text-gray-500 font-semibold">(e.g., 5:00 PM)</span></label>
                         <input 
                             type="text" 
                             value={editForm.timeOut}
                             onChange={e => setEditForm({...editForm, timeOut: e.target.value})}
-                            className="brutal-input w-full p-4 font-bold text-lg"
+                            className="brutal-input w-full p-3 md:p-4 font-bold text-sm md:text-lg"
                         />
                     </div>
                     <div>
                         {editForm.oldReason && (
-                            <div className="mb-4">
-                                <label className="block text-sm font-black mb-2 text-gray-500">Previous Notes / Flags</label>
-                                <div className="brutal-input w-full p-4 bg-gray-100 text-gray-600 font-semibold text-sm">
+                            <div className="mb-3 md:mb-4">
+                                <label className="block text-xs md:text-sm font-black mb-1 md:mb-2 text-gray-500">Previous Notes / Flags</label>
+                                <div className="brutal-input w-full p-3 md:p-4 bg-gray-100 text-gray-600 font-semibold text-xs md:text-sm">
                                     {editForm.oldReason}
                                 </div>
                             </div>
                         )}
-                        <label className="block text-sm font-black mb-2 text-[#f43f5e]">Reason for Edit (Required)</label>
+                        <label className="block text-xs md:text-sm font-black mb-1 md:mb-2 text-[#f43f5e]">Reason for Edit (Required)</label>
                         <textarea 
                             value={editForm.newReason}
                             onChange={e => setEditForm({...editForm, newReason: e.target.value})}
-                            className="brutal-input w-full p-4 font-semibold text-base h-28"
+                            className="brutal-input w-full p-3 md:p-4 font-semibold text-sm md:text-base h-20 md:h-28"
                             placeholder="E.g., Forgot to clock in, System error..."
                         ></textarea>
                     </div>
                 </div>
 
-                <div className="mt-4 shrink-0">
-                    <button onClick={saveEdit} className="brutal-btn w-full bg-[#38bdf8] hover:bg-[#0ea5e9] py-4 text-xl">
+                <div className="mt-2 md:mt-4 shrink-0">
+                    <button onClick={saveEdit} className="brutal-btn w-full bg-[#38bdf8] hover:bg-[#0ea5e9] py-3 md:py-4 text-lg md:text-xl">
                         Save Changes
                     </button>
                 </div>
@@ -340,453 +340,50 @@
             const todayYYYYMMDD = getYYYYMMDD(new Date());
 
             return (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-                    <div className="brutal-card w-full max-w-7xl overflow-hidden flex flex-col max-h-[95vh]">
-                        
-                        {/* Header & Controls */}
-                        <div className="p-4 md:p-6 border-b-3 border-black flex flex-col md:flex-row justify-between items-center bg-[#fde047] gap-4">
-                            <div>
-                                <h3 className="text-2xl font-black text-black text-center md:text-left">Schedule</h3>
-                                <p className="text-sm font-bold mt-1 text-black/70 text-center md:text-left">Weekly View</p>
-                            </div>
-                            
-                            <div className="flex items-center gap-4 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
-                                <button onClick={prevWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-black transition-colors font-black text-lg">
-                                    <i className="fas fa-chevron-left"></i>
-                                </button>
-                                <span className="font-black text-black w-40 text-center text-lg">
-                                    {formatShortDate(currentWeekStart)} - {formatShortDate(weekDays[6])}
-                                </span>
-                                <button onClick={nextWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-black transition-colors font-black text-lg">
-                                    <i className="fas fa-chevron-right"></i>
-                                </button>
-                            </div>
-
-                            <button onClick={onClose} className="brutal-btn w-12 h-12 bg-white flex items-center justify-center text-black hover:bg-gray-100 text-xl absolute md:relative top-4 right-4 md:top-auto md:right-auto">
-                                <i className="fas fa-times"></i>
-                            </button>
-                        </div>
-
-                        {/* Calendar Grid */}
-                        <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-white no-scrollbar">
-                            <div className="grid grid-cols-1 lg:grid-cols-7 gap-3 lg:gap-4 h-full">
-                                {weekDays.map((dayObj, i) => {
-                                    const dayKey = getYYYYMMDD(dayObj);
-                                    const dayShifts = schedLogs.filter(log => normalizeDate(log.date) === dayKey);
-                                    const isToday = todayYYYYMMDD === dayKey;
-                                    
-                                    return (
-                                        <div key={dayKey} className={`flex flex-row lg:flex-col rounded-xl lg:rounded-2xl border-2 border-black overflow-hidden lg:min-h-[150px] shadow-[4px_4px_0px_0px_#000000] ${isToday ? 'bg-[#e0f2fe]' : 'bg-white'}`}>
-                                            <div className={`p-2 lg:p-3 flex flex-col justify-center items-center border-r-2 lg:border-r-0 lg:border-b-2 border-black w-20 lg:w-full shrink-0 ${isToday ? 'bg-[#38bdf8] text-black' : 'bg-gray-50 text-black'}`}>
-                                                <div className="text-[11px] lg:text-sm font-black uppercase tracking-wider">{dayNames[i]}</div>
-                                                <div className={`text-xl lg:text-2xl font-black mt-0.5 lg:mt-1`}>
-                                                    {dayObj.getDate()}
-                                                </div>
-                                            </div>
-                                            <div className="p-3 lg:p-4 flex-1 flex flex-col justify-center lg:justify-start gap-3">
-                                                {dayShifts.length > 0 ? (
-                                                    dayShifts.map((shift, shiftIdx) => (
-                                                        <div key={shiftIdx} className="bg-white border-2 border-black rounded-lg p-2 lg:p-3 shadow-[2px_2px_0px_0px_#000000] relative">
-                                                            {shift.scheduleStatus === 'Published' && (
-                                                                <div className="absolute top-2 right-2 text-[#38bdf8]" title="Published Schedule">
-                                                                    <i className="fas fa-check-circle text-sm lg:text-base"></i>
-                                                                </div>
-                                                            )}
-                                                            <div className="font-black text-black text-sm lg:text-base leading-tight pr-5">{shift.name}</div>
-                                                            <div className="text-gray-600 text-[11px] lg:text-sm font-bold mt-1">
-                                                                <i className="far fa-clock mr-1 text-[#fb7185]"></i>
-                                                                {shift.schedIn} - {shift.schedOut}
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="flex items-center justify-start lg:justify-center h-full text-sm text-gray-400 font-bold italic px-2 lg:px-0">
-                                                        No shifts
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // --- MAIN APP COMPONENT ---
-
-        function App() {
-            // Updated API URL to your current endpoint
-            const scriptUrl = "https://script.google.com/macros/s/AKfycbyBSb9xytD4j4ibexlizkWCxkSW2Pz6n52qznfpYDPpcywNoCiq2Pgs15mDtN2cO99hiw/exec";
-
-            const [currentTime, setCurrentTime] = useState(new Date());
-            const [viewMode, setViewMode] = useState('PINPAD'); 
-            const [pinInput, setPinInput] = useState("");
-            const [selectedId, setSelectedId] = useState(null);
-            const [isAuthenticated, setIsAuthenticated] = useState(false);
-            const [editTarget, setEditTarget] = useState(null);
-            const [editForm, setEditForm] = useState({ timeIn: '', timeOut: '', oldReason: '', newReason: '' });
-            const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
-            
-            // Loading State
-            const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
-            const [isFetchingLogs, setIsFetchingLogs] = useState(false);
-            const [fetchError, setFetchError] = useState(null);
-
-            // Dynamic Data State
-            const [employees, setEmployees] = useState([]);
-            const [sheetData, setSheetData] = useState([]);
-            
-            // Settings State (Branding)
-            const [settings, setSettings] = useState({
-                companyName: "ClockKoala", // Default fallback name!
-                logoUrl: "",
-            });
-
-            const [notification, setNotification] = useState(null);
-
-            // Fetch Data on Mount
-            useEffect(() => {
-                const fetchData = async () => {
-                    try {
-                        const response = await fetch(`${scriptUrl}?type=employees`);
-                        if (!response.ok) throw new Error('Failed to fetch employees');
-                        const data = await response.json();
-                        const formattedEmployees = data.map(emp => ({ ...emp, isClockedIn: false }));
-                        setEmployees(formattedEmployees);
-                        setIsLoadingEmployees(false);
-                    } catch (error) {
-                        console.error("Error fetching employees:", error);
-                        setFetchError("Could not load employees. Please check the Google Sheet setup.");
-                        setIsLoadingEmployees(false);
-                    }
-
-                    try {
-                        const response = await fetch(`${scriptUrl}?type=settings`);
-                        if (response.ok) {
-                            const data = await response.json();
-                            if (data.companyName) {
-                                setSettings(prev => ({
-                                    companyName: data.companyName || prev.companyName,
-                                    logoUrl: data.logoUrl || "",
-                                }));
-                            }
-                        }
-                    } catch (error) {
-                        console.error("Error fetching settings:", error);
-                    }
-
-                    try {
-                        const response = await fetch(`${scriptUrl}?type=logs`);
-                        if (response.ok) {
-                            const logData = await response.json();
-                            setSheetData(logData.reverse()); 
-                        }
-                    } catch (error) {}
-                };
-
-                fetchData();
-            }, []);
-
-            // Clock Effect
-            useEffect(() => {
-                const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-                return () => clearInterval(timer);
-            }, []);
-
-            // Notification Effect
-            useEffect(() => {
-                if (notification) {
-                    const timer = setTimeout(() => setNotification(null), 4000);
-                    return () => clearTimeout(timer);
-                }
-            }, [notification]);
-
-            // Auto-Timeout Logic
-            useEffect(() => {
-                let timeout;
-                const resetTimer = () => {
-                    if (isAuthenticated) {
-                        clearTimeout(timeout);
-                        timeout = setTimeout(() => {
-                            setNotification({ type: 'info', message: "Session timed out due to inactivity" });
-                            handleLogout();
-                        }, 30000); 
-                    }
-                };
-                window.addEventListener('click', resetTimer);
-                window.addEventListener('keypress', resetTimer);
-                window.addEventListener('mousemove', resetTimer);
-                window.addEventListener('touchstart', resetTimer);
-                resetTimer();
-                return () => {
-                    clearTimeout(timeout);
-                    window.removeEventListener('click', resetTimer);
-                    window.removeEventListener('keypress', resetTimer);
-                    window.removeEventListener('mousemove', resetTimer);
-                    window.removeEventListener('touchstart', resetTimer);
-                };
-            }, [isAuthenticated]);
-
-            const selectedEmployee = employees.find(e => e.id === selectedId);
-            const personalData = selectedEmployee 
-                ? sheetData.filter(row => row.name === selectedEmployee.name) 
-                : [];
-
-            const handleLogout = () => {
-                setSelectedId(null);
-                setPinInput("");
-                setIsAuthenticated(false);
-                setViewMode('PINPAD');
-                setEditTarget(null);
-            };
-
-            const handleEmployeeSelect = async (id) => {
-                setSelectedId(id);
-                setPinInput("");
-                setIsAuthenticated(false);
-                setViewMode('PINPAD');
-                
-                setIsFetchingLogs(true);
-                try {
-                    const response = await fetch(`${scriptUrl}?type=logs`);
-                    if (response.ok) {
-                        const logData = await response.json();
-                        setSheetData(logData.reverse()); 
-                    }
-                } catch (error) {
-                    console.error("Error refreshing logs:", error);
-                } finally {
-                    setIsFetchingLogs(false);
-                }
-            };
-
-            const handlePinPress = (num) => {
-                if (!selectedId) return;
-                if (pinInput.length < 4) {
-                    const newPin = pinInput + num;
-                    setPinInput(newPin);
-                    if (newPin.length === 4) validatePin(newPin);
-                }
-            };
-
-            const handlePinClear = () => setPinInput("");
-
-            const validatePin = (inputPin) => {
-                const emp = employees.find(e => e.id === selectedId);
-                if (inputPin === emp.pin) {
-                    setIsAuthenticated(true);
-                    setViewMode('DASHBOARD');
-                    setNotification({ type: 'success', message: `Identity Verified: ${emp.name}` });
-                } else {
-                    setNotification({ type: 'error', message: "Incorrect PIN" });
-                    setPinInput("");
-                }
-            };
-
-            // Keyboard listener for PIN entry
-            useEffect(() => {
-                const handleKeyDown = (e) => {
-                    if (viewMode !== 'PINPAD' || !selectedId) return;
-                    
-                    if (e.key >= '0' && e.key <= '9') {
-                        handlePinPress(e.key);
-                    } else if (e.key === 'Backspace' || e.key === 'Delete') {
-                        handlePinClear();
-                    }
-                };
-
-                window.addEventListener('keydown', handleKeyDown);
-                return () => window.removeEventListener('keydown', handleKeyDown);
-            }, [viewMode, selectedId, pinInput, employees]); // Re-bind to ensure state closure is fresh
-
-            const handleClockAction = (actionType) => {
-                if (actionType === "CLOCK_IN") {
-                    updateEmployeeStatus(selectedId, true);
-                    logAction(selectedEmployee.name, "CLOCK_IN");
-                    setNotification({ type: 'success', message: "Clocked In Successfully" });
-                } else {
-                    updateEmployeeStatus(selectedId, false);
-                    logAction(selectedEmployee.name, "CLOCK_OUT");
-                    setNotification({ type: 'info', message: "Clocked Out Successfully" });
-                }
-            };
-
-            const startEdit = (row) => {
-                setEditTarget(row);
-                setEditForm({ 
-                    timeIn: row.timeIn, 
-                    timeOut: row.timeOut || '', 
-                    oldReason: row.reason || '',
-                    newReason: ''
-                });
-                setViewMode('EDIT');
-            };
-
-            const saveEdit = () => {
-                if (!editForm.newReason.trim()) {
-                    setNotification({ type: 'error', message: "A reason for editing is required." });
-                    return;
-                }
-
-                const timestamp = new Date().toLocaleDateString([], {month: 'short', day: 'numeric'});
-                const formattedNewNote = `[Edit ${timestamp}]: ${editForm.newReason.trim()}`;
-                
-                const combinedReason = editForm.oldReason 
-                    ? `${editForm.oldReason} | ${formattedNewNote}` 
-                    : formattedNewNote;
-
-                setSheetData(prev => prev.map(row => {
-                    if (row === editTarget) {
-                        return { 
-                            ...row, 
-                            timeIn: editForm.timeIn, 
-                            timeOut: editForm.timeOut, 
-                            reason: combinedReason 
-                        };
-                    }
-                    return row;
-                }));
-
-                const payload = {
-                    action: "EDIT",
-                    date: normalizeDate(editTarget.date), 
-                    name: editTarget.name,
-                    newTimeIn: editForm.timeIn,
-                    newTimeOut: editForm.timeOut,
-                    reason: combinedReason
-                };
-
-                sendToSheet(payload);
-                setNotification({ type: 'success', message: "Timesheet Updated" });
-                setViewMode('DASHBOARD');
-            };
-
-            const updateEmployeeStatus = (id, status) => {
-                setEmployees(prev => prev.map(emp => 
-                    emp.id === id ? { ...emp, isClockedIn: status } : emp
-                ));
-            };
-
-            const logAction = (name, actionType) => {
-                const now = new Date();
-                const year = now.getFullYear();
-                const month = String(now.getMonth() + 1).padStart(2, '0');
-                const day = String(now.getDate()).padStart(2, '0');
-                const localDate = `${year}-${month}-${day}`;
-                const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }); 
-                
-                let payload = {};
-
-                if (actionType === "CLOCK_IN") {
-                    const schedIndex = sheetData.findIndex(row => row.name === name && normalizeDate(row.date) === localDate && !row.timeIn);
-                    let note = "";
-
-                    if (schedIndex !== -1) {
-                        const schedRow = sheetData[schedIndex];
-                        if (schedRow.schedIn) {
-                            const schedTime = new Date(`2000/01/01 ${schedRow.schedIn}`);
-                            const actualTime = new Date(`2000/01/01 ${timeStr}`);
-                            if (!isNaN(schedTime) && !isNaN(actualTime)) {
-                                const diffMins = (actualTime - schedTime) / 60000;
-                                if (diffMins > 5) {
-                                    note = "Late Start";
-                                }
-                            }
-                        }
-
-                        setSheetData(prev => {
-                            const newData = [...prev];
-                            newData[schedIndex] = { ...newData[schedIndex], timeIn: timeStr, reason: note };
-                            return newData;
-                        });
-                    } else {
-                        const newEntry = { date: localDate, timeIn: timeStr, timeOut: "", name: name, reason: "", schedIn: "", schedOut: "", payrollStatus: "Open", scheduleStatus: "" };
-                        setSheetData(prev => [newEntry, ...prev]);
-                    }
-
-                    payload = { action: "CLOCK_IN", date: localDate, time: timeStr, name: name, reason: note };
-                } else {
-                    setSheetData(prev => {
-                        const newData = [...prev];
-                        const index = newData.findIndex(row => row.name === name && !row.timeOut);
-                        if (index !== -1) newData[index] = { ...newData[index], timeOut: timeStr };
-                        return newData;
-                    });
-                    payload = { action: "CLOCK_OUT", date: localDate, time: timeStr, name: name };
-                }
-                sendToSheet(payload);
-            };
-
-            const sendToSheet = async (payload) => {
-                if (scriptUrl) {
-                    try {
-                        await fetch(scriptUrl, {
-                            method: "POST",
-                            body: JSON.stringify(payload)
-                        });
-                        
-                        setTimeout(async () => {
-                            const response = await fetch(`${scriptUrl}?type=logs`);
-                            if (response.ok) {
-                                const logData = await response.json();
-                                setSheetData(logData.reverse());
-                            }
-                        }, 1500);
-                        
-                    } catch (err) {
-                        console.error("Network Error:", err);
-                    }
-                }
-            };
-
-            return (
-                <div className="min-h-screen p-4 md:p-8 flex flex-col items-center">
+                <div className="min-h-screen p-2 md:p-8 flex flex-col items-center">
                     <TeamScheduleModal isOpen={isScheduleModalOpen} onClose={() => setScheduleModalOpen(false)} sheetData={sheetData} />
                     
                     {/* Header */}
-                    <div className="w-full max-w-[1400px] flex justify-between items-center mb-8 brutal-card p-5 md:p-6">
-                        <div className="flex items-center gap-4">
+                    <div className="w-full max-w-[1400px] flex justify-between items-center mb-4 md:mb-8 brutal-card p-3 md:p-6">
+                        <div className="flex items-center gap-2 md:gap-4 overflow-hidden">
                             {settings.logoUrl ? (
-                                <img src={settings.logoUrl} alt="Logo" className="h-12 w-auto object-contain drop-shadow-md" />
+                                <img src={settings.logoUrl} alt="Logo" className="h-8 md:h-12 w-auto object-contain drop-shadow-md shrink-0" />
                             ) : (
-                                <div className="w-12 h-12 bg-[#38bdf8] border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_#000000] flex items-center justify-center text-xl">
+                                <div className="w-8 h-8 md:w-12 md:h-12 bg-[#38bdf8] border-2 border-black rounded-lg md:rounded-xl shadow-[2px_2px_0px_0px_#000000] flex items-center justify-center text-sm md:text-xl shrink-0">
                                     🐨
                                 </div>
                             )}
-                            <div>
-                                <h1 className="text-2xl md:text-3xl font-black">{settings.companyName}</h1>
-                                <p className="text-gray-600 font-bold text-sm md:text-base">{currentTime.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                            <div className="min-w-0">
+                                <h1 className="text-lg md:text-3xl font-black truncate">{settings.companyName}</h1>
+                                <p className="text-gray-600 font-bold text-[10px] md:text-base truncate">{currentTime.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</p>
                             </div>
                         </div>
-                        <div className="text-3xl md:text-5xl font-black tracking-tighter">
+                        <div className="text-xl md:text-5xl font-black tracking-tighter shrink-0 ml-2">
                             {currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} 
                         </div>
                     </div>
 
-                    <div className="w-full max-w-[1400px] grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <div className="w-full max-w-[1400px] grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8">
                         
                         {/* LEFT: Employee Selection & Actions */}
-                        <div className="lg:col-span-4 flex flex-col gap-6 lg:gap-8">
+                        <div className="lg:col-span-4 flex flex-col gap-4 lg:gap-8">
                             
                             {/* Employee List (Hides when a user is authenticated, or on mobile when selected) */}
-                            <div className={`brutal-card p-5 md:p-6 transition-all duration-300 ${!selectedId ? 'block' : isAuthenticated ? 'hidden' : 'hidden lg:block'}`}>
-                                <h2 className="text-xl font-black mb-6 flex items-center gap-3">
-                                    <i className="fas fa-users text-[#f43f5e] text-2xl"></i> Select Name
+                            <div className={`brutal-card p-4 md:p-6 transition-all duration-300 ${!selectedId ? 'block' : isAuthenticated ? 'hidden' : 'hidden lg:block'}`}>
+                                <h2 className="text-lg md:text-xl font-black mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
+                                    <i className="fas fa-users text-[#f43f5e] text-xl md:text-2xl"></i> Select Name
                                 </h2>
 
                                 {isLoadingEmployees ? (
-                                    <div className="flex flex-col items-center justify-center h-48 text-black font-bold gap-3">
-                                        <i className="fas fa-circle-notch spinner text-4xl text-[#38bdf8]"></i>
-                                        <p>Loading team...</p>
+                                    <div className="flex flex-col items-center justify-center h-32 md:h-48 text-black font-bold gap-3">
+                                        <i className="fas fa-circle-notch spinner text-3xl md:text-4xl text-[#38bdf8]"></i>
+                                        <p className="text-sm md:text-base">Loading team...</p>
                                     </div>
                                 ) : fetchError ? (
-                                    <div className="flex flex-col items-center justify-center h-48 text-[#f43f5e] gap-3 text-center">
-                                        <i className="fas fa-exclamation-circle text-4xl"></i>
-                                        <p className="font-bold">{fetchError}</p>
-                                        <button onClick={() => window.location.reload()} className="brutal-btn bg-white py-2 px-4 mt-2">Retry</button>
+                                    <div className="flex flex-col items-center justify-center h-32 md:h-48 text-[#f43f5e] gap-2 md:gap-3 text-center">
+                                        <i className="fas fa-exclamation-circle text-3xl md:text-4xl"></i>
+                                        <p className="font-bold text-xs md:text-base">{fetchError}</p>
+                                        <button onClick={() => window.location.reload()} className="brutal-btn bg-white py-1 md:py-2 px-3 md:px-4 mt-2 text-sm md:text-base">Retry</button>
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 lg:gap-4">
@@ -795,17 +392,17 @@
                                                 key={emp.id}
                                                 onClick={() => handleEmployeeSelect(emp.id)}
                                                 className={`
-                                                    brutal-btn p-3 flex flex-col items-center justify-center gap-1 relative h-24
+                                                    brutal-btn p-2 md:p-3 flex flex-col items-center justify-center gap-1 relative h-20 md:h-24
                                                     ${selectedId === emp.id ? 'bg-[#38bdf8]' : emp.isClockedIn ? 'bg-[#a7f3d0]' : 'bg-white hover:bg-gray-50'}
                                                 `}
                                             >
                                                 {emp.isClockedIn && (
-                                                    <div className="absolute top-2 right-2 flex items-center gap-1">
+                                                    <div className="absolute top-1.5 md:top-2 right-1.5 md:right-2 flex items-center gap-1">
                                                         <div className="w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full bg-[#10b981] border border-black animate-pulse"></div>
                                                     </div>
                                                 )}
-                                                <span className="font-black text-center text-base lg:text-lg leading-tight">{emp.name}</span>
-                                                <span className="text-[10px] lg:text-xs font-bold opacity-70">{emp.department}</span>
+                                                <span className="font-black text-center text-sm md:text-base lg:text-lg leading-tight">{emp.name}</span>
+                                                <span className="text-[9px] md:text-[10px] lg:text-xs font-bold opacity-70">{emp.department}</span>
                                             </button>
                                         ))}
                                     </div>
@@ -814,39 +411,39 @@
 
                             {/* Actions (ONLY rendered if Authenticated) */}
                             {isAuthenticated && (
-                                <div className="brutal-card p-5 md:p-6 animate-fade-in bg-white">
-                                    <h2 className="text-xl font-black mb-6">Actions</h2>
+                                <div className="brutal-card p-4 md:p-6 animate-fade-in bg-white">
+                                    <h2 className="text-lg md:text-xl font-black mb-4 md:mb-6">Actions</h2>
                                     <div className="grid grid-cols-2 gap-3 lg:gap-4">
                                         <button 
                                             onClick={() => handleClockAction("CLOCK_IN")}
                                             disabled={selectedEmployee?.isClockedIn}
-                                            className={`brutal-btn py-4 lg:py-5 text-lg lg:text-base flex flex-col items-center justify-center gap-2 lg:gap-3
+                                            className={`brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3
                                                 ${selectedEmployee?.isClockedIn ? 'bg-gray-200 text-gray-500' : 'bg-[#4ade80] hover:bg-[#22c55e]'}`}
                                         >
-                                            <i className="fas fa-sign-in-alt text-3xl lg:text-2xl"></i> 
+                                            <i className="fas fa-sign-in-alt text-xl md:text-3xl lg:text-2xl"></i> 
                                             <span>Clock In</span>
                                         </button>
                                         <button 
                                             onClick={() => handleClockAction("CLOCK_OUT")}
                                             disabled={!selectedEmployee?.isClockedIn}
-                                            className={`brutal-btn py-4 lg:py-5 text-lg lg:text-base flex flex-col items-center justify-center gap-2 lg:gap-3
+                                            className={`brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3
                                                 ${!selectedEmployee?.isClockedIn ? 'bg-gray-200 text-gray-500' : 'bg-[#fb7185] hover:bg-[#f43f5e]'}`}
                                         >
-                                            <i className="fas fa-sign-out-alt text-3xl lg:text-2xl"></i> 
+                                            <i className="fas fa-sign-out-alt text-xl md:text-3xl lg:text-2xl"></i> 
                                             <span>Clock Out</span>
                                         </button>
                                         <button 
                                             onClick={() => setScheduleModalOpen(true)} 
-                                            className="brutal-btn py-4 lg:py-5 text-lg lg:text-base flex flex-col items-center justify-center gap-2 lg:gap-3 bg-white hover:bg-gray-50 text-black"
+                                            className="brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3 bg-white hover:bg-gray-50 text-black"
                                         >
-                                            <i className="fas fa-calendar-day text-3xl lg:text-2xl text-[#38bdf8]"></i> 
+                                            <i className="fas fa-calendar-day text-xl md:text-3xl lg:text-2xl text-[#38bdf8]"></i> 
                                             <span>Schedule</span>
                                         </button>
                                         <button 
                                             onClick={handleLogout} 
-                                            className="brutal-btn py-4 lg:py-5 text-lg lg:text-base flex flex-col items-center justify-center gap-2 lg:gap-3 bg-white hover:bg-gray-50 text-black"
+                                            className="brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3 bg-white hover:bg-gray-50 text-black"
                                         >
-                                            <i className="fas fa-check text-3xl lg:text-2xl text-[#10b981]"></i> 
+                                            <i className="fas fa-check text-xl md:text-3xl lg:text-2xl text-[#10b981]"></i> 
                                             <span>Done</span>
                                         </button>
                                     </div>
@@ -857,11 +454,11 @@
                         {/* RIGHT: Dynamic Panel */}
                         <div className={`lg:col-span-8 transition-all duration-300 ${!selectedId ? 'hidden lg:block' : 'block'}`}>
                             {/* Adding relative positioning so absolute children (toast) anchor here */}
-                            <div className="brutal-card p-5 md:p-8 min-h-[500px] lg:h-[calc(100vh-220px)] lg:max-h-[800px] mb-8 sticky top-8 flex flex-col relative">
+                            <div className="brutal-card p-3 md:p-8 min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px] mb-4 md:mb-8 sticky top-4 md:top-8 flex flex-col relative">
                                 {!selectedId ? (
                                     <div className="h-full flex flex-col items-center justify-center text-gray-400 animate-fade-in">
-                                        <i className="fas fa-hand-pointer text-6xl mb-6 opacity-30 text-black"></i>
-                                        <p className="font-black text-2xl text-black opacity-30">Select a name to begin</p>
+                                        <i className="fas fa-hand-pointer text-4xl md:text-6xl mb-4 md:mb-6 opacity-30 text-black"></i>
+                                        <p className="font-black text-lg md:text-2xl text-black opacity-30">Select a name to begin</p>
                                     </div>
                                 ) : (
                                     <div className="flex-1 overflow-hidden">
