@@ -8,14 +8,28 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom Tailwind Config to support our dual-font setup -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Roboto', 'Arial', 'sans-serif'],
+                        poppins: ['Poppins', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <!-- Friendly, rounded font to match the koala/neo-brutalist vibe -->
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Clean, professional dual-font pairing -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         body {
             /* Creamy pastel yellow background */
             background-color: #fef3c7; 
-            font-family: 'Nunito', sans-serif;
             color: #000000;
             transition: background-color 0.5s ease;
         }
@@ -33,7 +47,8 @@
             border-radius: 1rem;
             box-shadow: 4px 4px 0px 0px #000000;
             transition: transform 0.1s ease, box-shadow 0.1s ease;
-            font-weight: 800;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 800; /* Extra bold (800) instead of black (900) */
             color: #000000;
             cursor: pointer;
         }
@@ -54,6 +69,7 @@
             border-radius: 0.75rem;
             background-color: #ffffff;
             transition: all 0.2s ease;
+            font-family: 'Roboto', sans-serif;
         }
         .brutal-input:focus {
             outline: none;
@@ -151,7 +167,7 @@
         const PinPad = ({ pinInput, handlePinPress, handlePinClear, selectedEmployee, onCancel }) => (
             <div className="flex flex-col items-center justify-center h-full animate-fade-in relative py-2 md:py-4">
                 <div className="mb-2 md:mb-8 text-center shrink-0">
-                    <h3 className="text-2xl md:text-3xl font-black text-black">Enter PIN</h3>
+                    <h3 className="text-2xl md:text-3xl font-extrabold font-poppins text-black">Enter PIN</h3>
                     <p className="text-sm md:text-lg font-bold text-gray-500 mt-0 md:mt-1">Hello, {selectedEmployee?.name}!</p>
                 </div>
                 
@@ -186,7 +202,7 @@
             return (
                 <div className="flex flex-col h-full animate-fade-in relative">
                     <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
-                        <h3 className="text-xl md:text-2xl font-black">My Timesheet</h3>
+                        <h3 className="text-xl md:text-2xl font-extrabold font-poppins">My Timesheet</h3>
                         <div className="flex items-center gap-4">
                             {isFetchingLogs && <span className="text-[10px] md:text-sm font-bold text-[#38bdf8]"><i className="fas fa-sync fa-spin mr-1"></i> Syncing...</span>}
                         </div>
@@ -208,8 +224,8 @@
                                         
                                         {/* Date Block (Lavender) */}
                                         <div className={`p-2 md:p-4 flex flex-col justify-center items-center border-r-2 border-black w-20 md:w-28 shrink-0 ${isLocked ? 'bg-gray-200' : 'bg-[#e9d5ff]'}`}>
-                                            <div className="text-[10px] md:text-sm font-black uppercase tracking-wider">{dayName}</div>
-                                            <div className="text-2xl md:text-4xl font-black mt-0.5 md:mt-1">{dayNum}</div>
+                                            <div className="text-[10px] md:text-sm font-extrabold font-poppins uppercase tracking-wider">{dayName}</div>
+                                            <div className="text-2xl md:text-4xl font-extrabold font-poppins mt-0.5 md:mt-1">{dayNum}</div>
                                             <div className="text-[10px] md:text-xs font-bold uppercase mt-0.5">{monthName}</div>
                                         </div>
 
@@ -218,15 +234,15 @@
                                             <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase">In</span>
-                                                    <span className={`font-black text-sm md:text-lg ${isLocked ? 'text-gray-600' : 'text-[#10b981]'}`}>{row.timeIn}</span>
+                                                    <span className={`font-extrabold font-poppins text-sm md:text-lg ${isLocked ? 'text-gray-600' : 'text-[#10b981]'}`}>{row.timeIn}</span>
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase">Out</span>
-                                                    <span className={`font-black text-sm md:text-lg ${isLocked ? 'text-gray-600' : 'text-[#f43f5e]'}`}>{row.timeOut || '-'}</span>
+                                                    <span className={`font-extrabold font-poppins text-sm md:text-lg ${isLocked ? 'text-gray-600' : 'text-[#f43f5e]'}`}>{row.timeOut || '-'}</span>
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase">Total</span>
-                                                    <span className="font-black text-sm md:text-lg text-black">{calculateHours(row.timeIn, row.timeOut)}</span>
+                                                    <span className="font-extrabold font-poppins text-sm md:text-lg text-black">{calculateHours(row.timeIn, row.timeOut)}</span>
                                                 </div>
                                                 <div className="flex flex-col col-span-2 md:col-span-1">
                                                     <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase">Note</span>
@@ -258,7 +274,7 @@
 
         const EditForm = ({ editTarget, editForm, setEditForm, saveEdit, setViewMode }) => (
             <div className="h-full flex flex-col animate-fade-in">
-                <h3 className="text-lg md:text-2xl font-black mb-4 md:mb-6 flex items-center gap-2 md:gap-3 shrink-0">
+                <h3 className="text-lg md:text-2xl font-extrabold font-poppins mb-4 md:mb-6 flex items-center gap-2 md:gap-3 shrink-0">
                     <button onClick={() => setViewMode('DASHBOARD')} className="brutal-btn bg-white w-8 h-8 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100">
                         <i className="fas fa-arrow-left text-sm md:text-base"></i>
                     </button>
@@ -267,7 +283,7 @@
 
                 <div className="space-y-3 md:space-y-5 flex-1 overflow-y-auto no-scrollbar pb-4">
                     <div>
-                        <label className="block text-xs md:text-sm font-black mb-1 md:mb-2">Time In <span className="text-gray-500 font-semibold">(e.g., 8:00 AM)</span></label>
+                        <label className="block text-xs md:text-sm font-extrabold font-poppins mb-1 md:mb-2">Time In <span className="text-gray-500 font-bold font-sans">(e.g., 8:00 AM)</span></label>
                         <input 
                             type="text" 
                             value={editForm.timeIn}
@@ -276,7 +292,7 @@
                         />
                     </div>
                     <div>
-                        <label className="block text-xs md:text-sm font-black mb-1 md:mb-2">Time Out <span className="text-gray-500 font-semibold">(e.g., 5:00 PM)</span></label>
+                        <label className="block text-xs md:text-sm font-extrabold font-poppins mb-1 md:mb-2">Time Out <span className="text-gray-500 font-bold font-sans">(e.g., 5:00 PM)</span></label>
                         <input 
                             type="text" 
                             value={editForm.timeOut}
@@ -287,17 +303,17 @@
                     <div>
                         {editForm.oldReason && (
                             <div className="mb-3 md:mb-4">
-                                <label className="block text-xs md:text-sm font-black mb-1 md:mb-2 text-gray-500">Previous Notes / Flags</label>
-                                <div className="brutal-input w-full p-3 md:p-4 bg-gray-100 text-gray-600 font-semibold text-xs md:text-sm">
+                                <label className="block text-xs md:text-sm font-extrabold font-poppins mb-1 md:mb-2 text-gray-500">Previous Notes / Flags</label>
+                                <div className="brutal-input w-full p-3 md:p-4 bg-gray-100 text-gray-600 font-bold text-xs md:text-sm">
                                     {editForm.oldReason}
                                 </div>
                             </div>
                         )}
-                        <label className="block text-xs md:text-sm font-black mb-1 md:mb-2 text-[#f43f5e]">Reason for Edit (Required)</label>
+                        <label className="block text-xs md:text-sm font-extrabold font-poppins mb-1 md:mb-2 text-[#f43f5e]">Reason for Edit (Required)</label>
                         <textarea 
                             value={editForm.newReason}
                             onChange={e => setEditForm({...editForm, newReason: e.target.value})}
-                            className="brutal-input w-full p-3 md:p-4 font-semibold text-sm md:text-base h-20 md:h-28"
+                            className="brutal-input w-full p-3 md:p-4 font-bold text-sm md:text-base h-20 md:h-28"
                             placeholder="E.g., Forgot to clock in, System error..."
                         ></textarea>
                     </div>
@@ -362,18 +378,18 @@
                         {/* Header & Controls */}
                         <div className="p-4 md:p-6 border-b-3 border-black flex flex-col md:flex-row justify-between items-center bg-[#fde047] gap-4">
                             <div>
-                                <h3 className="text-2xl font-black text-black text-center md:text-left">Schedule</h3>
+                                <h3 className="text-2xl font-extrabold font-poppins text-black text-center md:text-left">Schedule</h3>
                                 <p className="text-sm font-bold mt-1 text-black/70 text-center md:text-left">Weekly View</p>
                             </div>
                             
                             <div className="flex items-center gap-4 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
-                                <button onClick={prevWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-black transition-colors font-black text-lg">
+                                <button onClick={prevWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-black transition-colors font-extrabold font-poppins text-lg">
                                     <i className="fas fa-chevron-left"></i>
                                 </button>
-                                <span className="font-black text-black w-40 text-center text-lg">
+                                <span className="font-extrabold font-poppins text-black w-40 text-center text-lg">
                                     {formatShortDate(currentWeekStart)} - {formatShortDate(weekDays[6])}
                                 </span>
-                                <button onClick={nextWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-black transition-colors font-black text-lg">
+                                <button onClick={nextWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-black transition-colors font-extrabold font-poppins text-lg">
                                     <i className="fas fa-chevron-right"></i>
                                 </button>
                             </div>
@@ -394,8 +410,8 @@
                                     return (
                                         <div key={dayKey} className={`flex flex-row lg:flex-col rounded-xl lg:rounded-2xl border-2 border-black overflow-hidden lg:min-h-[150px] shadow-[4px_4px_0px_0px_#000000] ${isToday ? 'bg-[#e0f2fe]' : 'bg-white'}`}>
                                             <div className={`p-2 lg:p-3 flex flex-col justify-center items-center border-r-2 lg:border-r-0 lg:border-b-2 border-black w-20 lg:w-full shrink-0 ${isToday ? 'bg-[#38bdf8] text-black' : 'bg-gray-50 text-black'}`}>
-                                                <div className="text-[11px] lg:text-sm font-black uppercase tracking-wider">{dayNames[i]}</div>
-                                                <div className={`text-xl lg:text-2xl font-black mt-0.5 lg:mt-1`}>
+                                                <div className="text-[11px] lg:text-sm font-extrabold font-poppins uppercase tracking-wider">{dayNames[i]}</div>
+                                                <div className={`text-xl lg:text-2xl font-extrabold font-poppins mt-0.5 lg:mt-1`}>
                                                     {dayObj.getDate()}
                                                 </div>
                                             </div>
@@ -408,7 +424,7 @@
                                                                     <i className="fas fa-check-circle text-sm lg:text-base"></i>
                                                                 </div>
                                                             )}
-                                                            <div className="font-black text-black text-sm lg:text-base leading-tight pr-5">{shift.name}</div>
+                                                            <div className="font-extrabold font-poppins text-black text-sm lg:text-base leading-tight pr-5">{shift.name}</div>
                                                             <div className="text-gray-600 text-[11px] lg:text-sm font-bold mt-1">
                                                                 <i className="far fa-clock mr-1 text-[#fb7185]"></i>
                                                                 {shift.schedIn} - {shift.schedOut}
@@ -773,11 +789,11 @@
                                 </div>
                             )}
                             <div className="min-w-0">
-                                <h1 className="text-lg md:text-3xl font-black truncate">{settings.companyName}</h1>
+                                <h1 className="text-lg md:text-3xl font-extrabold font-poppins truncate">{settings.companyName}</h1>
                                 <p className="text-gray-600 font-bold text-[10px] md:text-base truncate">{currentTime.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</p>
                             </div>
                         </div>
-                        <div className="text-xl md:text-5xl font-black tracking-tighter shrink-0 ml-2">
+                        <div className="text-xl md:text-5xl font-extrabold font-poppins tracking-tighter shrink-0 ml-2">
                             {currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} 
                         </div>
                     </div>
@@ -789,7 +805,7 @@
                             
                             {/* Employee List (Hides when a user is authenticated, or on mobile when selected) */}
                             <div className={`brutal-card p-4 md:p-6 transition-all duration-300 ${!selectedId ? 'block' : isAuthenticated ? 'hidden' : 'hidden lg:block'}`}>
-                                <h2 className="text-lg md:text-xl font-black mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
+                                <h2 className="text-lg md:text-xl font-extrabold font-poppins mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
                                     <i className="fas fa-users text-[#f43f5e] text-xl md:text-2xl"></i> Select Name
                                 </h2>
 
@@ -820,7 +836,7 @@
                                                         <div className="w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full bg-[#10b981] border border-black animate-pulse"></div>
                                                     </div>
                                                 )}
-                                                <span className="font-black text-center text-sm md:text-base lg:text-lg leading-tight">{emp.name}</span>
+                                                <span className="font-extrabold font-poppins text-center text-sm md:text-base lg:text-lg leading-tight">{emp.name}</span>
                                                 <span className="text-[9px] md:text-[10px] lg:text-xs font-bold opacity-70">{emp.department}</span>
                                             </button>
                                         ))}
@@ -831,7 +847,7 @@
                             {/* Actions (ONLY rendered if Authenticated) */}
                             {isAuthenticated && (
                                 <div className="brutal-card p-4 md:p-6 animate-fade-in bg-white">
-                                    <h2 className="text-lg md:text-xl font-black mb-4 md:mb-6">Actions</h2>
+                                    <h2 className="text-lg md:text-xl font-extrabold font-poppins mb-4 md:mb-6">Actions</h2>
                                     <div className="grid grid-cols-2 gap-3 lg:gap-4">
                                         <button 
                                             onClick={() => handleClockAction("CLOCK_IN")}
@@ -877,7 +893,7 @@
                                 {!selectedId ? (
                                     <div className="h-full flex flex-col items-center justify-center text-gray-400 animate-fade-in">
                                         <i className="fas fa-hand-pointer text-4xl md:text-6xl mb-4 md:mb-6 opacity-30 text-black"></i>
-                                        <p className="font-black text-lg md:text-2xl text-black opacity-30">Select a name to begin</p>
+                                        <p className="font-extrabold font-poppins text-lg md:text-2xl text-black opacity-30">Select a name to begin</p>
                                     </div>
                                 ) : (
                                     <div className="flex-1 overflow-hidden">
@@ -890,7 +906,7 @@
                                 {/* Notification Toast nested inside the panel */}
                                 {notification && (
                                     <div className={`
-                                        absolute bottom-6 md:bottom-10 left-1/2 transform -translate-x-1/2 w-max max-w-[90%] px-6 py-3 md:px-8 md:py-4 rounded-xl border-3 border-black shadow-[6px_6px_0px_0px_#000000] text-black font-black text-sm md:text-lg flex items-center gap-3 animate-fade-in z-[60]
+                                        absolute bottom-6 md:bottom-10 left-1/2 transform -translate-x-1/2 w-max max-w-[90%] px-6 py-3 md:px-8 md:py-4 rounded-xl border-3 border-black shadow-[6px_6px_0px_0px_#000000] text-black font-extrabold font-poppins text-sm md:text-lg flex items-center gap-3 animate-fade-in z-[60]
                                         ${notification.type === 'success' ? 'bg-[#a7f3d0]' : 
                                           notification.type === 'error' ? 'bg-[#fecdd3]' : 'bg-[#bae6fd]'}
                                     `}>
