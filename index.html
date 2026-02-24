@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClockKoala</title>
+    <title>Time Clock</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -138,17 +138,6 @@
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         };
 
-        const formatDisplayDate = (dStr) => {
-            if (!dStr) return '';
-            if (dStr.includes('-')) {
-                const parts = dStr.split('-');
-                if (parts.length >= 3) {
-                    return `${parseInt(parts[1])}/${parseInt(parts[2])}/${parts[0]}`;
-                }
-            }
-            return dStr; 
-        };
-
         // Helper to safely parse dates regardless of local YYYY-MM-DD or M/D/YYYY formatting
         const parseLocalDate = (dateStr) => {
             if (!dateStr) return new Date();
@@ -163,42 +152,211 @@
             return new Date(dateStr);
         };
 
+        const formatMonthDayDate = (dateStr) => {
+            const dateObj = parseLocalDate(dateStr);
+            if (isNaN(dateObj.getTime())) return '';
+            return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        };
+
+        const filterTimesheetRowsUpToToday = (rows) => {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return rows.filter(row => {
+                if (!(row.timeIn || row.scheduleStatus === 'Published')) return false;
+                const rowDate = parseLocalDate(row.date);
+                if (isNaN(rowDate.getTime())) return false;
+                rowDate.setHours(0, 0, 0, 0);
+                return rowDate <= today;
+            });
+        };
+
+        const isSameTimesheetEntry = (a, b) => {
+            if (!a || !b) return false;
+            return (
+                a.name === b.name &&
+                normalizeDate(a.date) === normalizeDate(b.date) &&
+                (a.timeIn || '') === (b.timeIn || '') &&
+                (a.timeOut || '') === (b.timeOut || '')
+            );
+        };
+
+        const isEntryLocked = (row) => {
+            return String(row?.payrollStatus || '').trim().toLowerCase() === 'locked';
+        };
+
+        const hasTimeValue = (value) => {
+            if (typeof value === 'string') {
+                const normalized = value.trim().toLowerCase();
+                return normalized !== '' && normalized !== '-' && normalized !== 'n/a';
+            }
+            return Boolean(value);
+        };
+
+        const hasOpenShiftForToday = (rows, employeeName) => {
+            if (!employeeName) return false;
+            const todayKey = normalizeDate(new Date());
+            return rows.some(row =>
+                row.name === employeeName &&
+                normalizeDate(row.date) === todayKey &&
+                hasTimeValue(row.timeIn) &&
+                !hasTimeValue(row.timeOut)
+            );
+        };
+
+        const normalizeTimeInputWithPeriod = (value, currentPeriod = '') => {
+            const digits = String(value || '').replace(/\D/g, '').slice(0, 4);
+            if (digits.length === 0) return { time: '', period: currentPeriod };
+            if (digits.length <= 2) return { time: digits, period: currentPeriod };
+            if (digits.length === 3) return { time: `${digits.slice(0, 1)}:${digits.slice(1)}`, period: currentPeriod };
+
+            const hour24 = parseInt(digits.slice(0, 2), 10);
+            const minutes = digits.slice(2);
+            if (!isNaN(hour24) && hour24 >= 0 && hour24 <= 23) {
+                const period = hour24 >= 12 ? 'PM' : 'AM';
+                const hour12 = (hour24 % 12) || 12;
+                return { time: `${hour12}:${minutes}`, period };
+            }
+            return { time: `${digits.slice(0, 2)}:${minutes}`, period: currentPeriod };
+        };
+
+        const parseTimeField = (value) => {
+            if (!value || typeof value !== 'string') {
+                return { time: '', period: '' };
+            }
+            const match = value.trim().toUpperCase().match(/^(\d{1,2}):([0-5]\d)\s*(AM|PM)$/);
+            if (!match) {
+                return { time: '', period: '' };
+            }
+            const hour = parseInt(match[1], 10);
+            if (hour < 1 || hour > 12) {
+                return { time: '', period: '' };
+            }
+            return { time: `${hour}:${match[2]}`, period: match[3] };
+        };
+
+        const formatTimeField = (timeValue, periodValue) => {
+            const cleanedTime = String(timeValue || '').trim();
+            if (!cleanedTime) return '';
+            const match = cleanedTime.match(/^(\d{1,2}):([0-5]\d)$/);
+            const period = String(periodValue || '').toUpperCase();
+            if (!match || (period !== 'AM' && period !== 'PM')) return null;
+            const hour = parseInt(match[1], 10);
+            if (hour < 1 || hour > 12) return null;
+            return `${hour}:${match[2]} ${period}`;
+        };
+
+        const parseEditHistory = (reasonText) => {
+            if (!reasonText || typeof reasonText !== 'string') return [];
+            return reasonText
+                .split(/\s*\|\s*(?=\[Edit )/g)
+                .map(chunk => chunk.trim())
+                .filter(Boolean)
+                .map(chunk => {
+                    const match = chunk.match(/^\[Edit ([^\]]+)\]:\s*([\s\S]*)$/);
+                    if (match) {
+                        return {
+                            timestamp: match[1].trim(),
+                            note: match[2].trim(),
+                        };
+                    }
+                    return { timestamp: '', note: chunk };
+                });
+        };
+
+        const formatHistoryTimestamp = (rawTimestamp) => {
+            if (!rawTimestamp || typeof rawTimestamp !== 'string') return '';
+            const parsed = new Date(rawTimestamp);
+            if (isNaN(parsed.getTime())) return rawTimestamp.trim();
+            return parsed.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+            });
+        };
+
+        const parseReasonCell = (reasonText) => {
+            if (!reasonText || typeof reasonText !== 'string') return [];
+            const trimmed = reasonText.trim();
+            if (!trimmed) return [];
+
+            // Preferred format: JSON array in one spreadsheet cell
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) {
+                    return parsed
+                        .map(item => {
+                            if (!item || typeof item !== 'object') return null;
+                            const rawTimestamp = typeof item.t === 'string'
+                                ? item.t
+                                : (typeof item.timestamp === 'string' ? item.timestamp : '');
+                            const note = typeof item.n === 'string'
+                                ? item.n
+                                : (typeof item.note === 'string' ? item.note : '');
+                            const editor = typeof item.by === 'string'
+                                ? item.by
+                                : (typeof item.editor === 'string'
+                                    ? item.editor
+                                    : (typeof item.byName === 'string' ? item.byName : ''));
+                            if (!note.trim()) return null;
+                            return {
+                                timestamp: formatHistoryTimestamp(rawTimestamp),
+                                rawTimestamp,
+                                editor: editor.trim(),
+                                note: note.trim(),
+                            };
+                        })
+                        .filter(Boolean);
+                }
+            } catch (_) {}
+
+            // Backward-compatible fallback for legacy pipe-delimited entries
+            return parseEditHistory(trimmed).map(entry => ({
+                timestamp: entry.timestamp,
+                rawTimestamp: entry.timestamp,
+                editor: '',
+                note: entry.note,
+            }));
+        };
+
         // --- SUB-COMPONENTS ---
 
-        const PinPad = ({ pinInput, handlePinPress, handlePinClear, selectedEmployee, onCancel }) => (
-            <div className="flex flex-col items-center justify-center h-full animate-fade-in relative py-2 md:py-4">
-                <div className="mb-2 md:mb-8 text-center shrink-0">
-                    <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606]">Enter PIN</h3>
-                    <p className="text-sm md:text-lg font-bold text-gray-500 mt-0 md:mt-1">Hello, {selectedEmployee?.name}!</p>
+        const PinPad = ({ pinInput, handlePinPress, handlePinBackspace, handlePinClear, selectedEmployee, onCancel }) => (
+            <div className="flex flex-col items-center justify-center h-full animate-fade-in relative py-2 md:py-3">
+                <div className="mb-2 md:mb-5 text-center shrink-0">
+                    <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">Enter PIN</h3>
                 </div>
                 
-                <div className="flex gap-2 md:gap-3 mb-4 md:mb-8 h-8 md:h-12 shrink-0 items-center">
+                <div className="flex gap-1.5 md:gap-2 mb-3 md:mb-5 h-7 md:h-9 shrink-0 items-center">
                     {[0, 1, 2, 3].map(i => (
-                        <div key={i} className={`w-3 h-3 md:w-4 md:h-4 rounded-full border-2 border-black transition-all ${i < pinInput.length ? 'bg-[#38bdf8] scale-125' : 'bg-gray-200'}`}></div>
+                        <div key={i} className={`w-3 h-3 md:w-3.5 md:h-3.5 rounded-full border-2 border-black transition-all ${i < pinInput.length ? 'bg-[#38bdf8] scale-125' : 'bg-gray-200'}`}></div>
                     ))}
                 </div>
 
-                <div className="grid grid-cols-3 gap-3 md:gap-4 w-56 md:w-72 shrink-0">
+                <div className="grid grid-cols-3 gap-2 md:gap-3 w-48 sm:w-52 md:w-56 lg:w-60 shrink-0">
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                        <button key={num} onClick={() => handlePinPress(num.toString())} className="brutal-btn pin-btn bg-white hover:bg-gray-50 text-xl md:text-2xl flex items-center justify-center">
+                        <button key={num} onClick={() => handlePinPress(num.toString())} className="brutal-btn pin-btn bg-white hover:bg-gray-50 text-lg md:text-xl flex items-center justify-center">
                             {num}
                         </button>
                     ))}
-                    <div className="flex items-center justify-center"></div>
-                    <button onClick={() => handlePinPress("0")} className="brutal-btn pin-btn bg-white hover:bg-gray-50 text-xl md:text-2xl flex items-center justify-center">0</button>
-                    <button onClick={handlePinClear} className="brutal-btn pin-btn bg-[#fb7185] hover:bg-[#f43f5e] text-white text-lg md:text-xl flex items-center justify-center">
+                    <button onClick={handlePinClear} className="brutal-btn pin-btn bg-[#fde047] hover:bg-[#facc15] text-[#060606] text-[11px] md:text-sm uppercase tracking-wide flex items-center justify-center">
+                        Clear
+                    </button>
+                    <button onClick={() => handlePinPress("0")} className="brutal-btn pin-btn bg-white hover:bg-gray-50 text-lg md:text-xl flex items-center justify-center">0</button>
+                    <button onClick={handlePinBackspace} className="brutal-btn pin-btn bg-[#fb7185] hover:bg-[#f43f5e] text-white text-base md:text-lg flex items-center justify-center">
                         <i className="fas fa-backspace"></i>
                     </button>
                 </div>
 
-                <button onClick={onCancel} className="mt-4 md:mt-8 text-gray-500 hover:text-[#060606] font-bold flex items-center gap-2 px-4 py-2 transition-colors lg:hidden shrink-0 text-sm">
+                <button onClick={onCancel} className="mt-3 md:mt-5 text-gray-500 hover:text-[#060606] font-bold flex items-center gap-2 px-4 py-2 transition-colors lg:hidden shrink-0 text-sm">
                     <i className="fas fa-arrow-left"></i> Back to Names
                 </button>
             </div>
         );
 
         const PersonalDashboard = ({ personalData, startEdit, isFetchingLogs }) => {
-            const visibleData = personalData.filter(row => row.timeIn || row.scheduleStatus === 'Published');
+            const visibleData = filterTimesheetRowsUpToToday(personalData);
 
             return (
                 <div className="flex flex-col h-full animate-fade-in relative overflow-hidden">
@@ -219,7 +377,8 @@
                                 const dayName = isNaN(dateObj) ? '???' : dateObj.toLocaleDateString('en-US', { weekday: 'short' });
                                 const dayNum = isNaN(dateObj) ? '??' : dateObj.getDate();
                                 const monthName = isNaN(dateObj) ? '???' : dateObj.toLocaleDateString('en-US', { month: 'short' });
-                                const isLocked = row.payrollStatus === 'Locked';
+                                const isLocked = isEntryLocked(row);
+                                const hasEdits = parseReasonCell(row.reason).length > 0;
 
                                 return (
                                     <div key={idx} className={`flex flex-row rounded-xl md:rounded-2xl border-2 border-black shadow-[4px_4px_0px_0px_#000000] overflow-hidden ${isLocked ? 'bg-gray-50 opacity-80' : 'bg-white'}`}>
@@ -233,7 +392,7 @@
 
                                         {/* Shift Details Block */}
                                         <div className="p-3 md:p-4 flex-1 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 relative">
-                                            <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                                            <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase">In</span>
                                                     <span className={`font-bold font-poppins text-sm md:text-lg ${isLocked ? 'text-gray-600' : 'text-[#10b981]'}`}>{row.timeIn}</span>
@@ -246,10 +405,6 @@
                                                     <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase">Total</span>
                                                     <span className="font-bold font-poppins text-sm md:text-lg text-[#060606]">{calculateHours(row.timeIn, row.timeOut)}</span>
                                                 </div>
-                                                <div className="flex flex-col col-span-2 md:col-span-1">
-                                                    <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase">Note</span>
-                                                    <span className="text-xs md:text-sm font-bold text-gray-700 truncate max-w-[150px] md:max-w-[200px]" title={row.reason}>{row.reason || '-'}</span>
-                                                </div>
                                             </div>
 
                                             {/* Action Button */}
@@ -259,9 +414,14 @@
                                                         <i className="fas fa-lock text-sm md:text-lg"></i>
                                                     </span>
                                                 ) : (
-                                                    <button onClick={() => startEdit(row)} className="brutal-btn bg-[#fde047] w-8 h-8 md:w-10 md:h-10 flex items-center justify-center hover:bg-[#facc15]" title="Edit Time">
-                                                        <i className="fas fa-pencil-alt text-xs md:text-base"></i>
-                                                    </button>
+                                                    <div className="relative">
+                                                        <button onClick={() => startEdit(row)} className="brutal-btn bg-[#fde047] w-8 h-8 md:w-10 md:h-10 flex items-center justify-center hover:bg-[#facc15]" title="Edit Time">
+                                                            <i className="fas fa-pencil-alt text-xs md:text-base"></i>
+                                                        </button>
+                                                        {hasEdits && (
+                                                            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 md:w-4 md:h-4 bg-[#f43f5e] border-2 border-black rounded-full" title="Entry has notes/edits"></div>
+                                                        )}
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
@@ -274,61 +434,166 @@
             );
         };
 
-        const EditForm = ({ editTarget, editForm, setEditForm, saveEdit, setViewMode }) => (
-            <div className="h-full flex flex-col animate-fade-in overflow-hidden">
-                <h3 className="text-lg md:text-2xl font-bold font-poppins text-[#060606] mb-4 md:mb-6 flex items-center gap-2 md:gap-3 shrink-0">
-                    <button onClick={() => setViewMode('DASHBOARD')} className="brutal-btn bg-white w-8 h-8 md:w-10 md:h-10 flex items-center justify-center hover:bg-gray-100">
-                        <i className="fas fa-arrow-left text-sm md:text-base"></i>
+        const EditForm = ({ editTarget, editForm, setEditForm, saveEdit, reasonValidationTriggered, onPrev, onNext, canPrev, canNext, onClose }) => {
+            const historyRows = parseReasonCell(editForm.oldReason);
+            const isReasonInvalid = reasonValidationTriggered && !editForm.newReason.trim();
+
+            return (
+            <div className="h-full flex flex-col animate-fade-in overflow-hidden relative">
+                <div className="p-4 md:p-6 border-b-3 border-black flex flex-col md:flex-row justify-between items-center bg-[#fde047] gap-4 mb-4 md:mb-6 shrink-0">
+                    <div>
+                        <h3 className="text-2xl font-bold font-poppins text-[#060606] text-center md:text-left">Edit Entry</h3>
+                    </div>
+
+                    <div className="flex items-center gap-4 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
+                        <button onClick={onPrev} disabled={!canPrev} className={`w-10 h-10 flex items-center justify-center rounded-lg text-[#060606] transition-colors font-bold font-poppins text-lg ${canPrev ? 'hover:bg-gray-100' : 'opacity-40 cursor-not-allowed'}`}>
+                            <i className="fas fa-chevron-left"></i>
+                        </button>
+                        <span className="font-bold font-poppins text-[#060606] w-24 text-center text-lg">
+                            {formatMonthDayDate(editTarget.date)}
+                        </span>
+                        <button onClick={onNext} disabled={!canNext} className={`w-10 h-10 flex items-center justify-center rounded-lg text-[#060606] transition-colors font-bold font-poppins text-lg ${canNext ? 'hover:bg-gray-100' : 'opacity-40 cursor-not-allowed'}`}>
+                            <i className="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+
+                    <button onClick={onClose} className="brutal-btn w-12 h-12 bg-white flex items-center justify-center text-[#060606] hover:bg-gray-100 text-xl absolute md:relative top-4 right-4 md:top-auto md:right-auto">
+                        <i className="fas fa-times"></i>
                     </button>
-                    <span className="truncate">Edit Entry: <span className="text-[#38bdf8]">{formatDisplayDate(editTarget.date)}</span></span>
-                </h3>
+                </div>
 
                 {/* Padding to prevent input shadow clipping */}
-                <div className="space-y-3 md:space-y-5 flex-1 overflow-y-auto no-scrollbar pb-4 pt-1 pl-1 pr-3 md:pr-4">
-                    <div>
-                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-1 md:mb-2">Time In <span className="text-gray-500 font-bold font-sans">(e.g., 8:00 AM)</span></label>
-                        <input 
-                            type="text" 
-                            value={editForm.timeIn}
-                            onChange={e => setEditForm({...editForm, timeIn: e.target.value})}
-                            className="brutal-input w-full p-3 md:p-4 font-bold text-sm md:text-lg"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-1 md:mb-2">Time Out <span className="text-gray-500 font-bold font-sans">(e.g., 5:00 PM)</span></label>
-                        <input 
-                            type="text" 
-                            value={editForm.timeOut}
-                            onChange={e => setEditForm({...editForm, timeOut: e.target.value})}
-                            className="brutal-input w-full p-3 md:p-4 font-bold text-sm md:text-lg"
-                        />
-                    </div>
-                    <div>
-                        {editForm.oldReason && (
-                            <div className="mb-3 md:mb-4">
-                                <label className="block text-xs md:text-sm font-bold font-poppins mb-1 md:mb-2 text-gray-500">Previous Notes / Flags</label>
-                                <div className="brutal-input w-full p-3 md:p-4 bg-gray-100 text-gray-600 font-bold text-xs md:text-sm">
-                                    {editForm.oldReason}
+                <div className="space-y-3 md:space-y-4 flex-1 overflow-y-auto no-scrollbar pb-4 pt-1 px-4 md:px-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                        <div>
+                            <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-1 md:mb-2">Time In</label>
+                            <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-stretch focus-within:shadow-[4px_4px_0px_0px_#000000]">
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    placeholder="8:00"
+                                    value={editForm.timeIn}
+                                    onChange={e => {
+                                        const next = normalizeTimeInputWithPeriod(e.target.value, editForm.timeInPeriod);
+                                        setEditForm({ ...editForm, timeIn: next.time, timeInPeriod: next.period });
+                                    }}
+                                    className="flex-1 px-2.5 md:px-3 py-2.5 md:py-3 font-bold text-sm md:text-base bg-transparent outline-none"
+                                    maxLength={5}
+                                />
+                                <div className="flex shrink-0 items-center gap-2 pr-2 md:pr-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditForm({ ...editForm, timeInPeriod: 'AM' })}
+                                        className={`text-xs md:text-sm font-bold transition-colors ${
+                                            editForm.timeInPeriod === 'AM'
+                                                ? 'text-[#060606]'
+                                                : 'text-gray-400 hover:text-gray-500'
+                                        }`}
+                                    >
+                                        AM
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditForm({ ...editForm, timeInPeriod: 'PM' })}
+                                        className={`text-xs md:text-sm font-bold transition-colors ${
+                                            editForm.timeInPeriod === 'PM'
+                                                ? 'text-[#060606]'
+                                                : 'text-gray-400 hover:text-gray-500'
+                                        }`}
+                                    >
+                                        PM
+                                    </button>
                                 </div>
                             </div>
-                        )}
-                        <label className="block text-xs md:text-sm font-bold font-poppins mb-1 md:mb-2 text-[#f43f5e]">Reason for Edit (Required)</label>
+                        </div>
+                        <div>
+                            <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-1 md:mb-2">Time Out</label>
+                            <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-stretch focus-within:shadow-[4px_4px_0px_0px_#000000]">
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    placeholder="5:00"
+                                    value={editForm.timeOut}
+                                    onChange={e => {
+                                        const next = normalizeTimeInputWithPeriod(e.target.value, editForm.timeOutPeriod);
+                                        setEditForm({ ...editForm, timeOut: next.time, timeOutPeriod: next.period });
+                                    }}
+                                    className="flex-1 px-2.5 md:px-3 py-2.5 md:py-3 font-bold text-sm md:text-base bg-transparent outline-none"
+                                    maxLength={5}
+                                />
+                                <div className="flex shrink-0 items-center gap-2 pr-2 md:pr-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditForm({ ...editForm, timeOutPeriod: 'AM' })}
+                                        className={`text-xs md:text-sm font-bold transition-colors ${
+                                            editForm.timeOutPeriod === 'AM'
+                                                ? 'text-[#060606]'
+                                                : 'text-gray-400 hover:text-gray-500'
+                                        }`}
+                                    >
+                                        AM
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditForm({ ...editForm, timeOutPeriod: 'PM' })}
+                                        className={`text-xs md:text-sm font-bold transition-colors ${
+                                            editForm.timeOutPeriod === 'PM'
+                                                ? 'text-[#060606]'
+                                                : 'text-gray-400 hover:text-gray-500'
+                                        }`}
+                                    >
+                                        PM
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-3 md:mb-4">
+                            <label className="flex items-center gap-2 text-xs md:text-sm font-bold font-poppins mb-1 md:mb-2 text-[#060606]">
+                                <span className="w-2 h-2 bg-[#f43f5e] border border-black rounded-full"></span>
+                                Previous Edits
+                            </label>
+                            <div className="w-full p-3 md:p-4 border-2 border-black rounded-xl bg-gray-100 text-[#060606] font-bold text-xs md:text-sm min-h-[84px] max-h-[132px] overflow-y-auto no-scrollbar">
+                                {historyRows.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {historyRows.map((entry, idx) => (
+                                            <div key={`${entry.timestamp}-${idx}`} className="leading-snug break-words">
+                                                {entry.timestamp ? `${entry.timestamp}` : ''}
+                                                {entry.timestamp && entry.editor ? ' | ' : ''}
+                                                {entry.editor ? `${entry.editor}: ` : (entry.timestamp ? ': ' : '')}
+                                                {entry.note || '-'}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-gray-400 italic">No previous edits</div>
+                                )}
+                            </div>
+                        </div>
+
+                        <label className={`block text-xs md:text-sm font-bold font-poppins mb-1 md:mb-2 ${isReasonInvalid ? 'text-[#e11d48]' : 'text-[#060606]'}`}>Reason for Edit (Required)</label>
                         <textarea 
                             value={editForm.newReason}
                             onChange={e => setEditForm({...editForm, newReason: e.target.value})}
-                            className="brutal-input w-full p-3 md:p-4 font-bold text-sm md:text-base h-20 md:h-28"
+                            className={`w-full p-3 md:p-4 font-bold text-sm md:text-base h-20 md:h-28 border-2 rounded-xl outline-none transition-colors placeholder:text-gray-400 ${
+                                isReasonInvalid
+                                    ? 'border-[#f43f5e] bg-white text-[#060606]'
+                                    : 'border-black bg-white text-[#060606]'
+                            }`}
                             placeholder="E.g., Forgot to clock in, System error..."
                         ></textarea>
                     </div>
                 </div>
 
-                <div className="mt-2 md:mt-4 shrink-0">
-                    <button onClick={saveEdit} className="brutal-btn w-full bg-[#38bdf8] hover:bg-[#0ea5e9] py-3 md:py-4 text-lg md:text-xl text-[#060606]">
+                <div className="mt-2 md:mt-4 shrink-0 px-4 md:px-6 pb-4 md:pb-6">
+                    <button onClick={saveEdit} className="brutal-btn w-full bg-[#38bdf8] hover:bg-[#0ea5e9] py-2.5 md:py-3 text-sm md:text-base text-[#060606]">
                         Save Changes
                     </button>
                 </div>
             </div>
-        );
+            );
+        };
 
         const TeamScheduleModal = ({ isOpen, onClose, sheetData }) => {
             const [currentWeekStart, setCurrentWeekStart] = useState(null);
@@ -379,7 +644,7 @@
                     <div className="brutal-card w-full max-w-7xl overflow-hidden flex flex-col max-h-[95vh]">
                         
                         {/* Header & Controls */}
-                        <div className="p-4 md:p-6 border-b-3 border-black flex flex-col md:flex-row justify-between items-center bg-[#fde047] gap-4">
+                        <div className="p-4 md:p-6 border-b-3 border-black flex flex-col md:flex-row justify-between items-center bg-[#38bdf8] gap-4">
                             <div>
                                 <h3 className="text-2xl font-bold font-poppins text-[#060606] text-center md:text-left">Schedule</h3>
                                 <p className="text-sm font-bold mt-1 text-[#060606]/70 text-center md:text-left">Weekly View</p>
@@ -462,7 +727,14 @@
             const [selectedId, setSelectedId] = useState(null);
             const [isAuthenticated, setIsAuthenticated] = useState(false);
             const [editTarget, setEditTarget] = useState(null);
-            const [editForm, setEditForm] = useState({ timeIn: '', timeOut: '', oldReason: '', newReason: '' });
+            const [editForm, setEditForm] = useState({
+                timeIn: '',
+                timeInPeriod: '',
+                timeOut: '',
+                timeOutPeriod: '',
+                oldReason: '',
+                newReason: ''
+            });
             const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
             
             // Timeout Logic States
@@ -482,50 +754,53 @@
             
             // Settings State (Branding)
             const [settings, setSettings] = useState({
-                companyName: "ClockKoala", // Default fallback name!
+                companyName: "",
                 logoUrl: "",
             });
 
             const [notification, setNotification] = useState(null);
+            const [reasonValidationTriggered, setReasonValidationTriggered] = useState(false);
 
             // Fetch Data on Mount
             useEffect(() => {
                 const fetchData = async () => {
-                    try {
-                        const response = await fetch(`${scriptUrl}?type=employees`);
-                        if (!response.ok) throw new Error('Failed to fetch employees');
-                        const data = await response.json();
-                        const formattedEmployees = data.map(emp => ({ ...emp, isClockedIn: false }));
-                        setEmployees(formattedEmployees);
-                        setIsLoadingEmployees(false);
-                    } catch (error) {
-                        console.error("Error fetching employees:", error);
-                        setFetchError("Could not load employees. Please check the Google Sheet setup.");
-                        setIsLoadingEmployees(false);
-                    }
-
-                    try {
-                        const response = await fetch(`${scriptUrl}?type=settings`);
-                        if (response.ok) {
-                            const data = await response.json();
-                            if (data.companyName) {
-                                setSettings(prev => ({
-                                    companyName: data.companyName || prev.companyName,
-                                    logoUrl: data.logoUrl || "",
-                                }));
+                    await Promise.allSettled([
+                        (async () => {
+                            try {
+                                const response = await fetch(`${scriptUrl}?type=employees`);
+                                if (!response.ok) throw new Error('Failed to fetch employees');
+                                const data = await response.json();
+                                const formattedEmployees = data.map(emp => ({ ...emp, isClockedIn: false }));
+                                setEmployees(formattedEmployees);
+                            } catch (error) {
+                                console.error("Error fetching employees:", error);
+                                setFetchError("Could not load employees. Please check the Google Sheet setup.");
+                            } finally {
+                                setIsLoadingEmployees(false);
                             }
-                        }
-                    } catch (error) {
-                        console.error("Error fetching settings:", error);
-                    }
-
-                    try {
-                        const response = await fetch(`${scriptUrl}?type=logs`);
-                        if (response.ok) {
-                            const logData = await response.json();
-                            setSheetData(logData.reverse()); 
-                        }
-                    } catch (error) {}
+                        })(),
+                        (async () => {
+                            try {
+                                const response = await fetch(`${scriptUrl}?type=settings`);
+                                if (!response.ok) return;
+                                const data = await response.json();
+                                setSettings({
+                                    companyName: (data.companyName || "").trim(),
+                                    logoUrl: data.logoUrl || "",
+                                });
+                            } catch (error) {
+                                console.error("Error fetching settings:", error);
+                            }
+                        })(),
+                        (async () => {
+                            try {
+                                const response = await fetch(`${scriptUrl}?type=logs`);
+                                if (!response.ok) return;
+                                const logData = await response.json();
+                                setSheetData(logData.reverse());
+                            } catch (error) {}
+                        })(),
+                    ]);
                 };
 
                 fetchData();
@@ -545,6 +820,7 @@
                 setIsAuthenticated(false);
                 setViewMode('PINPAD');
                 setEditTarget(null);
+                setReasonValidationTriggered(false);
                 setShowTimeoutWarning(false);
                 lastActivityRef.current = Date.now();
             };
@@ -598,6 +874,38 @@
             const personalData = selectedEmployee 
                 ? sheetData.filter(row => row.name === selectedEmployee.name) 
                 : [];
+            const editableRows = filterTimesheetRowsUpToToday(personalData)
+                .filter(row => !isEntryLocked(row))
+                .slice()
+                .sort((a, b) => {
+                    const aDate = parseLocalDate(a.date);
+                    const bDate = parseLocalDate(b.date);
+                    const aTime = isNaN(aDate.getTime()) ? 0 : aDate.getTime();
+                    const bTime = isNaN(bDate.getTime()) ? 0 : bDate.getTime();
+                    return aTime - bTime;
+                });
+            const editTargetIndex = editTarget
+                ? editableRows.findIndex(row => isSameTimesheetEntry(row, editTarget))
+                : -1;
+            const canEditPrev = editTargetIndex > 0;
+            const canEditNext = editTargetIndex >= 0 && editTargetIndex < editableRows.length - 1;
+            const selectedHasOpenShiftToday = selectedEmployee
+                ? hasOpenShiftForToday(sheetData, selectedEmployee.name)
+                : false;
+
+            useEffect(() => {
+                if (employees.length === 0) return;
+                setEmployees(prev => {
+                    let changed = false;
+                    const next = prev.map(emp => {
+                        const isClockedIn = hasOpenShiftForToday(sheetData, emp.name);
+                        if (emp.isClockedIn === isClockedIn) return emp;
+                        changed = true;
+                        return { ...emp, isClockedIn };
+                    });
+                    return changed ? next : prev;
+                });
+            }, [sheetData, employees.length]);
 
             const handleEmployeeSelect = async (id) => {
                 setSelectedId(id);
@@ -629,6 +937,10 @@
                 }
             };
 
+            const handlePinBackspace = () => {
+                setPinInput(prev => prev.slice(0, -1));
+            };
+
             const handlePinClear = () => setPinInput("");
 
             const validatePin = (inputPin) => {
@@ -650,7 +962,11 @@
                     
                     if (e.key >= '0' && e.key <= '9') {
                         handlePinPress(e.key);
-                    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+                    } else if (e.key === 'Backspace') {
+                        e.preventDefault();
+                        handlePinBackspace();
+                    } else if (e.key === 'Delete' || e.key === 'Escape') {
+                        e.preventDefault();
                         handlePinClear();
                     }
                 };
@@ -661,58 +977,117 @@
 
             const handleClockAction = (actionType) => {
                 if (actionType === "CLOCK_IN") {
+                    if (selectedHasOpenShiftToday) return;
                     updateEmployeeStatus(selectedId, true);
                     logAction(selectedEmployee.name, "CLOCK_IN");
                     setNotification({ type: 'success', message: "Clocked In Successfully" });
                 } else {
+                    if (!selectedHasOpenShiftToday) return;
                     updateEmployeeStatus(selectedId, false);
                     logAction(selectedEmployee.name, "CLOCK_OUT");
                     setNotification({ type: 'info', message: "Clocked Out Successfully" });
                 }
             };
 
-            const startEdit = (row) => {
+            const loadEditRow = (row) => {
+                const parsedIn = parseTimeField(row.timeIn);
+                const parsedOut = parseTimeField(row.timeOut || '');
                 setEditTarget(row);
+                setReasonValidationTriggered(false);
                 setEditForm({ 
-                    timeIn: row.timeIn, 
-                    timeOut: row.timeOut || '', 
+                    timeIn: parsedIn.time,
+                    timeInPeriod: parsedIn.period,
+                    timeOut: parsedOut.time,
+                    timeOutPeriod: parsedOut.period,
                     oldReason: row.reason || '',
                     newReason: ''
                 });
+            };
+
+            const startEdit = (row) => {
+                if (isEntryLocked(row)) {
+                    setNotification({ type: 'error', message: "This entry is locked and cannot be edited." });
+                    return;
+                }
+                loadEditRow(row);
                 setViewMode('EDIT');
             };
 
+            const handleEditPrev = () => {
+                if (!canEditPrev) return;
+                loadEditRow(editableRows[editTargetIndex - 1]);
+            };
+
+            const handleEditNext = () => {
+                if (!canEditNext) return;
+                loadEditRow(editableRows[editTargetIndex + 1]);
+            };
+
             const saveEdit = () => {
-                if (!editForm.newReason.trim()) {
-                    setNotification({ type: 'error', message: "A reason for editing is required." });
+                if (isEntryLocked(editTarget)) {
+                    setNotification({ type: 'error', message: "This entry is locked and cannot be edited." });
+                    setViewMode('DASHBOARD');
                     return;
                 }
 
-                const timestamp = new Date().toLocaleDateString([], {month: 'short', day: 'numeric'});
-                const formattedNewNote = `[Edit ${timestamp}]: ${editForm.newReason.trim()}`;
-                
-                const combinedReason = editForm.oldReason 
-                    ? `${editForm.oldReason} | ${formattedNewNote}` 
-                    : formattedNewNote;
+                if (!editForm.newReason.trim()) {
+                    setReasonValidationTriggered(true);
+                    setNotification({ type: 'error', message: "A reason for editing is required." });
+                    return;
+                }
+                setReasonValidationTriggered(false);
 
-                setSheetData(prev => prev.map(row => {
-                    if (row === editTarget) {
-                        return { 
-                            ...row, 
-                            timeIn: editForm.timeIn, 
-                            timeOut: editForm.timeOut, 
-                            reason: combinedReason 
+                const updatedTimeIn = formatTimeField(editForm.timeIn, editForm.timeInPeriod);
+                const updatedTimeOut = editForm.timeOut
+                    ? formatTimeField(editForm.timeOut, editForm.timeOutPeriod)
+                    : '';
+
+                if (!updatedTimeIn) {
+                    setNotification({ type: 'error', message: "Enter a valid Time In (h:mm + AM/PM)." });
+                    return;
+                }
+                if (editForm.timeOut && !updatedTimeOut) {
+                    setNotification({ type: 'error', message: "Enter a valid Time Out (h:mm + AM/PM)." });
+                    return;
+                }
+
+                const history = parseReasonCell(editForm.oldReason)
+                    .map(entry => ({
+                        t: entry.rawTimestamp || entry.timestamp || '',
+                        by: entry.editor || '',
+                        n: entry.note || '',
+                    }))
+                    .filter(entry => entry.n.trim() !== '');
+                history.push({
+                    t: new Date().toISOString(),
+                    by: selectedEmployee?.name || '',
+                    n: editForm.newReason.trim(),
+                });
+                const combinedReason = JSON.stringify(history);
+
+                setSheetData(prev => {
+                    let updated = false;
+                    return prev.map(row => {
+                        const isTarget = !updated && isSameTimesheetEntry(row, editTarget);
+                        if (!isTarget) return row;
+                        updated = true;
+                        return {
+                            ...row,
+                            timeIn: updatedTimeIn,
+                            timeOut: updatedTimeOut,
+                            reason: combinedReason
                         };
-                    }
-                    return row;
-                }));
+                    });
+                });
 
                 const payload = {
                     action: "EDIT",
                     date: normalizeDate(editTarget.date), 
                     name: editTarget.name,
-                    newTimeIn: editForm.timeIn,
-                    newTimeOut: editForm.timeOut,
+                    newTimeIn: updatedTimeIn,
+                    newTimeOut: updatedTimeOut,
+                    editorName: selectedEmployee?.name || '',
+                    editorRole: selectedEmployee?.role || 'employee',
                     reason: combinedReason
                 };
 
@@ -768,7 +1143,19 @@
                 } else {
                     setSheetData(prev => {
                         const newData = [...prev];
-                        const index = newData.findIndex(row => row.name === name && !row.timeOut);
+                        let index = newData.findIndex(row =>
+                            row.name === name &&
+                            normalizeDate(row.date) === localDate &&
+                            hasTimeValue(row.timeIn) &&
+                            !hasTimeValue(row.timeOut)
+                        );
+                        if (index === -1) {
+                            index = newData.findIndex(row =>
+                                row.name === name &&
+                                hasTimeValue(row.timeIn) &&
+                                !hasTimeValue(row.timeOut)
+                            );
+                        }
                         if (index !== -1) newData[index] = { ...newData[index], timeOut: timeStr };
                         return newData;
                     });
@@ -784,15 +1171,6 @@
                             method: "POST",
                             body: JSON.stringify(payload)
                         });
-                        
-                        setTimeout(async () => {
-                            const response = await fetch(`${scriptUrl}?type=logs`);
-                            if (response.ok) {
-                                const logData = await response.json();
-                                setSheetData(logData.reverse());
-                            }
-                        }, 1500);
-                        
                     } catch (err) {
                         console.error("Network Error:", err);
                     }
@@ -813,9 +1191,9 @@
                                     🐨
                                 </div>
                             )}
-                            <div className="min-w-0">
-                                <h1 className="text-lg md:text-3xl font-bold font-poppins text-[#060606] truncate">{settings.companyName}</h1>
-                                <p className="text-gray-600 font-bold text-[10px] md:text-base truncate">{currentTime.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                            <div className="w-[170px] sm:w-[220px] md:w-[360px] lg:w-[460px] min-w-0">
+                                <h1 className="text-lg md:text-3xl font-bold font-poppins text-[#060606] truncate min-h-[1.75rem] md:min-h-[2.25rem]">{settings.companyName || '\u00A0'}</h1>
+                                <p className="text-gray-600 font-bold text-[10px] md:text-base truncate">{currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
                             </div>
                         </div>
                         <div className="text-xl md:text-5xl font-bold font-poppins text-[#060606] tracking-tighter shrink-0 ml-2">
@@ -872,22 +1250,22 @@
                             {/* Actions (ONLY rendered if Authenticated) */}
                             {isAuthenticated && (
                                 <div className="brutal-card p-4 md:p-6 animate-fade-in bg-white">
-                                    <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-4 md:mb-6">Actions</h2>
+                                    <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-4 md:mb-6 truncate">Hello, {selectedEmployee?.name}!</h2>
                                     <div className="grid grid-cols-2 gap-3 lg:gap-4">
                                         <button 
                                             onClick={() => handleClockAction("CLOCK_IN")}
-                                            disabled={selectedEmployee?.isClockedIn}
+                                            disabled={selectedHasOpenShiftToday}
                                             className={`brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3
-                                                ${selectedEmployee?.isClockedIn ? 'bg-gray-200 text-gray-500' : 'bg-[#4ade80] hover:bg-[#22c55e]'}`}
+                                                ${selectedHasOpenShiftToday ? 'bg-gray-200 text-gray-500' : 'bg-[#4ade80] hover:bg-[#22c55e]'}`}
                                         >
                                             <i className="fas fa-sign-in-alt text-xl md:text-3xl lg:text-2xl"></i> 
                                             <span>Clock In</span>
                                         </button>
                                         <button 
                                             onClick={() => handleClockAction("CLOCK_OUT")}
-                                            disabled={!selectedEmployee?.isClockedIn}
+                                            disabled={!selectedHasOpenShiftToday}
                                             className={`brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3
-                                                ${!selectedEmployee?.isClockedIn ? 'bg-gray-200 text-gray-500' : 'bg-[#fb7185] hover:bg-[#f43f5e]'}`}
+                                                ${!selectedHasOpenShiftToday ? 'bg-gray-200 text-gray-500' : 'bg-[#fb7185] hover:bg-[#f43f5e]'}`}
                                         >
                                             <i className="fas fa-sign-out-alt text-xl md:text-3xl lg:text-2xl"></i> 
                                             <span>Clock Out</span>
@@ -915,7 +1293,7 @@
                         <div className={`lg:col-span-7 transition-all duration-300 ${!selectedId ? 'hidden lg:block' : 'block'}`}>
                             
                             {/* Adding relative positioning so absolute children (toast) anchor exactly here */}
-                            <div className="brutal-card p-3 md:p-8 min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px] mb-4 md:mb-8 sticky top-4 md:top-8 flex flex-col relative overflow-hidden">
+                            <div className={`brutal-card min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px] mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : 'p-3 md:p-8'}`}>
                                 
                                 {/* TIMEOUT WARNING OVERLAY */}
                                 {showTimeoutWarning && (
@@ -946,9 +1324,9 @@
                                     </div>
                                 ) : (
                                     <div className="flex-1 overflow-hidden">
-                                        {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinClear={handlePinClear} selectedEmployee={selectedEmployee} onCancel={handleLogout} />}
+                                        {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinBackspace={handlePinBackspace} handlePinClear={handlePinClear} selectedEmployee={selectedEmployee} onCancel={handleLogout} />}
                                         {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} isFetchingLogs={isFetchingLogs} />}
-                                        {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} setViewMode={setViewMode} />}
+                                        {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} reasonValidationTriggered={reasonValidationTriggered} onPrev={handleEditPrev} onNext={handleEditNext} canPrev={canEditPrev} canNext={canEditNext} onClose={() => { setReasonValidationTriggered(false); setViewMode('DASHBOARD'); }} />}
                                     </div>
                                 )}
                                 
