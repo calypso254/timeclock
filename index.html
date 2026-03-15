@@ -190,9 +190,19 @@
             return Boolean(value);
         };
 
+        const normalizeClockTimeText = (value) => {
+            if (value === null || value === undefined) return '';
+            return String(value)
+                .replace(/[\u00A0\u202F]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toUpperCase();
+        };
+
         const parseClockTimeToMinutes = (value) => {
-            if (!hasTimeValue(value) || typeof value !== 'string') return null;
-            const match = value.trim().toUpperCase().match(/^(\d{1,2}):([0-5]\d)\s*(AM|PM)$/);
+            if (!hasTimeValue(value)) return null;
+            const normalizedValue = normalizeClockTimeText(value);
+            const match = normalizedValue.match(/^(\d{1,2}):([0-5]\d)\s*(AM|PM)$/);
             if (!match) return null;
 
             let hour = parseInt(match[1], 10);
@@ -206,6 +216,12 @@
             }
 
             return (hour * 60) + minutes;
+        };
+
+        const normalizeTimeForComparison = (value) => {
+            const parsedMinutes = parseClockTimeToMinutes(value);
+            if (parsedMinutes !== null) return `m:${parsedMinutes}`;
+            return normalizeClockTimeText(value);
         };
 
         const calculateWorkedMinutes = (start, end) => {
@@ -280,8 +296,8 @@
             return (
                 a.name === b.name &&
                 normalizeDate(a.date) === normalizeDate(b.date) &&
-                (a.timeIn || '') === (b.timeIn || '') &&
-                (a.timeOut || '') === (b.timeOut || '')
+                normalizeTimeForComparison(a.timeIn || '') === normalizeTimeForComparison(b.timeIn || '') &&
+                normalizeTimeForComparison(a.timeOut || '') === normalizeTimeForComparison(b.timeOut || '')
             );
         };
 
@@ -401,15 +417,15 @@
                 return rows.find(row =>
                     row.name === employeeName &&
                     normalizeDate(row.date) === timestamp.localDate &&
-                    (row.timeIn || '') === timestamp.localTime
+                    normalizeTimeForComparison(row.timeIn || '') === normalizeTimeForComparison(timestamp.localTime)
                 ) || null;
             }
 
             return rows.find(row =>
                 row.name === employeeName &&
                 normalizeDate(row.date) === timestamp.localDate &&
-                (row.timeOut || '') === timestamp.localTime &&
-                (!plan?.row?.timeIn || (row.timeIn || '') === (plan.row.timeIn || ''))
+                normalizeTimeForComparison(row.timeOut || '') === normalizeTimeForComparison(timestamp.localTime) &&
+                (!plan?.row?.timeIn || normalizeTimeForComparison(row.timeIn || '') === normalizeTimeForComparison(plan.row.timeIn || ''))
             ) || null;
         };
 
@@ -419,8 +435,8 @@
             return rows.find(row =>
                 row.name === payload.name &&
                 normalizeDate(row.date) === payload.date &&
-                (row.schedIn || '') === (payload.schedIn || '') &&
-                (row.schedOut || '') === (payload.schedOut || '') &&
+                normalizeTimeForComparison(row.schedIn || '') === normalizeTimeForComparison(payload.schedIn || '') &&
+                normalizeTimeForComparison(row.schedOut || '') === normalizeTimeForComparison(payload.schedOut || '') &&
                 String(row.scheduleStatus || '').trim() === String(payload.scheduleStatus || '').trim()
             ) || null;
         };
@@ -582,7 +598,7 @@
             if (!value || typeof value !== 'string') {
                 return { time: '', period: '' };
             }
-            const match = value.trim().toUpperCase().match(/^(\d{1,2}):([0-5]\d)\s*(AM|PM)$/);
+            const match = normalizeClockTimeText(value).match(/^(\d{1,2}):([0-5]\d)\s*(AM|PM)$/);
             if (!match) {
                 return { time: '', period: '' };
             }
