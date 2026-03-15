@@ -145,6 +145,29 @@
             return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         };
 
+        const getWeekStartDate = (dateValue = new Date()) => {
+            const dateObj = parseLocalDate(dateValue);
+            const day = dateObj.getDay();
+            const diff = dateObj.getDate() - day;
+            return new Date(dateObj.getFullYear(), dateObj.getMonth(), diff);
+        };
+
+        const ADMIN_ROLES = ['admin', 'manager', 'owner'];
+
+        const isAdminRole = (role) => {
+            return ADMIN_ROLES.includes(String(role || '').trim().toLowerCase());
+        };
+
+        const buildEmptyAdminScheduleForm = (employeeName = '') => ({
+            name: employeeName,
+            date: normalizeDate(new Date()),
+            schedIn: '',
+            schedInPeriod: 'AM',
+            schedOut: '',
+            schedOutPeriod: 'PM',
+            scheduleStatus: 'Published',
+        });
+
         const hasTimeValue = (value) => {
             if (typeof value === 'string') {
                 const normalized = value.trim().toLowerCase();
@@ -846,15 +869,15 @@
             );
         };
 
-        const TeamScheduleModal = ({ isOpen, onClose, sheetData }) => {
+        const TeamScheduleModal = ({ isOpen, onClose, sheetData, onRefresh, isRefreshing }) => {
             const [currentWeekStart, setCurrentWeekStart] = useState(null);
 
             useEffect(() => {
                 if (isOpen) {
-                    const today = new Date();
-                    const day = today.getDay(); 
-                    const diff = today.getDate() - day;
-                    setCurrentWeekStart(new Date(today.getFullYear(), today.getMonth(), diff));
+                    setCurrentWeekStart(getWeekStartDate(new Date()));
+                    if (onRefresh) {
+                        onRefresh(false);
+                    }
                 }
             }, [isOpen]);
 
@@ -898,19 +921,28 @@
                         <div className="p-4 md:p-6 border-b-3 border-black flex flex-col md:flex-row justify-between items-center bg-[#38bdf8] gap-4">
                             <div>
                                 <h3 className="text-2xl font-bold font-poppins text-[#060606] text-center md:text-left">Schedule</h3>
-                                <p className="text-sm font-bold mt-1 text-[#060606]/70 text-center md:text-left">Weekly View</p>
+                                <p className="text-sm font-bold mt-1 text-[#060606]/70 text-center md:text-left">Weekly View · Published shifts only</p>
                             </div>
                             
-                            <div className="flex items-center gap-4 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
-                                <button onClick={prevWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
-                                    <i className="fas fa-chevron-left"></i>
+                            <div className="flex flex-col md:flex-row items-center gap-3">
+                                <button
+                                    onClick={() => onRefresh && onRefresh()}
+                                    className="brutal-btn bg-white px-4 py-2 text-sm md:text-base flex items-center gap-2"
+                                >
+                                    <i className={`fas ${isRefreshing ? 'fa-circle-notch spinner' : 'fa-sync-alt'} text-[#38bdf8]`}></i>
+                                    <span>{isRefreshing ? 'Syncing...' : 'Sync'}</span>
                                 </button>
-                                <span className="font-bold font-poppins text-[#060606] w-40 text-center text-lg">
-                                    {formatShortDate(currentWeekStart)} - {formatShortDate(weekDays[6])}
-                                </span>
-                                <button onClick={nextWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
-                                    <i className="fas fa-chevron-right"></i>
-                                </button>
+                                <div className="flex items-center gap-4 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
+                                    <button onClick={prevWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
+                                        <i className="fas fa-chevron-left"></i>
+                                    </button>
+                                    <span className="font-bold font-poppins text-[#060606] w-40 text-center text-lg">
+                                        {formatShortDate(currentWeekStart)} - {formatShortDate(weekDays[6])}
+                                    </span>
+                                    <button onClick={nextWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
+                                        <i className="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
                             </div>
 
                             <button onClick={onClose} className="brutal-btn w-12 h-12 bg-white flex items-center justify-center text-[#060606] hover:bg-gray-100 text-xl absolute md:relative top-4 right-4 md:top-auto md:right-auto">
@@ -966,6 +998,270 @@
             );
         };
 
+        const AdminAccessModal = ({
+            isOpen,
+            onClose,
+            adminUser,
+            pinInput,
+            onPinPress,
+            onPinBackspace,
+            onPinClear,
+            onLogout,
+            employees,
+            sheetData,
+            adminScheduleForm,
+            updateAdminScheduleForm,
+            loadScheduleIntoForm,
+            saveAdminSchedule,
+            onRefresh,
+            isRefreshing,
+            isSubmitting,
+        }) => {
+            if (!isOpen) return null;
+
+            const adminAccounts = employees.filter(emp => isAdminRole(emp.role));
+            const todayKey = normalizeDate(new Date());
+            const upcomingSchedules = sheetData
+                .filter(row => (row.schedIn || row.schedOut) && normalizeDate(row.date) >= todayKey)
+                .slice()
+                .sort((a, b) => {
+                    const dateCompare = normalizeDate(a.date).localeCompare(normalizeDate(b.date));
+                    if (dateCompare !== 0) return dateCompare;
+                    return String(a.name || '').localeCompare(String(b.name || ''));
+                })
+                .slice(0, 18);
+
+            const previewIn = formatTimeField(adminScheduleForm.schedIn, adminScheduleForm.schedInPeriod);
+            const previewOut = formatTimeField(adminScheduleForm.schedOut, adminScheduleForm.schedOutPeriod);
+            const previewMinutes = calculateWorkedMinutes(previewIn, previewOut);
+
+            return (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70] animate-fade-in">
+                    <div className="brutal-card w-full max-w-6xl max-h-[95vh] overflow-hidden bg-white">
+                        {!adminUser ? (
+                            <div className="p-4 md:p-6">
+                                <div className="flex items-center justify-between gap-4 mb-5">
+                                    <div>
+                                        <h3 className="text-2xl font-bold font-poppins text-[#060606]">Admin Access</h3>
+                                        <p className="text-sm font-bold text-gray-600 mt-1">Enter an admin PIN to open scheduling tools.</p>
+                                    </div>
+                                    <button onClick={onClose} className="brutal-btn w-12 h-12 bg-white flex items-center justify-center text-[#060606] hover:bg-gray-100 text-xl">
+                                        <i className="fas fa-times"></i>
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-5 items-center">
+                                    <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-5 shadow-[4px_4px_0px_0px_#000000]">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <div className="w-12 h-12 rounded-xl border-2 border-black bg-[#38bdf8] flex items-center justify-center text-[#060606] text-xl">
+                                                <i className="fas fa-user-shield"></i>
+                                            </div>
+                                            <div>
+                                                <div className="font-bold font-poppins text-[#060606] text-lg">Admin PIN</div>
+                                                <div className="text-sm font-bold text-gray-600">Use an active account with role `admin`, `manager`, or `owner`.</div>
+                                            </div>
+                                        </div>
+                                        <div className="text-sm font-bold text-[#060606] leading-relaxed">
+                                            <div>Current schedule view only shows shifts whose status is `Published`.</div>
+                                            <div className="mt-2">A new sync button is available in both the header and the schedule modal so spreadsheet changes can be pulled in on demand.</div>
+                                        </div>
+                                        <div className="mt-4 text-xs md:text-sm font-bold text-gray-600">
+                                            {adminAccounts.length > 0
+                                                ? `${adminAccounts.length} admin-capable account${adminAccounts.length === 1 ? '' : 's'} found.`
+                                                : 'No admin-capable accounts were found in the Employees sheet yet.'}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border-2 border-black bg-white p-5 shadow-[4px_4px_0px_0px_#000000]">
+                                        <div className="flex gap-2 mb-5 justify-center">
+                                            {[0, 1, 2, 3].map(i => (
+                                                <div key={i} className={`w-3.5 h-3.5 rounded-full border-2 border-black transition-all ${i < pinInput.length ? 'bg-[#38bdf8] scale-125' : 'bg-gray-200'}`}></div>
+                                            ))}
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+                                                <button key={num} onClick={() => onPinPress(num.toString())} className="brutal-btn bg-white hover:bg-gray-50 aspect-square text-xl flex items-center justify-center">
+                                                    {num}
+                                                </button>
+                                            ))}
+                                            <button onClick={onPinClear} className="brutal-btn bg-[#fde047] hover:bg-[#facc15] aspect-square text-xs md:text-sm uppercase tracking-wide flex items-center justify-center">
+                                                Clear
+                                            </button>
+                                            <button onClick={() => onPinPress("0")} className="brutal-btn bg-white hover:bg-gray-50 aspect-square text-xl flex items-center justify-center">0</button>
+                                            <button onClick={onPinBackspace} className="brutal-btn bg-[#fb7185] hover:bg-[#f43f5e] aspect-square text-white text-lg flex items-center justify-center">
+                                                <i className="fas fa-backspace"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col max-h-[95vh]">
+                                <div className="p-4 md:p-6 border-b-3 border-black flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-[#38bdf8]">
+                                    <div>
+                                        <h3 className="text-2xl font-bold font-poppins text-[#060606]">Admin Schedule Tools</h3>
+                                        <p className="text-sm font-bold text-[#060606]/70 mt-1">Signed in as {adminUser.name}. Published shifts appear in the employee schedule view.</p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <button onClick={() => onRefresh()} className="brutal-btn bg-white px-4 py-2 text-sm md:text-base flex items-center gap-2">
+                                            <i className={`fas ${isRefreshing ? 'fa-circle-notch spinner' : 'fa-sync-alt'} text-[#38bdf8]`}></i>
+                                            <span>{isRefreshing ? 'Syncing...' : 'Sync'}</span>
+                                        </button>
+                                        <button onClick={onLogout} className="brutal-btn bg-white px-4 py-2 text-sm md:text-base flex items-center gap-2">
+                                            <i className="fas fa-user-lock text-[#f43f5e]"></i>
+                                            <span>Sign Out</span>
+                                        </button>
+                                        <button onClick={onClose} className="brutal-btn w-12 h-12 bg-white flex items-center justify-center text-[#060606] hover:bg-gray-100 text-xl">
+                                            <i className="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-4 p-4 md:p-6 bg-white overflow-y-auto no-scrollbar">
+                                    <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] space-y-4">
+                                        <div>
+                                            <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Schedule Editor</h4>
+                                            <p className="text-sm font-bold text-gray-600 mt-1">Create a new shift or load an existing one from the list and update it.</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Employee</label>
+                                            <select
+                                                value={adminScheduleForm.name}
+                                                onChange={e => updateAdminScheduleForm({ name: e.target.value }, { clearSource: true })}
+                                                className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
+                                            >
+                                                <option value="">Select employee</option>
+                                                {employees.map(emp => (
+                                                    <option key={emp.id} value={emp.name}>{emp.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Date</label>
+                                            <input
+                                                type="date"
+                                                value={adminScheduleForm.date}
+                                                onChange={e => updateAdminScheduleForm({ date: e.target.value }, { clearSource: true })}
+                                                className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Scheduled In</label>
+                                                <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-stretch">
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        placeholder="9:00"
+                                                        value={adminScheduleForm.schedIn}
+                                                        onChange={e => {
+                                                            const next = normalizeTimeInputWithPeriod(e.target.value, adminScheduleForm.schedInPeriod);
+                                                            updateAdminScheduleForm({ schedIn: next.time, schedInPeriod: next.period });
+                                                        }}
+                                                        className="flex-1 px-3 py-3 font-bold text-sm md:text-base bg-transparent outline-none"
+                                                        maxLength={5}
+                                                    />
+                                                    <div className="flex shrink-0 items-center gap-2 pr-3">
+                                                        <button type="button" onClick={() => updateAdminScheduleForm({ schedInPeriod: 'AM' })} className={`text-xs md:text-sm font-bold ${adminScheduleForm.schedInPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
+                                                        <button type="button" onClick={() => updateAdminScheduleForm({ schedInPeriod: 'PM' })} className={`text-xs md:text-sm font-bold ${adminScheduleForm.schedInPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Scheduled Out</label>
+                                                <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-stretch">
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        placeholder="3:00"
+                                                        value={adminScheduleForm.schedOut}
+                                                        onChange={e => {
+                                                            const next = normalizeTimeInputWithPeriod(e.target.value, adminScheduleForm.schedOutPeriod);
+                                                            updateAdminScheduleForm({ schedOut: next.time, schedOutPeriod: next.period });
+                                                        }}
+                                                        className="flex-1 px-3 py-3 font-bold text-sm md:text-base bg-transparent outline-none"
+                                                        maxLength={5}
+                                                    />
+                                                    <div className="flex shrink-0 items-center gap-2 pr-3">
+                                                        <button type="button" onClick={() => updateAdminScheduleForm({ schedOutPeriod: 'AM' })} className={`text-xs md:text-sm font-bold ${adminScheduleForm.schedOutPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
+                                                        <button type="button" onClick={() => updateAdminScheduleForm({ schedOutPeriod: 'PM' })} className={`text-xs md:text-sm font-bold ${adminScheduleForm.schedOutPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Schedule Status</label>
+                                            <select
+                                                value={adminScheduleForm.scheduleStatus}
+                                                onChange={e => updateAdminScheduleForm({ scheduleStatus: e.target.value })}
+                                                className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
+                                            >
+                                                <option value="Published">Published</option>
+                                                <option value="Draft">Draft</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="rounded-xl border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                                            <div className="text-xs md:text-sm font-bold text-gray-500 uppercase">Scheduled Total</div>
+                                            <div className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1">
+                                                {previewMinutes === null ? '--' : formatWorkedDurationForDisplay(previewMinutes)}
+                                            </div>
+                                        </div>
+
+                                        <button onClick={saveAdminSchedule} disabled={isSubmitting} className="brutal-btn w-full bg-[#4ade80] hover:bg-[#22c55e] py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2">
+                                            <i className={`fas ${isSubmitting ? 'fa-circle-notch spinner' : 'fa-save'}`}></i>
+                                            <span>{isSubmitting ? 'Saving Schedule...' : 'Save Schedule'}</span>
+                                        </button>
+                                    </div>
+
+                                    <div className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000]">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+                                            <div>
+                                                <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Upcoming Shifts</h4>
+                                                <p className="text-sm font-bold text-gray-600 mt-1">Loading an existing row lets you update its date, times, or publish status.</p>
+                                            </div>
+                                            <div className="text-xs md:text-sm font-bold text-gray-500">
+                                                {upcomingSchedules.length} future schedule row{upcomingSchedules.length === 1 ? '' : 's'}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3 max-h-[55vh] overflow-y-auto no-scrollbar pr-1">
+                                            {upcomingSchedules.length === 0 ? (
+                                                <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
+                                                    No future schedule rows found yet.
+                                                </div>
+                                            ) : (
+                                                upcomingSchedules.map((row, idx) => (
+                                                    <div key={`${row.name}-${row.date}-${idx}`} className="rounded-xl border-2 border-black bg-[#f8fafc] px-4 py-3 shadow-[3px_3px_0px_0px_#000000] flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                                        <div>
+                                                            <div className="font-bold font-poppins text-[#060606] text-base md:text-lg">{row.name}</div>
+                                                            <div className="text-sm font-bold text-gray-600">{formatFullDate(row.date)} · {row.schedIn || '--'} - {row.schedOut || '--'}</div>
+                                                            <div className="text-xs md:text-sm font-bold mt-1">
+                                                                <span className={String(row.scheduleStatus || '').trim() === 'Published' ? 'text-[#0284c7]' : 'text-gray-500'}>
+                                                                    {row.scheduleStatus || 'Draft'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <button onClick={() => loadScheduleIntoForm(row)} className="brutal-btn bg-white px-4 py-2 text-sm md:text-base self-start md:self-auto">
+                                                            Load
+                                                        </button>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
         // --- MAIN APP COMPONENT ---
 
         function App() {
@@ -987,6 +1283,11 @@
                 newReason: ''
             });
             const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
+            const [isAdminModalOpen, setAdminModalOpen] = useState(false);
+            const [adminPinInput, setAdminPinInput] = useState("");
+            const [adminUser, setAdminUser] = useState(null);
+            const [adminScheduleForm, setAdminScheduleForm] = useState(buildEmptyAdminScheduleForm());
+            const [adminSourceRow, setAdminSourceRow] = useState(null);
             
             // Timeout Logic States
             const lastActivityRef = useRef(Date.now());
@@ -998,6 +1299,7 @@
             const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
             const [isFetchingLogs, setIsFetchingLogs] = useState(false);
             const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+            const [isSubmittingAdminSchedule, setIsSubmittingAdminSchedule] = useState(false);
             const [fetchError, setFetchError] = useState(null);
 
             // Dynamic Data State
@@ -1028,6 +1330,29 @@
                 } finally {
                     if (showSpinner) setIsFetchingLogs(false);
                 }
+            };
+
+            const refreshSheetData = async (showToast = false) => {
+                const rows = await refreshLogs();
+                if (showToast) {
+                    setNotification(rows
+                        ? { type: 'info', message: "Latest spreadsheet updates loaded" }
+                        : { type: 'error', message: "Could not pull the latest spreadsheet updates." }
+                    );
+                }
+                return rows;
+            };
+
+            const updateAdminScheduleForm = (patch, { clearSource = false } = {}) => {
+                setAdminScheduleForm(prev => ({ ...prev, ...patch }));
+                if (clearSource) {
+                    setAdminSourceRow(null);
+                }
+            };
+
+            const resetAdminScheduleForm = (employeeName = '') => {
+                setAdminSourceRow(null);
+                setAdminScheduleForm(buildEmptyAdminScheduleForm(employeeName));
             };
 
             // Fetch Data on Mount
@@ -1188,6 +1513,136 @@
                 lastActivityRef.current = Date.now(); // Reset activity when interacting
 
                 await refreshLogs();
+            };
+
+            const openAdminAccess = async () => {
+                setAdminModalOpen(true);
+                await refreshLogs({ showSpinner: false });
+            };
+
+            const closeAdminAccess = () => {
+                setAdminModalOpen(false);
+                setAdminPinInput("");
+            };
+
+            const validateAdminPin = async (inputPin) => {
+                const adminMatch = employees.find(emp => isAdminRole(emp.role) && inputPin === emp.pin);
+                if (!adminMatch) {
+                    setNotification({ type: 'error', message: "Incorrect admin PIN" });
+                    setAdminPinInput("");
+                    return;
+                }
+
+                setAdminUser(adminMatch);
+                setAdminPinInput("");
+                setNotification({ type: 'success', message: `Admin Access: ${adminMatch.name}` });
+                await refreshLogs({ showSpinner: false });
+            };
+
+            const handleAdminPinPress = (num) => {
+                if (!isAdminModalOpen || adminUser) return;
+                if (adminPinInput.length < 4) {
+                    const newPin = adminPinInput + num;
+                    setAdminPinInput(newPin);
+                    if (newPin.length === 4) {
+                        validateAdminPin(newPin);
+                    }
+                }
+            };
+
+            const handleAdminPinBackspace = () => {
+                setAdminPinInput(prev => prev.slice(0, -1));
+            };
+
+            const handleAdminPinClear = () => setAdminPinInput("");
+
+            const handleAdminLogout = () => {
+                setAdminUser(null);
+                setAdminPinInput("");
+                resetAdminScheduleForm();
+            };
+
+            const loadScheduleIntoForm = (row) => {
+                const parsedIn = parseTimeField(row.schedIn || '');
+                const parsedOut = parseTimeField(row.schedOut || '');
+                setAdminSourceRow(row);
+                setAdminScheduleForm({
+                    name: row.name || '',
+                    date: normalizeDate(row.date),
+                    schedIn: parsedIn.time,
+                    schedInPeriod: parsedIn.period || 'AM',
+                    schedOut: parsedOut.time,
+                    schedOutPeriod: parsedOut.period || 'PM',
+                    scheduleStatus: row.scheduleStatus || 'Published',
+                });
+                setAdminModalOpen(true);
+            };
+
+            const saveAdminSchedule = async () => {
+                if (!adminUser || !isAdminRole(adminUser.role) || isSubmittingAdminSchedule) return;
+
+                const formattedSchedIn = formatTimeField(adminScheduleForm.schedIn, adminScheduleForm.schedInPeriod);
+                const formattedSchedOut = formatTimeField(adminScheduleForm.schedOut, adminScheduleForm.schedOutPeriod);
+
+                if (!adminScheduleForm.name) {
+                    setNotification({ type: 'error', message: "Choose an employee before saving a schedule." });
+                    return;
+                }
+                if (!adminScheduleForm.date) {
+                    setNotification({ type: 'error', message: "Choose a schedule date before saving." });
+                    return;
+                }
+                if (!formattedSchedIn || !formattedSchedOut) {
+                    setNotification({ type: 'error', message: "Enter valid scheduled in/out times." });
+                    return;
+                }
+
+                setIsSubmittingAdminSchedule(true);
+                try {
+                    const latestRows = await refreshLogs();
+                    if (!latestRows) {
+                        setNotification({ type: 'error', message: "Could not refresh the latest schedule rows. Nothing was saved." });
+                        return;
+                    }
+
+                    let latestSourceRow = null;
+                    if (adminSourceRow) {
+                        const sourceKey = buildRowFingerprint(adminSourceRow);
+                        latestSourceRow = latestRows.find(row => buildRowFingerprint(row) === sourceKey) || null;
+                        if (!latestSourceRow) {
+                            setNotification({ type: 'error', message: "The schedule row changed before it could be updated. Reload it and try again." });
+                            return;
+                        }
+                    }
+
+                    const payload = {
+                        action: "ADMIN_UPSERT_SCHEDULE",
+                        date: normalizeDate(adminScheduleForm.date),
+                        name: adminScheduleForm.name,
+                        schedIn: formattedSchedIn,
+                        schedOut: formattedSchedOut,
+                        scheduleStatus: adminScheduleForm.scheduleStatus || 'Published',
+                        editorName: adminUser.name,
+                        editorRole: adminUser.role || 'admin',
+                        ...buildRowContextPayload(latestSourceRow),
+                    };
+
+                    const result = await sendToSheet(payload);
+                    if (!result.ok) {
+                        setNotification({ type: 'error', message: result.error || "Could not save the schedule." });
+                        return;
+                    }
+
+                    const refreshedRows = await refreshLogs();
+                    if (refreshedRows) {
+                        setNotification({ type: 'success', message: "Schedule saved" });
+                        resetAdminScheduleForm(adminScheduleForm.name);
+                    } else {
+                        setNotification({ type: 'info', message: "Schedule saved, but the latest rows could not be reloaded automatically." });
+                    }
+                } finally {
+                    setIsSubmittingAdminSchedule(false);
+                }
             };
 
             const handlePinPress = (num) => {
@@ -1452,11 +1907,35 @@
 
             return (
                 <div className="min-h-screen p-2 md:p-8 flex flex-col items-center">
-                    <TeamScheduleModal isOpen={isScheduleModalOpen} onClose={() => setScheduleModalOpen(false)} sheetData={sheetData} />
+                    <TeamScheduleModal isOpen={isScheduleModalOpen} onClose={() => setScheduleModalOpen(false)} sheetData={sheetData} onRefresh={refreshSheetData} isRefreshing={isFetchingLogs} />
+                    <AdminAccessModal
+                        isOpen={isAdminModalOpen}
+                        onClose={closeAdminAccess}
+                        adminUser={adminUser}
+                        pinInput={adminPinInput}
+                        onPinPress={handleAdminPinPress}
+                        onPinBackspace={handleAdminPinBackspace}
+                        onPinClear={handleAdminPinClear}
+                        onLogout={handleAdminLogout}
+                        employees={employees}
+                        sheetData={sheetData}
+                        adminScheduleForm={adminScheduleForm}
+                        updateAdminScheduleForm={updateAdminScheduleForm}
+                        loadScheduleIntoForm={loadScheduleIntoForm}
+                        saveAdminSchedule={saveAdminSchedule}
+                        onRefresh={refreshSheetData}
+                        isRefreshing={isFetchingLogs}
+                        isSubmitting={isSubmittingAdminSchedule}
+                    />
                     
                     {/* Header */}
                     <div className="w-full max-w-[1400px] flex justify-between items-center mb-4 md:mb-8 brutal-card p-3 md:p-6">
                         <div className="flex items-center gap-2 md:gap-4 overflow-hidden">
+                            <button
+                                onClick={openAdminAccess}
+                                className="brutal-btn bg-white p-0.5 md:p-1 flex items-center justify-center shrink-0 overflow-hidden"
+                                title="Open admin tools"
+                            >
                             {settings.logoUrl ? (
                                 <img src={settings.logoUrl} alt="Logo" className="h-8 md:h-12 w-auto object-contain drop-shadow-md shrink-0" />
                             ) : (
@@ -1464,13 +1943,20 @@
                                     🐨
                                 </div>
                             )}
+                            </button>
                             <div className="w-[170px] sm:w-[220px] md:w-[360px] lg:w-[460px] min-w-0">
                                 <h1 className="text-lg md:text-3xl font-bold font-poppins text-[#060606] truncate min-h-[1.75rem] md:min-h-[2.25rem]">{settings.companyName || '\u00A0'}</h1>
                                 <p className="text-gray-600 font-bold text-[10px] md:text-base truncate">{currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
                             </div>
                         </div>
-                        <div className="text-xl md:text-5xl font-bold font-poppins text-[#060606] tracking-tighter shrink-0 ml-2">
-                            {currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} 
+                        <div className="flex items-center gap-3 md:gap-4 shrink-0 ml-2">
+                            <button onClick={() => refreshSheetData(true)} className="brutal-btn bg-white px-3 md:px-4 py-2 text-xs md:text-sm flex items-center gap-2">
+                                <i className={`fas ${isFetchingLogs ? 'fa-circle-notch spinner' : 'fa-sync-alt'} text-[#38bdf8]`}></i>
+                                <span>{isFetchingLogs ? 'Syncing...' : 'Sync'}</span>
+                            </button>
+                            <div className="text-xl md:text-5xl font-bold font-poppins text-[#060606] tracking-tighter">
+                                {currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} 
+                            </div>
                         </div>
                     </div>
 

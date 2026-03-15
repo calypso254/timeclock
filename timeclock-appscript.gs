@@ -76,6 +76,10 @@ function doPost(e) {
       return handleEdit_(sheet, data);
     }
 
+    if (data.action === "ADMIN_UPSERT_SCHEDULE") {
+      return handleAdminUpsertSchedule_(sheet, data);
+    }
+
     throw new Error("Unsupported action: " + data.action);
   } catch (err) {
     return jsonResponse_({
@@ -272,6 +276,52 @@ function handleEdit_(sheet, data) {
   });
 }
 
+function handleAdminUpsertSchedule_(sheet, data) {
+  validateRequiredFields_(data, ["name", "date", "schedIn", "schedOut", "scheduleStatus", "editorName", "editorRole"]);
+
+  if (!isAdminRole_(data.editorRole)) {
+    throw new Error("Unauthorized. Only admin-capable accounts can save schedules.");
+  }
+
+  if (calculateWorkedMinutes_(data.schedIn, data.schedOut) === null) {
+    throw new Error("Invalid scheduled in/out time format.");
+  }
+
+  var records = getLogRecords_(sheet);
+  var targetRow = resolveScheduleRow_(records, data);
+
+  if (targetRow) {
+    sheet.getRange(targetRow.rowNumber, LOG_COL.DAY).setValue(data.date);
+    sheet.getRange(targetRow.rowNumber, LOG_COL.NAME).setValue(data.name);
+    sheet.getRange(targetRow.rowNumber, LOG_COL.SCHED_IN).setValue(data.schedIn);
+    sheet.getRange(targetRow.rowNumber, LOG_COL.SCHED_OUT).setValue(data.schedOut);
+    sheet.getRange(targetRow.rowNumber, LOG_COL.SCHEDULE_STATUS).setValue(data.scheduleStatus);
+    writeScheduledDurationValue_(sheet, targetRow.rowNumber, data.schedIn, data.schedOut);
+
+    return jsonResponse_({
+      status: "success",
+      action: "ADMIN_UPSERT_SCHEDULE",
+      rowNumber: targetRow.rowNumber,
+      mode: "updated-existing-row"
+    });
+  }
+
+  var nextRow = Math.max(sheet.getLastRow() + 1, 2);
+  sheet.getRange(nextRow, LOG_COL.DAY).setValue(data.date);
+  sheet.getRange(nextRow, LOG_COL.NAME).setValue(data.name);
+  sheet.getRange(nextRow, LOG_COL.SCHED_IN).setValue(data.schedIn);
+  sheet.getRange(nextRow, LOG_COL.SCHED_OUT).setValue(data.schedOut);
+  sheet.getRange(nextRow, LOG_COL.SCHEDULE_STATUS).setValue(data.scheduleStatus);
+  writeScheduledDurationValue_(sheet, nextRow, data.schedIn, data.schedOut);
+
+  return jsonResponse_({
+    status: "success",
+    action: "ADMIN_UPSERT_SCHEDULE",
+    rowNumber: nextRow,
+    mode: "appended-row"
+  });
+}
+
 function getLogsSheet_() {
   return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(LOGS_SHEET_NAME) ||
     SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
@@ -414,6 +464,45 @@ function resolveEditRow_(records, data) {
   throw new Error("Multiple rows match this edit. No changes were saved.");
 }
 
+function resolveScheduleRow_(records, data) {
+  var keyMatch = findExactRowByKey_(records, data);
+  if (keyMatch.found) {
+    return keyMatch.row;
+  }
+  if (keyMatch.required) {
+    throw new Error("The schedule row changed before it could be updated. Please reload and try again.");
+  }
+
+  var targetDate = normalizeDateKey_(data.targetRowDate || data.date);
+  var candidates = records.filter(function(record) {
+    return record.name === data.name &&
+      record.dateKey === targetDate &&
+      !isLocked_(record);
+  });
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  if (candidates.length === 1) {
+    return candidates[0];
+  }
+
+  var emptyPunchCandidates = candidates.filter(function(record) {
+    return !hasValue_(record.timeIn) && !hasValue_(record.timeOut);
+  });
+  if (emptyPunchCandidates.length === 1) {
+    return emptyPunchCandidates[0];
+  }
+
+  var contextualMatches = applyPostedRowContext_(candidates, data);
+  if (contextualMatches.length === 1) {
+    return contextualMatches[0];
+  }
+
+  throw new Error("Multiple rows match this schedule update. No schedule was saved.");
+}
+
 function findExactRowByKey_(records, data) {
   var key = data.targetRowKey ? String(data.targetRowKey) : "";
   if (!key) {
@@ -496,6 +585,11 @@ function isLocked_(record) {
     .toLowerCase() === "locked";
 }
 
+function isAdminRole_(role) {
+  var normalized = String(role || "").trim().toLowerCase();
+  return normalized === "admin" || normalized === "manager" || normalized === "owner";
+}
+
 function writeDurationValues_(sheet, rowNumber, timeIn, timeOut) {
   var totalHoursRange = sheet.getRange(rowNumber, LOG_COL.TOTAL_HOURS);
   var decimalHoursRange = sheet.getRange(rowNumber, LOG_COL.DECIMAL_HOURS);
@@ -512,6 +606,19 @@ function writeDurationValues_(sheet, rowNumber, timeIn, timeOut) {
 
   decimalHoursRange.setNumberFormat("0.00");
   decimalHoursRange.setValue(workedMinutes / 60);
+}
+
+function writeScheduledDurationValue_(sheet, rowNumber, schedIn, schedOut) {
+  var totalScheduledRange = sheet.getRange(rowNumber, LOG_COL.TOTAL_SCHEDULED);
+  var scheduledMinutes = calculateWorkedMinutes_(schedIn, schedOut);
+
+  if (scheduledMinutes === null) {
+    totalScheduledRange.clearContent();
+    return;
+  }
+
+  totalScheduledRange.setNumberFormat("[h]:mm");
+  totalScheduledRange.setValue(scheduledMinutes / 1440);
 }
 
 function calculateWorkedMinutes_(startTime, endTime) {
