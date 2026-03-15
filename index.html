@@ -119,16 +119,30 @@
         };
 
         // Helper to safely parse dates regardless of local YYYY-MM-DD or M/D/YYYY formatting
-        const parseLocalDate = (dateStr) => {
-            if (!dateStr) return new Date();
-            const parts = dateStr.includes('-') ? dateStr.split('-') : dateStr.split('/');
-            if (parts.length === 3) {
-                if (dateStr.includes('-')) {
-                    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-                } else {
-                    return new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
-                }
+        const parseLocalDate = (dateValue) => {
+            if (!dateValue) return new Date();
+
+            if (dateValue instanceof Date) {
+                return new Date(dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate());
             }
+
+            if (typeof dateValue === 'number') {
+                const numericDate = new Date(dateValue);
+                if (isNaN(numericDate.getTime())) return numericDate;
+                return new Date(numericDate.getFullYear(), numericDate.getMonth(), numericDate.getDate());
+            }
+
+            const dateStr = String(dateValue).trim();
+            const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (isoMatch) {
+                return new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
+            }
+
+            const slashMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (slashMatch) {
+                return new Date(parseInt(slashMatch[3], 10), parseInt(slashMatch[1], 10) - 1, parseInt(slashMatch[2], 10));
+            }
+
             return new Date(dateStr);
         };
 
@@ -245,11 +259,15 @@
             return workedMinutes === null ? "-" : formatWorkedDurationForDisplay(workedMinutes);
         };
 
+        const isPublishedSchedule = (row) => {
+            return String(row?.scheduleStatus || '').trim().toLowerCase() === 'published';
+        };
+
         const filterTimesheetRowsUpToToday = (rows) => {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             return rows.filter(row => {
-                if (!(row.timeIn || row.scheduleStatus === 'Published')) return false;
+                if (!(row.timeIn || isPublishedSchedule(row))) return false;
                 const rowDate = parseLocalDate(row.date);
                 if (isNaN(rowDate.getTime())) return false;
                 rowDate.setHours(0, 0, 0, 0);
@@ -392,6 +410,18 @@
                 normalizeDate(row.date) === timestamp.localDate &&
                 (row.timeOut || '') === timestamp.localTime &&
                 (!plan?.row?.timeIn || (row.timeIn || '') === (plan.row.timeIn || ''))
+            ) || null;
+        };
+
+        const getExpectedScheduleRow = (rows, payload) => {
+            if (!Array.isArray(rows) || !payload) return null;
+
+            return rows.find(row =>
+                row.name === payload.name &&
+                normalizeDate(row.date) === payload.date &&
+                (row.schedIn || '') === (payload.schedIn || '') &&
+                (row.schedOut || '') === (payload.schedOut || '') &&
+                String(row.scheduleStatus || '').trim() === String(payload.scheduleStatus || '').trim()
             ) || null;
         };
 
@@ -938,7 +968,7 @@
 
             if (!isOpen || !currentWeekStart) return null;
 
-            const schedLogs = sheetData.filter(l => (l.schedIn || l.schedOut) && l.scheduleStatus === 'Published');
+            const schedLogs = sheetData.filter(l => (l.schedIn || l.schedOut) && isPublishedSchedule(l));
 
             const nextWeek = () => {
                 const next = new Date(currentWeekStart);
@@ -1025,7 +1055,7 @@
                                                 {dayShifts.length > 0 ? (
                                                     dayShifts.map((shift, shiftIdx) => (
                                                         <div key={shiftIdx} className="bg-white border-2 border-black rounded-lg p-2 lg:p-3 shadow-[2px_2px_0px_0px_#000000] relative">
-                                                            {shift.scheduleStatus === 'Published' && (
+                                                            {isPublishedSchedule(shift) && (
                                                                 <div className="absolute top-2 right-2 text-[#38bdf8]" title="Published Schedule">
                                                                     <i className="fas fa-check-circle text-sm lg:text-base"></i>
                                                                 </div>
@@ -1691,12 +1721,25 @@
                     }
 
                     const refreshedRows = await refreshLogs();
-                    if (refreshedRows) {
+                    const refreshConfirmedSchedule = Boolean(getExpectedScheduleRow(refreshedRows, payload));
+                    const isStructuredSheetSuccess = String(result?.parsed?.status || '').toLowerCase() === 'success';
+
+                    if (refreshConfirmedSchedule) {
                         setNotification({ type: 'success', message: "Schedule saved" });
                         resetAdminScheduleForm(adminScheduleForm.name);
+                    } else if (isStructuredSheetSuccess && !refreshedRows) {
+                        setNotification({ type: 'info', message: "The server confirmed the schedule save, but the latest sheet rows could not be reloaded automatically yet." });
+                    } else if (result.isLegacyTextSuccess) {
+                        setNotification({
+                            type: 'error',
+                            message: "This schedule save could not be confirmed in the spreadsheet. The live Apps Script deployment is still the older version and needs the updated web-app deployment before admin schedule saves can be verified safely."
+                        });
                     } else {
-                        setNotification({ type: 'info', message: "Schedule saved, but the latest rows could not be reloaded automatically." });
+                        setNotification({ type: 'error', message: "This schedule save could not be confirmed in the latest spreadsheet rows." });
                     }
+                } catch (err) {
+                    console.error("Admin schedule save failed:", err);
+                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted the schedule save." });
                 } finally {
                     setIsSubmittingAdminSchedule(false);
                 }
@@ -1795,22 +1838,26 @@
                         return;
                     }
 
-                    const localRows = applySuccessfulPunchLocally(
-                        latestRows,
-                        actionType,
-                        selectedEmployee.name,
-                        timestamp,
-                        plan,
-                        actionPayload.reason || ''
-                    );
-                    const expectedSavedRow = getExpectedActionRow(
-                        localRows,
-                        actionType,
-                        selectedEmployee.name,
-                        timestamp,
-                        plan
-                    );
-                    setSheetData(localRows);
+                    const isStructuredSheetSuccess = String(result?.parsed?.status || '').toLowerCase() === 'success';
+                    const localRows = isStructuredSheetSuccess
+                        ? applySuccessfulPunchLocally(
+                            latestRows,
+                            actionType,
+                            selectedEmployee.name,
+                            timestamp,
+                            plan,
+                            actionPayload.reason || ''
+                        )
+                        : null;
+                    const expectedSavedRow = localRows
+                        ? getExpectedActionRow(
+                            localRows,
+                            actionType,
+                            selectedEmployee.name,
+                            timestamp,
+                            plan
+                        )
+                        : null;
 
                     const refreshedRows = await refreshLogs();
                     const successMessage = actionType === "CLOCK_IN"
@@ -1831,13 +1878,26 @@
 
                     if (refreshConfirmedPunch) {
                         setNotification({ type: actionType === "CLOCK_IN" ? 'success' : 'info', message: successMessage });
-                    } else {
+                    } else if (isStructuredSheetSuccess && !refreshedRows && localRows) {
                         setSheetData(localRows);
                         setNotification({
-                            type: actionType === "CLOCK_IN" ? 'success' : 'info',
-                            message: `${successMessage}. The spreadsheet save went through, but the follow-up refresh still looked stale, so this view kept the confirmed punch locally.`
+                            type: 'info',
+                            message: `${successMessage}. The server confirmed the save, but the latest sheet rows could not be reloaded automatically yet. Please verify the spreadsheet before the employee leaves this screen.`
+                        });
+                    } else if (result.isLegacyTextSuccess) {
+                        setNotification({
+                            type: 'error',
+                            message: "This punch could not be confirmed in the spreadsheet. The live Apps Script deployment is still returning the older plain-text Success response, so it needs the updated web-app deployment before punches can be verified safely."
+                        });
+                    } else {
+                        setNotification({
+                            type: 'error',
+                            message: "This punch could not be confirmed in the latest spreadsheet rows. Please review the sheet before the employee leaves this screen."
                         });
                     }
+                } catch (err) {
+                    console.error("Clock action failed:", err);
+                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted this punch." });
                 } finally {
                     setIsSubmittingAction(false);
                 }
@@ -1992,7 +2052,11 @@
                         }
                     }
 
-                    return { ok: true, rawText };
+                    return {
+                        ok: true,
+                        rawText,
+                        isLegacyTextSuccess: String(rawText || '').trim() === 'Success'
+                    };
                 } catch (err) {
                     console.error("Network Error:", err);
                     return { ok: false, error: err?.message || "Could not reach the timesheet service." };
