@@ -2112,15 +2112,18 @@
                         <div className="flex items-center gap-2 md:gap-4 overflow-hidden">
                             <button
                                 onClick={openAdminAccess}
-                                className="brutal-btn bg-white p-0.5 md:p-1 flex items-center justify-center shrink-0 overflow-hidden"
+                                className={`brutal-btn flex items-center justify-center shrink-0 overflow-hidden ${
+                                    settings.logoUrl
+                                        ? 'bg-white p-0.5 md:p-1'
+                                        : 'bg-[#38bdf8] w-8 h-8 md:w-12 md:h-12 text-sm md:text-xl'
+                                }`}
                                 title="Open admin tools"
+                                aria-label="Open admin tools"
                             >
                             {settings.logoUrl ? (
                                 <img src={settings.logoUrl} alt="Logo" className="h-8 md:h-12 w-auto object-contain drop-shadow-md shrink-0" />
                             ) : (
-                                <div className="w-8 h-8 md:w-12 md:h-12 bg-[#38bdf8] border-2 border-black rounded-lg md:rounded-xl shadow-[2px_2px_0px_0px_#000000] flex items-center justify-center text-sm md:text-xl shrink-0">
-                                    🐨
-                                </div>
+                                <span className="leading-none" aria-hidden="true">&#128040;</span>
                             )}
                             </button>
                             <div className="w-[170px] sm:w-[220px] md:w-[360px] lg:w-[460px] min-w-0">
