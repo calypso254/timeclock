@@ -109,26 +109,6 @@
 
         // --- HELPER FUNCTIONS ---
         
-        const calculateHours = (start, end) => {
-            if (!start || !end || start === '-' || end === '-') return "-";
-            try {
-                // Prepend a standard date so JS can reliably parse AM/PM strings
-                const s = new Date("2000/01/01 " + start);
-                const e = new Date("2000/01/01 " + end);
-                
-                if (isNaN(s.getTime()) || isNaN(e.getTime())) return "-";
-                
-                let diff = e - s;
-                if (diff < 0) diff += 24 * 60 * 60 * 1000;
-
-                const hours = Math.floor(diff / 3600000);
-                const minutes = Math.floor((diff % 3600000) / 60000);
-                return `${hours}h ${minutes}m`;
-            } catch(e) {
-                return "-";
-            }
-        };
-
         const normalizeDate = (dStr) => {
             if (typeof dStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dStr)) {
                 return dStr.substring(0, 10);
@@ -158,6 +138,90 @@
             return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         };
 
+        const formatFullDate = (dateStr) => {
+            if (!dateStr) return '';
+            const dateObj = parseLocalDate(dateStr);
+            if (isNaN(dateObj.getTime())) return normalizeDate(dateStr);
+            return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        };
+
+        const hasTimeValue = (value) => {
+            if (typeof value === 'string') {
+                const normalized = value.trim().toLowerCase();
+                return normalized !== '' && normalized !== '-' && normalized !== 'n/a';
+            }
+            return Boolean(value);
+        };
+
+        const parseClockTimeToMinutes = (value) => {
+            if (!hasTimeValue(value) || typeof value !== 'string') return null;
+            const match = value.trim().toUpperCase().match(/^(\d{1,2}):([0-5]\d)\s*(AM|PM)$/);
+            if (!match) return null;
+
+            let hour = parseInt(match[1], 10);
+            const minutes = parseInt(match[2], 10);
+            if (hour < 1 || hour > 12) return null;
+
+            if (match[3] === 'AM') {
+                if (hour === 12) hour = 0;
+            } else if (hour !== 12) {
+                hour += 12;
+            }
+
+            return (hour * 60) + minutes;
+        };
+
+        const calculateWorkedMinutes = (start, end) => {
+            const startMinutes = parseClockTimeToMinutes(start);
+            const endMinutes = parseClockTimeToMinutes(end);
+            if (startMinutes === null || endMinutes === null) return null;
+
+            let diff = endMinutes - startMinutes;
+            if (diff < 0) diff += 24 * 60;
+            return diff;
+        };
+
+        const formatWorkedDurationForDisplay = (minutes) => {
+            if (minutes === null || minutes === undefined) return "-";
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            return `${hours}h ${remainingMinutes}m`;
+        };
+
+        const formatWorkedDurationForSheet = (minutes) => {
+            if (minutes === null || minutes === undefined) return '';
+            return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
+        };
+
+        const formatDecimalHours = (minutes) => {
+            if (minutes === null || minutes === undefined) return '';
+            return (minutes / 60).toFixed(2);
+        };
+
+        const buildWorkedDurationFields = (timeIn, timeOut) => {
+            const workedMinutes = calculateWorkedMinutes(timeIn, timeOut);
+            if (workedMinutes === null) {
+                return {
+                    workedMinutes: '',
+                    workedDuration: '',
+                    workedDisplay: '',
+                    decimalHours: '',
+                };
+            }
+
+            return {
+                workedMinutes,
+                workedDuration: formatWorkedDurationForSheet(workedMinutes),
+                workedDisplay: formatWorkedDurationForDisplay(workedMinutes),
+                decimalHours: formatDecimalHours(workedMinutes),
+            };
+        };
+
+        const calculateHours = (start, end) => {
+            const workedMinutes = calculateWorkedMinutes(start, end);
+            return workedMinutes === null ? "-" : formatWorkedDurationForDisplay(workedMinutes);
+        };
+
         const filterTimesheetRowsUpToToday = (rows) => {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -184,23 +248,210 @@
             return String(row?.payrollStatus || '').trim().toLowerCase() === 'locked';
         };
 
-        const hasTimeValue = (value) => {
-            if (typeof value === 'string') {
-                const normalized = value.trim().toLowerCase();
-                return normalized !== '' && normalized !== '-' && normalized !== 'n/a';
+        const getEmployeeRows = (rows, employeeName) => {
+            if (!employeeName) return [];
+            return rows.filter(row => row.name === employeeName);
+        };
+
+        const getOpenShiftRowsForEmployee = (rows, employeeName) => {
+            return getEmployeeRows(rows, employeeName)
+                .filter(row => hasTimeValue(row.timeIn) && !hasTimeValue(row.timeOut) && !isEntryLocked(row))
+                .slice()
+                .sort((a, b) => normalizeDate(a.date).localeCompare(normalizeDate(b.date)));
+        };
+
+        const listShiftDates = (rows) => {
+            return [...new Set((rows || []).map(row => formatFullDate(row.date)).filter(Boolean))].join(', ');
+        };
+
+        const buildRowFingerprint = (row) => {
+            if (!row) return '';
+            return JSON.stringify({
+                date: normalizeDate(row.date),
+                name: row.name || '',
+                timeIn: row.timeIn || '',
+                timeOut: row.timeOut || '',
+                schedIn: row.schedIn || '',
+                schedOut: row.schedOut || '',
+                payrollStatus: row.payrollStatus || '',
+                scheduleStatus: row.scheduleStatus || '',
+            });
+        };
+
+        const buildRowContextPayload = (row) => {
+            if (!row) {
+                return {
+                    targetRowDate: '',
+                    targetRowKey: '',
+                    targetRowTimeIn: '',
+                    targetRowTimeOut: '',
+                    targetRowSchedIn: '',
+                    targetRowSchedOut: '',
+                    targetRowPayrollStatus: '',
+                    targetRowScheduleStatus: '',
+                };
             }
-            return Boolean(value);
+
+            return {
+                targetRowDate: normalizeDate(row.date),
+                targetRowKey: buildRowFingerprint(row),
+                targetRowTimeIn: row.timeIn || '',
+                targetRowTimeOut: row.timeOut || '',
+                targetRowSchedIn: row.schedIn || '',
+                targetRowSchedOut: row.schedOut || '',
+                targetRowPayrollStatus: row.payrollStatus || '',
+                targetRowScheduleStatus: row.scheduleStatus || '',
+            };
+        };
+
+        const buildActionTimestamp = (now = new Date()) => {
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return {
+                localDate: `${year}-${month}-${day}`,
+                localTime: now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }),
+                isoTimestamp: now.toISOString(),
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+                timezoneOffsetMinutes: now.getTimezoneOffset(),
+            };
+        };
+
+        const getLateStartNote = (scheduledIn, actualTime) => {
+            const scheduledMinutes = parseClockTimeToMinutes(scheduledIn);
+            const actualMinutes = parseClockTimeToMinutes(actualTime);
+            if (scheduledMinutes === null || actualMinutes === null) return '';
+            return (actualMinutes - scheduledMinutes) > 5 ? 'Late Start' : '';
+        };
+
+        const resolveClockInPlan = (rows, employeeName, localDate) => {
+            const openShifts = getOpenShiftRowsForEmployee(rows, employeeName);
+            const sameDayOpen = openShifts.filter(row => normalizeDate(row.date) === localDate);
+            const olderOpen = openShifts.filter(row => normalizeDate(row.date) < localDate);
+            const futureOpen = openShifts.filter(row => normalizeDate(row.date) > localDate);
+
+            if (sameDayOpen.length === 1 && openShifts.length === 1) {
+                return {
+                    status: 'blocked',
+                    code: 'already-clocked-in',
+                    message: `${employeeName} is already clocked in for ${formatFullDate(localDate)}.`,
+                    rows: sameDayOpen,
+                };
+            }
+
+            if (openShifts.length > 1 || sameDayOpen.length > 1) {
+                return {
+                    status: 'blocked',
+                    code: 'multiple-open-shifts',
+                    message: `Automatic clock actions are paused because ${employeeName} has multiple open shifts (${listShiftDates(openShifts)}). Fix those entries in My Timesheet first so a new punch cannot land on the wrong row.`,
+                    rows: openShifts,
+                };
+            }
+
+            if (olderOpen.length > 0) {
+                return {
+                    status: 'blocked',
+                    code: 'prior-open-shift',
+                    message: `Automatic clock actions are paused because ${employeeName} still has an open shift from ${formatFullDate(olderOpen[0].date)}. Add the missing clock-out on that row before recording a new punch.`,
+                    rows: olderOpen,
+                };
+            }
+
+            if (futureOpen.length > 0) {
+                return {
+                    status: 'blocked',
+                    code: 'future-open-shift',
+                    message: `Automatic clock actions are paused because there is an open shift dated ${formatFullDate(futureOpen[0].date)}. Please correct that row before recording a new punch.`,
+                    rows: futureOpen,
+                };
+            }
+
+            const candidates = getEmployeeRows(rows, employeeName).filter(row =>
+                normalizeDate(row.date) === localDate &&
+                !hasTimeValue(row.timeIn) &&
+                !hasTimeValue(row.timeOut) &&
+                !isEntryLocked(row)
+            );
+
+            if (candidates.length === 0) {
+                return { status: 'ready', code: 'new-row', row: null };
+            }
+
+            if (candidates.length === 1) {
+                return { status: 'ready', code: 'existing-row', row: candidates[0] };
+            }
+
+            const scheduledCandidates = candidates.filter(row => hasTimeValue(row.schedIn) || hasTimeValue(row.schedOut));
+            if (scheduledCandidates.length === 1) {
+                return { status: 'ready', code: 'existing-row', row: scheduledCandidates[0] };
+            }
+
+            return {
+                status: 'blocked',
+                code: 'ambiguous-clock-in-row',
+                message: `Automatic clock-in is paused because there are multiple blank rows for ${formatFullDate(localDate)}. Please have a manager review today's schedule row before punching in.`,
+                rows: candidates,
+            };
         };
 
         const hasOpenShiftForToday = (rows, employeeName) => {
             if (!employeeName) return false;
             const todayKey = normalizeDate(new Date());
-            return rows.some(row =>
-                row.name === employeeName &&
-                normalizeDate(row.date) === todayKey &&
-                hasTimeValue(row.timeIn) &&
-                !hasTimeValue(row.timeOut)
-            );
+            return getOpenShiftRowsForEmployee(rows, employeeName).some(row => normalizeDate(row.date) === todayKey);
+        };
+
+        const resolveClockOutPlan = (rows, employeeName, localDate) => {
+            const openShifts = getOpenShiftRowsForEmployee(rows, employeeName);
+            const sameDayOpen = openShifts.filter(row => normalizeDate(row.date) === localDate);
+            const olderOpen = openShifts.filter(row => normalizeDate(row.date) < localDate);
+            const futureOpen = openShifts.filter(row => normalizeDate(row.date) > localDate);
+
+            if (sameDayOpen.length === 1 && openShifts.length === 1) {
+                return { status: 'ready', code: 'exact-open-shift', row: sameDayOpen[0] };
+            }
+
+            if (openShifts.length === 0) {
+                return {
+                    status: 'blocked',
+                    code: 'no-open-shift',
+                    message: `No open shift was found for ${formatFullDate(localDate)}.`,
+                    rows: [],
+                };
+            }
+
+            if (sameDayOpen.length > 1 || openShifts.length > 1) {
+                return {
+                    status: 'blocked',
+                    code: 'multiple-open-shifts',
+                    message: `Automatic clock-out is paused because ${employeeName} has multiple open shifts (${listShiftDates(openShifts)}). This keeps a clock-out from being saved on the wrong day.`,
+                    rows: openShifts,
+                };
+            }
+
+            if (olderOpen.length === 1 && sameDayOpen.length === 0) {
+                return {
+                    status: 'blocked',
+                    code: 'prior-open-shift',
+                    message: `Automatic clock-out is paused because the only open shift for ${employeeName} is on ${formatFullDate(olderOpen[0].date)}. Correct that row in My Timesheet instead of clocking out on today's screen.`,
+                    rows: olderOpen,
+                };
+            }
+
+            if (futureOpen.length === 1 && sameDayOpen.length === 0) {
+                return {
+                    status: 'blocked',
+                    code: 'future-open-shift',
+                    message: `Automatic clock-out is paused because the only open shift for ${employeeName} is dated ${formatFullDate(futureOpen[0].date)}. Correct that row before recording another punch.`,
+                    rows: futureOpen,
+                };
+            }
+
+            return {
+                status: 'blocked',
+                code: 'ambiguous-clock-out-row',
+                message: `Automatic clock-out is paused because the open shift could not be matched to ${formatFullDate(localDate)}.`,
+                rows: openShifts,
+            };
         };
 
         const normalizeTimeInputWithPeriod = (value, currentPeriod = '') => {
@@ -434,7 +685,7 @@
             );
         };
 
-        const EditForm = ({ editTarget, editForm, setEditForm, saveEdit, reasonValidationTriggered, onPrev, onNext, canPrev, canNext, onClose }) => {
+        const EditForm = ({ editTarget, editForm, setEditForm, saveEdit, reasonValidationTriggered, onPrev, onNext, canPrev, canNext, onClose, isSubmitting }) => {
             const historyRows = parseReasonCell(editForm.oldReason);
             const isReasonInvalid = reasonValidationTriggered && !editForm.newReason.trim();
 
@@ -587,8 +838,8 @@
                 </div>
 
                 <div className="mt-2 md:mt-4 shrink-0 px-4 md:px-6 pb-4 md:pb-6">
-                    <button onClick={saveEdit} className="brutal-btn w-full bg-[#38bdf8] hover:bg-[#0ea5e9] py-2.5 md:py-3 text-sm md:text-base text-[#060606]">
-                        Save Changes
+                    <button onClick={saveEdit} disabled={isSubmitting} className="brutal-btn w-full bg-[#38bdf8] hover:bg-[#0ea5e9] py-2.5 md:py-3 text-sm md:text-base text-[#060606]">
+                        {isSubmitting ? 'Saving...' : 'Save Changes'}
                     </button>
                 </div>
             </div>
@@ -746,6 +997,7 @@
             // Loading State
             const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
             const [isFetchingLogs, setIsFetchingLogs] = useState(false);
+            const [isSubmittingAction, setIsSubmittingAction] = useState(false);
             const [fetchError, setFetchError] = useState(null);
 
             // Dynamic Data State
@@ -760,6 +1012,23 @@
 
             const [notification, setNotification] = useState(null);
             const [reasonValidationTriggered, setReasonValidationTriggered] = useState(false);
+
+            const refreshLogs = async ({ showSpinner = true } = {}) => {
+                if (showSpinner) setIsFetchingLogs(true);
+                try {
+                    const response = await fetch(`${scriptUrl}?type=logs`);
+                    if (!response.ok) throw new Error('Failed to fetch timesheet rows');
+                    const logData = await response.json();
+                    const rows = Array.isArray(logData) ? logData.reverse() : [];
+                    setSheetData(rows);
+                    return rows;
+                } catch (error) {
+                    console.error("Error refreshing logs:", error);
+                    return null;
+                } finally {
+                    if (showSpinner) setIsFetchingLogs(false);
+                }
+            };
 
             // Fetch Data on Mount
             useEffect(() => {
@@ -792,14 +1061,7 @@
                                 console.error("Error fetching settings:", error);
                             }
                         })(),
-                        (async () => {
-                            try {
-                                const response = await fetch(`${scriptUrl}?type=logs`);
-                                if (!response.ok) return;
-                                const logData = await response.json();
-                                setSheetData(logData.reverse());
-                            } catch (error) {}
-                        })(),
+                        refreshLogs({ showSpinner: false }),
                     ]);
                 };
 
@@ -889,9 +1151,20 @@
                 : -1;
             const canEditPrev = editTargetIndex > 0;
             const canEditNext = editTargetIndex >= 0 && editTargetIndex < editableRows.length - 1;
-            const selectedHasOpenShiftToday = selectedEmployee
-                ? hasOpenShiftForToday(sheetData, selectedEmployee.name)
-                : false;
+            const todayKey = normalizeDate(new Date());
+            const selectedClockInPlan = selectedEmployee
+                ? resolveClockInPlan(sheetData, selectedEmployee.name, todayKey)
+                : null;
+            const selectedClockOutPlan = selectedEmployee
+                ? resolveClockOutPlan(sheetData, selectedEmployee.name, todayKey)
+                : null;
+            const actionAlertPlan = [selectedClockInPlan, selectedClockOutPlan].find(plan =>
+                plan &&
+                plan.status === 'blocked' &&
+                !['already-clocked-in', 'no-open-shift'].includes(plan.code)
+            ) || null;
+            const canClockIn = Boolean(selectedEmployee) && !isSubmittingAction && selectedClockInPlan?.status === 'ready';
+            const canClockOut = Boolean(selectedEmployee) && !isSubmittingAction && selectedClockOutPlan?.status === 'ready';
 
             useEffect(() => {
                 if (employees.length === 0) return;
@@ -913,19 +1186,8 @@
                 setIsAuthenticated(false);
                 setViewMode('PINPAD');
                 lastActivityRef.current = Date.now(); // Reset activity when interacting
-                
-                setIsFetchingLogs(true);
-                try {
-                    const response = await fetch(`${scriptUrl}?type=logs`);
-                    if (response.ok) {
-                        const logData = await response.json();
-                        setSheetData(logData.reverse()); 
-                    }
-                } catch (error) {
-                    console.error("Error refreshing logs:", error);
-                } finally {
-                    setIsFetchingLogs(false);
-                }
+
+                await refreshLogs();
             };
 
             const handlePinPress = (num) => {
@@ -975,17 +1237,64 @@
                 return () => window.removeEventListener('keydown', handleKeyDown);
             }, [viewMode, selectedId, pinInput, employees]); // Re-bind to ensure state closure is fresh
 
-            const handleClockAction = (actionType) => {
-                if (actionType === "CLOCK_IN") {
-                    if (selectedHasOpenShiftToday) return;
-                    updateEmployeeStatus(selectedId, true);
-                    logAction(selectedEmployee.name, "CLOCK_IN");
-                    setNotification({ type: 'success', message: "Clocked In Successfully" });
-                } else {
-                    if (!selectedHasOpenShiftToday) return;
-                    updateEmployeeStatus(selectedId, false);
-                    logAction(selectedEmployee.name, "CLOCK_OUT");
-                    setNotification({ type: 'info', message: "Clocked Out Successfully" });
+            const handleClockAction = async (actionType) => {
+                if (!selectedEmployee || isSubmittingAction) return;
+
+                lastActivityRef.current = Date.now();
+                setIsSubmittingAction(true);
+                try {
+                    const latestRows = await refreshLogs();
+                    if (!latestRows) {
+                        setNotification({ type: 'error', message: "Could not refresh the latest timesheet rows. Punch was not submitted." });
+                        return;
+                    }
+
+                    const timestamp = buildActionTimestamp();
+                    const plan = actionType === "CLOCK_IN"
+                        ? resolveClockInPlan(latestRows, selectedEmployee.name, timestamp.localDate)
+                        : resolveClockOutPlan(latestRows, selectedEmployee.name, timestamp.localDate);
+
+                    if (!plan || plan.status !== 'ready') {
+                        setNotification({ type: 'error', message: plan?.message || "This punch could not be matched safely." });
+                        return;
+                    }
+
+                    const actionPayload = {
+                        action: actionType,
+                        date: timestamp.localDate,
+                        time: timestamp.localTime,
+                        name: selectedEmployee.name,
+                        submittedAt: timestamp.isoTimestamp,
+                        timezone: timestamp.timezone,
+                        timezoneOffsetMinutes: timestamp.timezoneOffsetMinutes,
+                        resolutionCode: plan.code,
+                        ...buildRowContextPayload(plan.row),
+                    };
+
+                    if (actionType === "CLOCK_IN") {
+                        actionPayload.reason = getLateStartNote(plan.row?.schedIn, timestamp.localTime);
+                    } else {
+                        Object.assign(actionPayload, buildWorkedDurationFields(plan.row?.timeIn || '', timestamp.localTime));
+                    }
+
+                    const result = await sendToSheet(actionPayload);
+                    if (!result.ok) {
+                        setNotification({ type: 'error', message: result.error || "Could not save this punch." });
+                        return;
+                    }
+
+                    const refreshedRows = await refreshLogs();
+                    const successMessage = actionType === "CLOCK_IN"
+                        ? "Clocked In Successfully"
+                        : "Clocked Out Successfully";
+
+                    if (refreshedRows) {
+                        setNotification({ type: actionType === "CLOCK_IN" ? 'success' : 'info', message: successMessage });
+                    } else {
+                        setNotification({ type: 'info', message: `${successMessage}. The latest rows could not be reloaded automatically.` });
+                    }
+                } finally {
+                    setIsSubmittingAction(false);
                 }
             };
 
@@ -1023,7 +1332,8 @@
                 loadEditRow(editableRows[editTargetIndex + 1]);
             };
 
-            const saveEdit = () => {
+            const saveEdit = async () => {
+                if (isSubmittingAction) return;
                 if (isEntryLocked(editTarget)) {
                     setNotification({ type: 'error', message: "This entry is locked and cannot be edited." });
                     setViewMode('DASHBOARD');
@@ -1064,21 +1374,8 @@
                     n: editForm.newReason.trim(),
                 });
                 const combinedReason = JSON.stringify(history);
-
-                setSheetData(prev => {
-                    let updated = false;
-                    return prev.map(row => {
-                        const isTarget = !updated && isSameTimesheetEntry(row, editTarget);
-                        if (!isTarget) return row;
-                        updated = true;
-                        return {
-                            ...row,
-                            timeIn: updatedTimeIn,
-                            timeOut: updatedTimeOut,
-                            reason: combinedReason
-                        };
-                    });
-                });
+                const durationFields = buildWorkedDurationFields(updatedTimeIn, updatedTimeOut);
+                const editTimestamp = buildActionTimestamp();
 
                 const payload = {
                     action: "EDIT",
@@ -1088,92 +1385,68 @@
                     newTimeOut: updatedTimeOut,
                     editorName: selectedEmployee?.name || '',
                     editorRole: selectedEmployee?.role || 'employee',
-                    reason: combinedReason
+                    reason: combinedReason,
+                    submittedAt: editTimestamp.isoTimestamp,
+                    timezone: editTimestamp.timezone,
+                    timezoneOffsetMinutes: editTimestamp.timezoneOffsetMinutes,
+                    ...buildRowContextPayload(editTarget),
+                    ...durationFields,
                 };
 
-                sendToSheet(payload);
-                setNotification({ type: 'success', message: "Timesheet Updated" });
-                setViewMode('DASHBOARD');
-            };
-
-            const updateEmployeeStatus = (id, status) => {
-                setEmployees(prev => prev.map(emp => 
-                    emp.id === id ? { ...emp, isClockedIn: status } : emp
-                ));
-            };
-
-            const logAction = (name, actionType) => {
-                const now = new Date();
-                const year = now.getFullYear();
-                const month = String(now.getMonth() + 1).padStart(2, '0');
-                const day = String(now.getDate()).padStart(2, '0');
-                const localDate = `${year}-${month}-${day}`;
-                const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }); 
-                
-                let payload = {};
-
-                if (actionType === "CLOCK_IN") {
-                    const schedIndex = sheetData.findIndex(row => row.name === name && normalizeDate(row.date) === localDate && !row.timeIn);
-                    let note = "";
-
-                    if (schedIndex !== -1) {
-                        const schedRow = sheetData[schedIndex];
-                        if (schedRow.schedIn) {
-                            const schedTime = new Date(`2000/01/01 ${schedRow.schedIn}`);
-                            const actualTime = new Date(`2000/01/01 ${timeStr}`);
-                            if (!isNaN(schedTime) && !isNaN(actualTime)) {
-                                const diffMins = (actualTime - schedTime) / 60000;
-                                if (diffMins > 5) {
-                                    note = "Late Start";
-                                }
-                            }
-                        }
-
-                        setSheetData(prev => {
-                            const newData = [...prev];
-                            newData[schedIndex] = { ...newData[schedIndex], timeIn: timeStr, reason: note };
-                            return newData;
-                        });
-                    } else {
-                        const newEntry = { date: localDate, timeIn: timeStr, timeOut: "", name: name, reason: "", schedIn: "", schedOut: "", payrollStatus: "Open", scheduleStatus: "" };
-                        setSheetData(prev => [newEntry, ...prev]);
+                setIsSubmittingAction(true);
+                try {
+                    const result = await sendToSheet(payload);
+                    if (!result.ok) {
+                        setNotification({ type: 'error', message: result.error || "Could not update the timesheet." });
+                        return;
                     }
 
-                    payload = { action: "CLOCK_IN", date: localDate, time: timeStr, name: name, reason: note };
-                } else {
-                    setSheetData(prev => {
-                        const newData = [...prev];
-                        let index = newData.findIndex(row =>
-                            row.name === name &&
-                            normalizeDate(row.date) === localDate &&
-                            hasTimeValue(row.timeIn) &&
-                            !hasTimeValue(row.timeOut)
-                        );
-                        if (index === -1) {
-                            index = newData.findIndex(row =>
-                                row.name === name &&
-                                hasTimeValue(row.timeIn) &&
-                                !hasTimeValue(row.timeOut)
-                            );
-                        }
-                        if (index !== -1) newData[index] = { ...newData[index], timeOut: timeStr };
-                        return newData;
-                    });
-                    payload = { action: "CLOCK_OUT", date: localDate, time: timeStr, name: name };
+                    const refreshedRows = await refreshLogs();
+                    if (refreshedRows) {
+                        setNotification({ type: 'success', message: "Timesheet Updated" });
+                    } else {
+                        setNotification({ type: 'info', message: "Timesheet updated, but the latest rows could not be reloaded automatically." });
+                    }
+                    setViewMode('DASHBOARD');
+                } finally {
+                    setIsSubmittingAction(false);
                 }
-                sendToSheet(payload);
             };
 
             const sendToSheet = async (payload) => {
-                if (scriptUrl) {
-                    try {
-                        await fetch(scriptUrl, {
-                            method: "POST",
-                            body: JSON.stringify(payload)
-                        });
-                    } catch (err) {
-                        console.error("Network Error:", err);
+                if (!scriptUrl) {
+                    return { ok: false, error: "The timeclock endpoint is not configured." };
+                }
+
+                try {
+                    const response = await fetch(scriptUrl, {
+                        method: "POST",
+                        body: JSON.stringify(payload)
+                    });
+
+                    const rawText = await response.text();
+                    if (!response.ok) {
+                        throw new Error(`Sheet request failed (${response.status})`);
                     }
+
+                    if (rawText) {
+                        try {
+                            const parsed = JSON.parse(rawText);
+                            if (String(parsed?.status || '').toLowerCase() === 'error') {
+                                throw new Error(parsed.message || 'The sheet reported an error.');
+                            }
+                            return { ok: true, parsed, rawText };
+                        } catch (parseError) {
+                            if (!/Unexpected token/i.test(parseError.message || '')) {
+                                throw parseError;
+                            }
+                        }
+                    }
+
+                    return { ok: true, rawText };
+                } catch (err) {
+                    console.error("Network Error:", err);
+                    return { ok: false, error: err?.message || "Could not reach the timesheet service." };
                 }
             };
 
@@ -1251,24 +1524,32 @@
                             {isAuthenticated && (
                                 <div className="brutal-card p-4 md:p-6 animate-fade-in bg-white">
                                     <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-4 md:mb-6 truncate">Hello, {selectedEmployee?.name}!</h2>
+                                    {actionAlertPlan && (
+                                        <div className="mb-4 md:mb-6 rounded-xl border-2 border-black bg-[#fee2e2] px-4 py-3 shadow-[4px_4px_0px_0px_#000000]">
+                                            <div className="flex items-start gap-3">
+                                                <i className="fas fa-shield-alt text-[#dc2626] text-lg mt-0.5"></i>
+                                                <p className="text-xs md:text-sm font-bold text-[#060606] leading-relaxed">{actionAlertPlan.message}</p>
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="grid grid-cols-2 gap-3 lg:gap-4">
                                         <button 
                                             onClick={() => handleClockAction("CLOCK_IN")}
-                                            disabled={selectedHasOpenShiftToday}
+                                            disabled={!canClockIn}
                                             className={`brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3
-                                                ${selectedHasOpenShiftToday ? 'bg-gray-200 text-gray-500' : 'bg-[#4ade80] hover:bg-[#22c55e]'}`}
+                                                ${!canClockIn ? 'bg-gray-200 text-gray-500' : 'bg-[#4ade80] hover:bg-[#22c55e]'}`}
                                         >
-                                            <i className="fas fa-sign-in-alt text-xl md:text-3xl lg:text-2xl"></i> 
-                                            <span>Clock In</span>
+                                            <i className={`fas ${isSubmittingAction ? 'fa-circle-notch spinner' : 'fa-sign-in-alt'} text-xl md:text-3xl lg:text-2xl`}></i> 
+                                            <span>{isSubmittingAction ? 'Saving...' : 'Clock In'}</span>
                                         </button>
                                         <button 
                                             onClick={() => handleClockAction("CLOCK_OUT")}
-                                            disabled={!selectedHasOpenShiftToday}
+                                            disabled={!canClockOut}
                                             className={`brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3
-                                                ${!selectedHasOpenShiftToday ? 'bg-gray-200 text-gray-500' : 'bg-[#fb7185] hover:bg-[#f43f5e]'}`}
+                                                ${!canClockOut ? 'bg-gray-200 text-gray-500' : 'bg-[#fb7185] hover:bg-[#f43f5e]'}`}
                                         >
-                                            <i className="fas fa-sign-out-alt text-xl md:text-3xl lg:text-2xl"></i> 
-                                            <span>Clock Out</span>
+                                            <i className={`fas ${isSubmittingAction ? 'fa-circle-notch spinner' : 'fa-sign-out-alt'} text-xl md:text-3xl lg:text-2xl`}></i> 
+                                            <span>{isSubmittingAction ? 'Saving...' : 'Clock Out'}</span>
                                         </button>
                                         <button 
                                             onClick={() => setScheduleModalOpen(true)} 
@@ -1326,7 +1607,7 @@
                                     <div className="flex-1 overflow-hidden">
                                         {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinBackspace={handlePinBackspace} handlePinClear={handlePinClear} selectedEmployee={selectedEmployee} onCancel={handleLogout} />}
                                         {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} isFetchingLogs={isFetchingLogs} />}
-                                        {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} reasonValidationTriggered={reasonValidationTriggered} onPrev={handleEditPrev} onNext={handleEditNext} canPrev={canEditPrev} canNext={canEditNext} onClose={() => { setReasonValidationTriggered(false); setViewMode('DASHBOARD'); }} />}
+                                        {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} reasonValidationTriggered={reasonValidationTriggered} onPrev={handleEditPrev} onNext={handleEditNext} canPrev={canEditPrev} canNext={canEditNext} onClose={() => { setReasonValidationTriggered(false); setViewMode('DASHBOARD'); }} isSubmitting={isSubmittingAction} />}
                                     </div>
                                 )}
                                 
