@@ -340,6 +340,61 @@
             };
         };
 
+        const applySuccessfulPunchLocally = (rows, actionType, employeeName, timestamp, plan, reason = '') => {
+            const safeRows = Array.isArray(rows) ? rows.slice() : [];
+
+            if (actionType === 'CLOCK_IN') {
+                if (!plan?.row) {
+                    return [{
+                        date: timestamp.localDate,
+                        name: employeeName,
+                        schedIn: '',
+                        schedOut: '',
+                        timeIn: timestamp.localTime,
+                        timeOut: '',
+                        reason,
+                        payrollStatus: 'Open',
+                        scheduleStatus: '',
+                    }, ...safeRows];
+                }
+
+                return safeRows.map(row => (
+                    isSameTimesheetEntry(row, plan.row)
+                        ? { ...row, timeIn: timestamp.localTime, reason: reason || row.reason || '' }
+                        : row
+                ));
+            }
+
+            if (!plan?.row) {
+                return safeRows;
+            }
+
+            return safeRows.map(row => (
+                isSameTimesheetEntry(row, plan.row)
+                    ? { ...row, timeOut: timestamp.localTime }
+                    : row
+            ));
+        };
+
+        const getExpectedActionRow = (rows, actionType, employeeName, timestamp, plan) => {
+            if (!Array.isArray(rows)) return null;
+
+            if (actionType === 'CLOCK_IN') {
+                return rows.find(row =>
+                    row.name === employeeName &&
+                    normalizeDate(row.date) === timestamp.localDate &&
+                    (row.timeIn || '') === timestamp.localTime
+                ) || null;
+            }
+
+            return rows.find(row =>
+                row.name === employeeName &&
+                normalizeDate(row.date) === timestamp.localDate &&
+                (row.timeOut || '') === timestamp.localTime &&
+                (!plan?.row?.timeIn || (row.timeIn || '') === (plan.row.timeIn || ''))
+            ) || null;
+        };
+
         const getLateStartNote = (scheduledIn, actualTime) => {
             const scheduledMinutes = parseClockTimeToMinutes(scheduledIn);
             const actualMinutes = parseClockTimeToMinutes(actualTime);
@@ -1315,10 +1370,12 @@
             const [notification, setNotification] = useState(null);
             const [reasonValidationTriggered, setReasonValidationTriggered] = useState(false);
 
+            const buildApiUrl = (type) => `${scriptUrl}?type=${encodeURIComponent(type)}&_=${Date.now()}`;
+
             const refreshLogs = async ({ showSpinner = true } = {}) => {
                 if (showSpinner) setIsFetchingLogs(true);
                 try {
-                    const response = await fetch(`${scriptUrl}?type=logs`);
+                    const response = await fetch(buildApiUrl('logs'), { cache: 'no-store' });
                     if (!response.ok) throw new Error('Failed to fetch timesheet rows');
                     const logData = await response.json();
                     const rows = Array.isArray(logData) ? logData.reverse() : [];
@@ -1361,7 +1418,7 @@
                     await Promise.allSettled([
                         (async () => {
                             try {
-                                const response = await fetch(`${scriptUrl}?type=employees`);
+                                const response = await fetch(buildApiUrl('employees'), { cache: 'no-store' });
                                 if (!response.ok) throw new Error('Failed to fetch employees');
                                 const data = await response.json();
                                 const formattedEmployees = data.map(emp => ({ ...emp, isClockedIn: false }));
@@ -1375,7 +1432,7 @@
                         })(),
                         (async () => {
                             try {
-                                const response = await fetch(`${scriptUrl}?type=settings`);
+                                const response = await fetch(buildApiUrl('settings'), { cache: 'no-store' });
                                 if (!response.ok) return;
                                 const data = await response.json();
                                 setSettings({
@@ -1738,15 +1795,48 @@
                         return;
                     }
 
+                    const localRows = applySuccessfulPunchLocally(
+                        latestRows,
+                        actionType,
+                        selectedEmployee.name,
+                        timestamp,
+                        plan,
+                        actionPayload.reason || ''
+                    );
+                    const expectedSavedRow = getExpectedActionRow(
+                        localRows,
+                        actionType,
+                        selectedEmployee.name,
+                        timestamp,
+                        plan
+                    );
+                    setSheetData(localRows);
+
                     const refreshedRows = await refreshLogs();
                     const successMessage = actionType === "CLOCK_IN"
                         ? "Clocked In Successfully"
                         : "Clocked Out Successfully";
 
-                    if (refreshedRows) {
+                    const refreshConfirmedPunch = Boolean(
+                        refreshedRows &&
+                        expectedSavedRow &&
+                        getExpectedActionRow(
+                            refreshedRows,
+                            actionType,
+                            selectedEmployee.name,
+                            timestamp,
+                            plan
+                        )
+                    );
+
+                    if (refreshConfirmedPunch) {
                         setNotification({ type: actionType === "CLOCK_IN" ? 'success' : 'info', message: successMessage });
                     } else {
-                        setNotification({ type: 'info', message: `${successMessage}. The latest rows could not be reloaded automatically.` });
+                        setSheetData(localRows);
+                        setNotification({
+                            type: actionType === "CLOCK_IN" ? 'success' : 'info',
+                            message: `${successMessage}. The spreadsheet save went through, but the follow-up refresh still looked stale, so this view kept the confirmed punch locally.`
+                        });
                     }
                 } finally {
                     setIsSubmittingAction(false);
@@ -1882,6 +1972,10 @@
                     const rawText = await response.text();
                     if (!response.ok) {
                         throw new Error(`Sheet request failed (${response.status})`);
+                    }
+
+                    if (rawText && String(rawText).trim().toLowerCase().startsWith('error')) {
+                        throw new Error(String(rawText).trim());
                     }
 
                     if (rawText) {
