@@ -1352,6 +1352,11 @@
         function App() {
             // Updated API URL to your current endpoint
             const scriptUrl = "https://script.google.com/macros/s/AKfycbzPAIaXEZZPamrYn24IAZBr4C2GPf0hcWvxCXUMU_diUPBlGKn0mZsOJM7O8AaeFOAK/exec";
+            const apiDeploymentId = (() => {
+                const match = scriptUrl.match(/\/s\/([^/]+)\/exec/);
+                return match ? match[1] : '';
+            })();
+            const apiDeploymentShort = apiDeploymentId ? apiDeploymentId.slice(-8) : 'unknown';
 
             const [currentTime, setCurrentTime] = useState(new Date());
             const [viewMode, setViewMode] = useState('PINPAD'); 
@@ -2108,10 +2113,15 @@
                             </div>
                         </div>
                         <div className="flex items-center gap-3 md:gap-4 shrink-0 ml-2">
-                            <button onClick={() => refreshSheetData(true)} className="brutal-btn bg-white px-3 md:px-4 py-2 text-xs md:text-sm flex items-center gap-2">
-                                <i className={`fas ${isFetchingLogs ? 'fa-circle-notch spinner' : 'fa-sync-alt'} text-[#38bdf8]`}></i>
-                                <span>{isFetchingLogs ? 'Syncing...' : 'Sync'}</span>
-                            </button>
+                            <div className="flex flex-col items-end gap-1">
+                                <button onClick={() => refreshSheetData(true)} className="brutal-btn bg-white px-3 md:px-4 py-2 text-xs md:text-sm flex items-center gap-2">
+                                    <i className={`fas ${isFetchingLogs ? 'fa-circle-notch spinner' : 'fa-sync-alt'} text-[#38bdf8]`}></i>
+                                    <span>{isFetchingLogs ? 'Syncing...' : 'Sync'}</span>
+                                </button>
+                                <div className="text-[10px] md:text-xs font-bold text-gray-500 tracking-wide">
+                                    API {apiDeploymentShort}
+                                </div>
+                            </div>
                             <div className="text-xl md:text-5xl font-bold font-poppins text-[#060606] tracking-tighter">
                                 {currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} 
                             </div>
