@@ -1306,7 +1306,7 @@
             const loadScheduleIntoWeek = () => {};
 
             return (
-                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+                <div className="flex flex-col h-full min-h-0 animate-fade-in overflow-y-auto pr-1">
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 md:mb-6 shrink-0">
                         <div>
                             <h3 className="text-xl md:text-3xl font-bold font-poppins text-[#060606]">Weekly Schedule Studio</h3>
@@ -1390,10 +1390,10 @@
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-4 flex-1 min-h-0">
-                        <div className="flex flex-col gap-4 shrink-0">
-                            <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000]">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+                    <div className="flex flex-col gap-3 md:gap-4 flex-1 min-h-0">
+                        <div className="flex flex-col gap-3 shrink-0">
+                            <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-3 md:p-4 shadow-[4px_4px_0px_0px_#000000]">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
                                     <div>
                                         <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Shift Templates</h4>
                                         <p className="text-sm font-bold text-gray-600 mt-1">
@@ -1405,9 +1405,9 @@
                                     </div>
                                 </div>
 
-                                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                                <div className="flex gap-2 md:gap-3 overflow-x-auto pb-1">
                                     {visibleTemplates.map(template => (
-                                        <div key={template.id} className="relative min-w-[190px] max-w-[230px] shrink-0">
+                                        <div key={template.id} className="relative min-w-[160px] md:min-w-[170px] max-w-[210px] shrink-0">
                                             <button
                                                 type="button"
                                                 draggable
@@ -1419,15 +1419,15 @@
                                                     if (!selectedCell) return;
                                                     applyTemplateToCell(selectedCell.name, selectedCell.date, template.id);
                                                 }}
-                                                className={`brutal-btn ${template.accent} w-full min-h-[108px] p-4 text-left flex flex-col justify-between`}
+                                                className={`brutal-btn ${template.accent} w-full min-h-[86px] md:min-h-[96px] p-3 text-left flex flex-col justify-between`}
                                             >
                                                 <div className="pr-8">
                                                     <div className="font-bold font-poppins text-sm md:text-base leading-tight">{template.label}</div>
-                                                    <div className="text-xs md:text-sm font-bold text-[#060606]/70 mt-2">
+                                                    <div className="text-xs md:text-sm font-bold text-[#060606]/70 mt-1.5">
                                                         {template.clearSchedule ? 'Remove the shift from that cell' : `${template.schedIn} - ${template.schedOut}`}
                                                     </div>
                                                 </div>
-                                                <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-[#060606]/60 mt-3">
+                                                <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-[#060606]/60 mt-2">
                                                     {template.clearSchedule ? 'Utility' : (template.scheduleStatus || 'Published')}
                                                 </div>
                                             </button>
@@ -1449,14 +1449,14 @@
                                 </div>
 
                                 {!selectedCell && (
-                                    <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-3 text-xs md:text-sm font-bold text-gray-500 mt-4">
+                                    <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-2.5 text-xs md:text-sm font-bold text-gray-500 mt-3">
                                         Select a day cell first if you want a template click to apply instantly.
                                     </div>
                                 )}
                             </div>
 
-                            <div className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000]">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+                            <div className="rounded-2xl border-2 border-black bg-white p-3 md:p-4 shadow-[4px_4px_0px_0px_#000000]">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
                                     <div>
                                         <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Selected Shift</h4>
                                         <p className="text-sm font-bold text-gray-600 mt-1">
@@ -1471,7 +1471,7 @@
                                 </div>
 
                                 {!selectedDraft ? (
-                                    <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
+                                    <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-6 text-center text-sm md:text-base font-bold text-gray-400">
                                         Pick a cell from the week grid to start editing it.
                                     </div>
                                 ) : (
@@ -1626,7 +1626,7 @@
                             </div>
                         </div>
 
-                        <div className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] overflow-hidden flex flex-col flex-1 min-h-0">
+                        <div className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] overflow-hidden flex flex-col flex-1 min-h-[360px] lg:min-h-[440px]">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 shrink-0">
                                 <div>
                                     <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Week Grid</h4>
@@ -1639,7 +1639,7 @@
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-auto no-scrollbar">
+                            <div className="flex-1 overflow-auto">
                                 {sortedEmployees.length === 0 ? (
                                     <div className="h-full flex items-center justify-center text-center text-sm md:text-base font-bold text-gray-400 border-2 border-dashed border-gray-300 rounded-xl">
                                         No active employees were found for scheduling.
@@ -2898,7 +2898,7 @@
                         <div className={`${isAdminWorkspaceOpen ? 'lg:col-span-12' : 'lg:col-span-7'} transition-all duration-300 ${!selectedId && !isAdminWorkspaceOpen ? 'hidden lg:block' : 'block'}`}>
                             
                             {/* Adding relative positioning so absolute children (toast) anchor exactly here */}
-                            <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-170px)]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : 'p-3 md:p-6'}`}>
+                            <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-170px)]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : viewMode === 'ADMIN' ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
                                 
                                 {/* TIMEOUT WARNING OVERLAY */}
                                 {showTimeoutWarning && (
@@ -2930,7 +2930,7 @@
                                         </p>
                                     </div>
                                 ) : (
-                                    <div className="flex-1 overflow-hidden">
+                                    <div className="flex-1 min-h-0 overflow-hidden">
                                         {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinBackspace={handlePinBackspace} handlePinClear={handlePinClear} selectedEmployee={selectedUser} onCancel={handleSelectionCancel} />}
                                         {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} isFetchingLogs={isFetchingLogs} />}
                                         {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} reasonValidationTriggered={reasonValidationTriggered} onPrev={handleEditPrev} onNext={handleEditNext} canPrev={canEditPrev} canNext={canEditNext} onClose={() => { setReasonValidationTriggered(false); setViewMode('DASHBOARD'); }} isSubmitting={isSubmittingAction} />}
