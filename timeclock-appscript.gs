@@ -1,10 +1,13 @@
 // --- CONFIGURATION ---
 var EMPLOYEES_SHEET_NAME = "Employees";
-var LOGS_SHEET_NAME = "Sheet1";
+var LOGS_SHEET_NAME = "Timesheet";
 var SETTINGS_SHEET_NAME = "Settings";
+var INVENTORY_SHEET_NAME = "Inventory";
+var INVENTORY_LOG_SHEET_NAME = "Inventory Log";
+var SHOPIFY_API_VERSION = "2025-10";
 
 /*
- * COLUMN MAPPING (Sheet1):
+ * COLUMN MAPPING (Timesheet):
  * A: Day
  * B: Name
  * C: Scheduled In
@@ -40,6 +43,32 @@ var SETTINGS_COL = {
   SHIFT_TEMPLATES: 4
 };
 
+var INVENTORY_COL = {
+  SKU: 1,
+  PRODUCT: 2,
+  NEEDED: 3,
+  IN_PROCESS: 4,
+  AWAITING_APPROVAL: 5,
+  ADDED_TO_STORE: 6,
+  STILL_NEEDED: 7,
+  STATUS: 8,
+  LAST_UPDATED: 9,
+  INVENTORY_ITEM_ID: 10,
+  VARIANT_ID: 11
+};
+
+var INVENTORY_LOG_COL = {
+  TIMESTAMP: 1,
+  SKU: 2,
+  PRODUCT: 3,
+  ACTION: 4,
+  QTY: 5,
+  BEFORE: 6,
+  AFTER: 7,
+  SHOPIFY_RESULT: 8,
+  MESSAGE: 9
+};
+
 function doGet(e) {
   var type = (e && e.parameter && e.parameter.type) || "employees";
 
@@ -49,6 +78,10 @@ function doGet(e) {
 
   if (type === "logs") {
     return getLogs_();
+  }
+
+  if (type === "inventory") {
+    return getInventory_();
   }
 
   return getEmployees_();
@@ -93,6 +126,30 @@ function doPost(e) {
 
     if (data.action === "SAVE_SHIFT_TEMPLATES") {
       return handleSaveShiftTemplates_(data);
+    }
+
+    if (data.action === "INVENTORY_ADD_NEED") {
+      return handleInventoryAddNeed_(data);
+    }
+
+    if (data.action === "INVENTORY_ADJUST_NEED") {
+      return handleInventoryAdjustNeed_(data);
+    }
+
+    if (data.action === "INVENTORY_START") {
+      return handleInventoryStart_(data);
+    }
+
+    if (data.action === "INVENTORY_FINISH") {
+      return handleInventoryFinish_(data);
+    }
+
+    if (data.action === "INVENTORY_REJECT_AWAITING") {
+      return handleInventoryRejectAwaiting_(data);
+    }
+
+    if (data.action === "INVENTORY_APPROVE") {
+      return handleInventoryApprove_(data);
     }
 
     throw new Error("Unsupported action: " + data.action);
@@ -212,6 +269,797 @@ function getEmployees_() {
   }
 
   return jsonResponse_(employees);
+}
+
+function getInventory_() {
+  var sheet = getOrCreateInventorySheet_();
+  ensureInventorySheetStructure_(sheet);
+  return jsonResponse_(getInventoryRecords_(sheet));
+}
+
+function handleInventoryAddNeed_(data) {
+  validateRequiredFields_(data, ["sku", "quantity", "editorName", "editorRole"]);
+  validateAdminAction_(data);
+
+  var quantity = parseIntegerQuantity_(data.quantity, "quantity", false);
+  var sheet = getOrCreateInventorySheet_();
+  ensureInventorySheetStructure_(sheet);
+
+  var records = getInventoryRecords_(sheet);
+  var existing = findOpenInventoryRecordBySku_(records, data.sku);
+  var productInfo = existing ? getOptionalShopifyVariantBySku_(existing.sku || data.sku) : getOptionalShopifyVariantBySku_(data.sku);
+  var beforeState = existing ? serializeInventoryState_(existing) : "";
+
+  if (existing) {
+    existing.needed += quantity;
+    if (!hasValue_(existing.product) && hasValue_(data.product)) {
+      existing.product = String(data.product).trim();
+    }
+    if (productInfo) {
+      hydrateInventoryRecordFromShopify_(existing, productInfo);
+    }
+    var updatedExisting = writeInventoryRecord_(sheet, existing.rowNumber, existing);
+    logInventoryAction_({
+      sku: updatedExisting.sku,
+      product: updatedExisting.product,
+      action: "Need Added",
+      quantity: quantity,
+      beforeState: beforeState,
+      afterState: serializeInventoryState_(updatedExisting),
+      shopifyResult: "not_requested",
+      message: "Need quantity increased by " + quantity + "."
+    });
+    return jsonResponse_({
+      status: "success",
+      action: "INVENTORY_ADD_NEED",
+      rowNumber: updatedExisting.rowNumber,
+      inventoryRow: updatedExisting
+    });
+  }
+
+  var nextRow = Math.max(sheet.getLastRow() + 1, 2);
+  var createdRecord = {
+    rowNumber: nextRow,
+    sku: normalizeSku_(data.sku),
+    product: hasValue_(data.product) ? String(data.product).trim() : "",
+    needed: quantity,
+    inProcess: 0,
+    awaitingApproval: 0,
+    addedToStore: 0,
+    inventoryItemId: "",
+    variantId: ""
+  };
+
+  if (productInfo) {
+    hydrateInventoryRecordFromShopify_(createdRecord, productInfo);
+  } else if (!createdRecord.product) {
+    createdRecord.product = "SKU " + createdRecord.sku;
+  }
+
+  var savedRecord = writeInventoryRecord_(sheet, nextRow, createdRecord);
+  logInventoryAction_({
+    sku: savedRecord.sku,
+    product: savedRecord.product,
+    action: "Need Created",
+    quantity: quantity,
+    beforeState: "",
+    afterState: serializeInventoryState_(savedRecord),
+    shopifyResult: "not_requested",
+    message: "New inventory need created."
+  });
+
+  return jsonResponse_({
+    status: "success",
+    action: "INVENTORY_ADD_NEED",
+    rowNumber: savedRecord.rowNumber,
+    inventoryRow: savedRecord
+  });
+}
+
+function handleInventoryAdjustNeed_(data) {
+  validateRequiredFields_(data, ["rowNumber", "quantityDelta", "editorName", "editorRole"]);
+  validateAdminAction_(data);
+
+  var quantityDelta = parseIntegerQuantity_(data.quantityDelta, "quantityDelta", true);
+  var sheet = getOrCreateInventorySheet_();
+  ensureInventorySheetStructure_(sheet);
+
+  var record = getInventoryRecordByRowNumber_(sheet, data.rowNumber);
+  if (!record) {
+    throw new Error("That inventory row could not be found.");
+  }
+
+  var minimumCovered = record.inProcess + record.awaitingApproval + record.addedToStore;
+  var nextNeeded = record.needed + quantityDelta;
+  if (nextNeeded < 0) {
+    throw new Error("Needed quantity cannot go below 0.");
+  }
+  if (nextNeeded < minimumCovered) {
+    throw new Error("Needed quantity cannot go below the amount already in process, awaiting approval, or added to Shopify.");
+  }
+
+  var beforeState = serializeInventoryState_(record);
+  record.needed = nextNeeded;
+  var savedRecord = writeInventoryRecord_(sheet, record.rowNumber, record);
+  logInventoryAction_({
+    sku: savedRecord.sku,
+    product: savedRecord.product,
+    action: "Need Adjusted",
+    quantity: quantityDelta,
+    beforeState: beforeState,
+    afterState: serializeInventoryState_(savedRecord),
+    shopifyResult: "not_requested",
+    message: "Needed quantity adjusted by " + quantityDelta + "."
+  });
+
+  return jsonResponse_({
+    status: "success",
+    action: "INVENTORY_ADJUST_NEED",
+    rowNumber: savedRecord.rowNumber,
+    inventoryRow: savedRecord
+  });
+}
+
+function handleInventoryStart_(data) {
+  validateRequiredFields_(data, ["rowNumber", "quantity"]);
+
+  var quantity = parseIntegerQuantity_(data.quantity, "quantity", false);
+  var sheet = getOrCreateInventorySheet_();
+  ensureInventorySheetStructure_(sheet);
+
+  var record = getInventoryRecordByRowNumber_(sheet, data.rowNumber);
+  if (!record) {
+    throw new Error("That inventory row could not be found.");
+  }
+  if (record.status === "Complete") {
+    throw new Error("This inventory row is already complete.");
+  }
+  if (quantity > record.stillNeeded) {
+    throw new Error("Only " + record.stillNeeded + " item(s) are still needed for this row.");
+  }
+
+  var beforeState = serializeInventoryState_(record);
+  record.inProcess += quantity;
+  var savedRecord = writeInventoryRecord_(sheet, record.rowNumber, record);
+  logInventoryAction_({
+    sku: savedRecord.sku,
+    product: savedRecord.product,
+    action: "Started",
+    quantity: quantity,
+    beforeState: beforeState,
+    afterState: serializeInventoryState_(savedRecord),
+    shopifyResult: "not_requested",
+    message: "Work started."
+  });
+
+  return jsonResponse_({
+    status: "success",
+    action: "INVENTORY_START",
+    rowNumber: savedRecord.rowNumber,
+    inventoryRow: savedRecord
+  });
+}
+
+function handleInventoryFinish_(data) {
+  validateRequiredFields_(data, ["rowNumber", "quantity"]);
+
+  var quantity = parseIntegerQuantity_(data.quantity, "quantity", false);
+  var sheet = getOrCreateInventorySheet_();
+  ensureInventorySheetStructure_(sheet);
+
+  var record = getInventoryRecordByRowNumber_(sheet, data.rowNumber);
+  if (!record) {
+    throw new Error("That inventory row could not be found.");
+  }
+  if (quantity > record.inProcess) {
+    throw new Error("Only " + record.inProcess + " item(s) are currently marked in process.");
+  }
+
+  var beforeState = serializeInventoryState_(record);
+  record.inProcess -= quantity;
+  record.awaitingApproval += quantity;
+  var savedRecord = writeInventoryRecord_(sheet, record.rowNumber, record);
+  logInventoryAction_({
+    sku: savedRecord.sku,
+    product: savedRecord.product,
+    action: "Finished",
+    quantity: quantity,
+    beforeState: beforeState,
+    afterState: serializeInventoryState_(savedRecord),
+    shopifyResult: "pending",
+    message: "Finished quantity moved to Awaiting Approval."
+  });
+
+  return jsonResponse_({
+    status: "success",
+    action: "INVENTORY_FINISH",
+    rowNumber: savedRecord.rowNumber,
+    inventoryRow: savedRecord
+  });
+}
+
+function handleInventoryRejectAwaiting_(data) {
+  validateRequiredFields_(data, ["rowNumber", "quantity", "editorName", "editorRole"]);
+  validateAdminAction_(data);
+
+  var quantity = parseIntegerQuantity_(data.quantity, "quantity", false);
+  var sheet = getOrCreateInventorySheet_();
+  ensureInventorySheetStructure_(sheet);
+
+  var record = getInventoryRecordByRowNumber_(sheet, data.rowNumber);
+  if (!record) {
+    throw new Error("That inventory row could not be found.");
+  }
+  if (quantity > record.awaitingApproval) {
+    throw new Error("Only " + record.awaitingApproval + " item(s) are awaiting approval right now.");
+  }
+
+  var beforeState = serializeInventoryState_(record);
+  record.awaitingApproval -= quantity;
+  var savedRecord = writeInventoryRecord_(sheet, record.rowNumber, record);
+  logInventoryAction_({
+    sku: savedRecord.sku,
+    product: savedRecord.product,
+    action: "Awaiting Rejected",
+    quantity: quantity,
+    beforeState: beforeState,
+    afterState: serializeInventoryState_(savedRecord),
+    shopifyResult: "not_requested",
+    message: "Awaiting Approval reduced by " + quantity + "."
+  });
+
+  return jsonResponse_({
+    status: "success",
+    action: "INVENTORY_REJECT_AWAITING",
+    rowNumber: savedRecord.rowNumber,
+    inventoryRow: savedRecord
+  });
+}
+
+function handleInventoryApprove_(data) {
+  validateRequiredFields_(data, ["rowNumber", "quantity", "editorName", "editorRole"]);
+  validateAdminAction_(data);
+
+  var quantity = parseIntegerQuantity_(data.quantity, "quantity", false);
+  var sheet = getOrCreateInventorySheet_();
+  ensureInventorySheetStructure_(sheet);
+
+  var record = getInventoryRecordByRowNumber_(sheet, data.rowNumber);
+  if (!record) {
+    throw new Error("That inventory row could not be found.");
+  }
+  if (quantity > record.awaitingApproval) {
+    throw new Error("Only " + record.awaitingApproval + " item(s) are awaiting approval right now.");
+  }
+
+  var beforeState = serializeInventoryState_(record);
+  var shopifyInfo = null;
+
+  try {
+    shopifyInfo = resolveShopifyInventoryInfo_(record);
+    adjustShopifyInventory_(shopifyInfo.inventoryItemId, quantity, record, data);
+  } catch (err) {
+    logInventoryAction_({
+      sku: record.sku,
+      product: record.product,
+      action: "Approval Failed",
+      quantity: quantity,
+      beforeState: beforeState,
+      afterState: beforeState,
+      shopifyResult: "failed",
+      message: err && err.message ? err.message : String(err)
+    });
+    throw err;
+  }
+
+  record.awaitingApproval -= quantity;
+  record.addedToStore += quantity;
+  if (shopifyInfo) {
+    hydrateInventoryRecordFromShopify_(record, shopifyInfo);
+  }
+
+  var savedRecord = writeInventoryRecord_(sheet, record.rowNumber, record);
+  logInventoryAction_({
+    sku: savedRecord.sku,
+    product: savedRecord.product,
+    action: "Approved To Shopify",
+    quantity: quantity,
+    beforeState: beforeState,
+    afterState: serializeInventoryState_(savedRecord),
+    shopifyResult: "success",
+    message: "Approved inventory was added to Shopify."
+  });
+
+  return jsonResponse_({
+    status: "success",
+    action: "INVENTORY_APPROVE",
+    rowNumber: savedRecord.rowNumber,
+    inventoryRow: savedRecord
+  });
+}
+
+function getOrCreateInventorySheet_() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  return spreadsheet.getSheetByName(INVENTORY_SHEET_NAME) || spreadsheet.insertSheet(INVENTORY_SHEET_NAME);
+}
+
+function getOrCreateInventoryLogSheet_() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  return spreadsheet.getSheetByName(INVENTORY_LOG_SHEET_NAME) || spreadsheet.insertSheet(INVENTORY_LOG_SHEET_NAME);
+}
+
+function ensureInventorySheetStructure_(sheet) {
+  var headers = [[
+    "SKU",
+    "Product",
+    "Needed",
+    "In Process",
+    "Awaiting Approval",
+    "Added To Store",
+    "Still Needed",
+    "Status",
+    "Last Updated",
+    "Inventory Item ID",
+    "Variant ID"
+  ]];
+
+  if (sheet.getMaxColumns() < headers[0].length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers[0].length - sheet.getMaxColumns());
+  }
+
+  sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
+  sheet.setFrozenRows(1);
+}
+
+function ensureInventoryLogSheetStructure_(sheet) {
+  var headers = [[
+    "Timestamp",
+    "SKU",
+    "Product",
+    "Action",
+    "Qty",
+    "Before",
+    "After",
+    "Shopify Result",
+    "Message"
+  ]];
+
+  if (sheet.getMaxColumns() < headers[0].length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers[0].length - sheet.getMaxColumns());
+  }
+
+  sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
+  sheet.setFrozenRows(1);
+}
+
+function getInventoryRecords_(sheet) {
+  var lastRow = sheet.getLastRow();
+  var lastColumn = Math.max(sheet.getLastColumn(), INVENTORY_COL.VARIANT_ID);
+  var records = [];
+
+  if (lastRow < 2) {
+    return records;
+  }
+
+  var displayValues = sheet.getRange(2, 1, lastRow - 1, lastColumn).getDisplayValues();
+  for (var i = 0; i < displayValues.length; i++) {
+    if (!hasValue_(displayValues[i][INVENTORY_COL.SKU - 1]) &&
+        !hasValue_(displayValues[i][INVENTORY_COL.PRODUCT - 1]) &&
+        !hasValue_(displayValues[i][INVENTORY_COL.NEEDED - 1])) {
+      continue;
+    }
+    records.push(buildInventoryRecord_(displayValues[i], i + 2));
+  }
+
+  return records;
+}
+
+function buildInventoryRecord_(row, rowNumber) {
+  var needed = parseSheetNumber_(row[INVENTORY_COL.NEEDED - 1]);
+  var inProcess = parseSheetNumber_(row[INVENTORY_COL.IN_PROCESS - 1]);
+  var awaitingApproval = parseSheetNumber_(row[INVENTORY_COL.AWAITING_APPROVAL - 1]);
+  var addedToStore = parseSheetNumber_(row[INVENTORY_COL.ADDED_TO_STORE - 1]);
+  var derived = computeInventoryDerivedFields_(needed, inProcess, awaitingApproval, addedToStore);
+
+  return {
+    rowNumber: rowNumber,
+    sku: normalizeSku_(row[INVENTORY_COL.SKU - 1]),
+    product: String(row[INVENTORY_COL.PRODUCT - 1] || "").trim(),
+    needed: needed,
+    inProcess: inProcess,
+    awaitingApproval: awaitingApproval,
+    addedToStore: addedToStore,
+    stillNeeded: derived.stillNeeded,
+    status: derived.status,
+    lastUpdated: row[INVENTORY_COL.LAST_UPDATED - 1] || "",
+    inventoryItemId: String(row[INVENTORY_COL.INVENTORY_ITEM_ID - 1] || "").trim(),
+    variantId: String(row[INVENTORY_COL.VARIANT_ID - 1] || "").trim()
+  };
+}
+
+function computeInventoryDerivedFields_(needed, inProcess, awaitingApproval, addedToStore) {
+  var stillNeeded = needed - inProcess - awaitingApproval - addedToStore;
+  if (stillNeeded < 0) {
+    stillNeeded = 0;
+  }
+
+  var status = "Open";
+  if (needed > 0 && addedToStore >= needed && inProcess === 0 && awaitingApproval === 0) {
+    status = "Complete";
+  } else if (awaitingApproval > 0) {
+    status = "Awaiting Approval";
+  } else if (inProcess > 0) {
+    status = "In Process";
+  }
+
+  return {
+    stillNeeded: stillNeeded,
+    status: status
+  };
+}
+
+function writeInventoryRecord_(sheet, rowNumber, record) {
+  var derived = computeInventoryDerivedFields_(record.needed, record.inProcess, record.awaitingApproval, record.addedToStore);
+  var updatedAt = new Date();
+  var values = [[
+    normalizeSku_(record.sku),
+    String(record.product || "").trim(),
+    Math.max(0, parseSheetNumber_(record.needed)),
+    Math.max(0, parseSheetNumber_(record.inProcess)),
+    Math.max(0, parseSheetNumber_(record.awaitingApproval)),
+    Math.max(0, parseSheetNumber_(record.addedToStore)),
+    derived.stillNeeded,
+    derived.status,
+    updatedAt,
+    String(record.inventoryItemId || "").trim(),
+    String(record.variantId || "").trim()
+  ]];
+
+  sheet.getRange(rowNumber, 1, 1, values[0].length).setValues(values);
+  sheet.getRange(rowNumber, INVENTORY_COL.LAST_UPDATED).setNumberFormat("m/d/yyyy h:mm:ss am/pm");
+
+  record.rowNumber = rowNumber;
+  record.sku = values[0][INVENTORY_COL.SKU - 1];
+  record.product = values[0][INVENTORY_COL.PRODUCT - 1];
+  record.needed = values[0][INVENTORY_COL.NEEDED - 1];
+  record.inProcess = values[0][INVENTORY_COL.IN_PROCESS - 1];
+  record.awaitingApproval = values[0][INVENTORY_COL.AWAITING_APPROVAL - 1];
+  record.addedToStore = values[0][INVENTORY_COL.ADDED_TO_STORE - 1];
+  record.stillNeeded = derived.stillNeeded;
+  record.status = derived.status;
+  record.lastUpdated = Utilities.formatDate(updatedAt, Session.getScriptTimeZone(), "M/d/yyyy h:mm:ss a");
+  record.inventoryItemId = values[0][INVENTORY_COL.INVENTORY_ITEM_ID - 1];
+  record.variantId = values[0][INVENTORY_COL.VARIANT_ID - 1];
+  return record;
+}
+
+function getInventoryRecordByRowNumber_(sheet, rowNumberValue) {
+  var rowNumber = parseRowNumber_(rowNumberValue);
+  if (rowNumber < 2 || rowNumber > sheet.getLastRow()) {
+    return null;
+  }
+
+  var values = sheet.getRange(rowNumber, 1, 1, Math.max(sheet.getLastColumn(), INVENTORY_COL.VARIANT_ID)).getDisplayValues()[0];
+  if (!hasValue_(values[INVENTORY_COL.SKU - 1]) &&
+      !hasValue_(values[INVENTORY_COL.PRODUCT - 1]) &&
+      !hasValue_(values[INVENTORY_COL.NEEDED - 1])) {
+    return null;
+  }
+
+  return buildInventoryRecord_(values, rowNumber);
+}
+
+function findOpenInventoryRecordBySku_(records, sku) {
+  var normalizedSku = normalizeSku_(sku);
+  var matches = records.filter(function(record) {
+    return normalizeSku_(record.sku) === normalizedSku && record.status !== "Complete";
+  });
+
+  if (matches.length === 0) {
+    return null;
+  }
+
+  return matches[matches.length - 1];
+}
+
+function normalizeSku_(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function parseSheetNumber_(value) {
+  if (!hasValue_(value)) {
+    return 0;
+  }
+
+  var normalized = String(value).replace(/,/g, "").trim();
+  var parsed = Number(normalized);
+  if (isNaN(parsed)) {
+    return 0;
+  }
+  return Math.round(parsed);
+}
+
+function parseIntegerQuantity_(value, fieldName, allowNegative) {
+  if (value === null || value === undefined || String(value).trim() === "") {
+    throw new Error("Missing required field: " + fieldName);
+  }
+
+  var quantity = Number(String(value).trim());
+  if (isNaN(quantity) || !isFinite(quantity) || Math.floor(quantity) !== quantity) {
+    throw new Error(fieldName + " must be a whole number.");
+  }
+
+  if (allowNegative) {
+    if (quantity === 0) {
+      throw new Error(fieldName + " cannot be 0.");
+    }
+  } else if (quantity <= 0) {
+    throw new Error(fieldName + " must be greater than 0.");
+  }
+
+  return quantity;
+}
+
+function parseRowNumber_(value) {
+  var rowNumber = Number(String(value || "").trim());
+  if (isNaN(rowNumber) || !isFinite(rowNumber) || Math.floor(rowNumber) !== rowNumber) {
+    throw new Error("Invalid inventory row number.");
+  }
+  return rowNumber;
+}
+
+function validateAdminAction_(data) {
+  if (!isAdminRole_(data.editorRole)) {
+    throw new Error("Unauthorized. Only admin-capable accounts can perform this inventory action.");
+  }
+}
+
+function serializeInventoryState_(record) {
+  if (!record) {
+    return "";
+  }
+
+  return "Needed " + record.needed +
+    " | In Process " + record.inProcess +
+    " | Awaiting Approval " + record.awaitingApproval +
+    " | Added To Store " + record.addedToStore +
+    " | Still Needed " + record.stillNeeded;
+}
+
+function logInventoryAction_(entry) {
+  var sheet = getOrCreateInventoryLogSheet_();
+  ensureInventoryLogSheetStructure_(sheet);
+
+  var nextRow = Math.max(sheet.getLastRow() + 1, 2);
+  sheet.getRange(nextRow, 1, 1, INVENTORY_LOG_COL.MESSAGE).setValues([[
+    new Date(),
+    String(entry && entry.sku ? entry.sku : "").trim(),
+    String(entry && entry.product ? entry.product : "").trim(),
+    String(entry && entry.action ? entry.action : "").trim(),
+    entry && entry.quantity !== undefined ? entry.quantity : "",
+    String(entry && entry.beforeState ? entry.beforeState : "").trim(),
+    String(entry && entry.afterState ? entry.afterState : "").trim(),
+    String(entry && entry.shopifyResult ? entry.shopifyResult : "").trim(),
+    String(entry && entry.message ? entry.message : "").trim()
+  ]]);
+  sheet.getRange(nextRow, INVENTORY_LOG_COL.TIMESTAMP).setNumberFormat("m/d/yyyy h:mm:ss am/pm");
+}
+
+function hydrateInventoryRecordFromShopify_(record, shopifyInfo) {
+  if (!record || !shopifyInfo) {
+    return record;
+  }
+
+  if (hasValue_(shopifyInfo.product)) {
+    record.product = String(shopifyInfo.product).trim();
+  }
+  if (hasValue_(shopifyInfo.inventoryItemId)) {
+    record.inventoryItemId = String(shopifyInfo.inventoryItemId).trim();
+  }
+  if (hasValue_(shopifyInfo.variantId)) {
+    record.variantId = String(shopifyInfo.variantId).trim();
+  }
+
+  return record;
+}
+
+function resolveShopifyInventoryInfo_(record) {
+  if (hasValue_(record.inventoryItemId) && hasValue_(record.variantId)) {
+    return {
+      inventoryItemId: String(record.inventoryItemId).trim(),
+      variantId: String(record.variantId).trim(),
+      product: record.product || ""
+    };
+  }
+
+  var lookup = getShopifyVariantBySku_(record.sku);
+  return {
+    inventoryItemId: lookup.inventoryItemId,
+    variantId: lookup.variantId,
+    product: lookup.product
+  };
+}
+
+function getOptionalShopifyVariantBySku_(sku) {
+  if (!isShopifyConfigured_()) {
+    return null;
+  }
+
+  try {
+    return getShopifyVariantBySku_(sku);
+  } catch (err) {
+    return null;
+  }
+}
+
+function isShopifyConfigured_() {
+  var props = PropertiesService.getScriptProperties();
+  return hasValue_(props.getProperty("SHOPIFY_STORE_DOMAIN")) &&
+    hasValue_(props.getProperty("SHOPIFY_ADMIN_ACCESS_TOKEN"));
+}
+
+function getShopifyVariantBySku_(sku) {
+  var normalizedSku = normalizeSku_(sku);
+  if (!normalizedSku) {
+    throw new Error("A valid SKU is required before Shopify can be queried.");
+  }
+
+  var response = shopifyGraphqlRequest_(
+    "query InventoryVariantLookup($query: String!) {" +
+      " productVariants(first: 10, query: $query) {" +
+      " edges {" +
+      " node {" +
+      " id" +
+      " sku" +
+      " title" +
+      " product { title }" +
+      " inventoryItem { id }" +
+      " }" +
+      " }" +
+      " }" +
+      "}",
+    { query: "sku:" + normalizedSku }
+  );
+
+  var edges = (((response || {}).data || {}).productVariants || {}).edges || [];
+  for (var i = 0; i < edges.length; i++) {
+    var node = edges[i] && edges[i].node ? edges[i].node : null;
+    if (!node) {
+      continue;
+    }
+    if (normalizeSku_(node.sku) !== normalizedSku) {
+      continue;
+    }
+
+    var productTitle = node.product && node.product.title ? node.product.title : "";
+    var variantTitle = node.title ? String(node.title).trim() : "";
+    var combinedTitle = productTitle;
+    if (variantTitle && variantTitle.toLowerCase() !== "default title") {
+      combinedTitle = productTitle ? (productTitle + " - " + variantTitle) : variantTitle;
+    }
+
+    return {
+      variantId: String(node.id || "").trim(),
+      inventoryItemId: String(node.inventoryItem && node.inventoryItem.id ? node.inventoryItem.id : "").trim(),
+      product: combinedTitle || productTitle || normalizedSku
+    };
+  }
+
+  throw new Error("Shopify could not find a product variant for SKU " + normalizedSku + ".");
+}
+
+function adjustShopifyInventory_(inventoryItemId, quantityDelta, record, data) {
+  var locationId = getShopifyLocationId_();
+  var referenceDocumentUri = "gid://pengems/InventoryApproval/" + encodeURIComponent(normalizeSku_(record.sku)) + "/" + encodeURIComponent(String(data.submittedAt || new Date().toISOString()));
+
+  var response = shopifyGraphqlRequest_(
+    "mutation InventoryAdjust($input: InventoryAdjustQuantitiesInput!) {" +
+      " inventoryAdjustQuantities(input: $input) {" +
+      " userErrors { field message }" +
+      " inventoryAdjustmentGroup {" +
+      " createdAt" +
+      " reason" +
+      " referenceDocumentUri" +
+      " changes { name delta }" +
+      " }" +
+      " }" +
+      "}",
+    {
+      input: {
+        reason: "correction",
+        name: "available",
+        referenceDocumentUri: referenceDocumentUri,
+        changes: [{
+          delta: quantityDelta,
+          inventoryItemId: inventoryItemId,
+          locationId: locationId
+        }]
+      }
+    }
+  );
+
+  var result = ((response || {}).data || {}).inventoryAdjustQuantities || {};
+  var userErrors = result.userErrors || [];
+  if (userErrors.length > 0) {
+    throw new Error(userErrors[0].message || "Shopify rejected the inventory adjustment.");
+  }
+
+  return result.inventoryAdjustmentGroup || null;
+}
+
+function getShopifyLocationId_() {
+  var props = PropertiesService.getScriptProperties();
+  var configuredLocationId = props.getProperty("SHOPIFY_LOCATION_ID");
+  if (hasValue_(configuredLocationId)) {
+    return String(configuredLocationId).trim();
+  }
+
+  var response = shopifyGraphqlRequest_(
+    "query InventoryLocations {" +
+      " locations(first: 10) {" +
+      " edges {" +
+      " node {" +
+      " id" +
+      " name" +
+      " }" +
+      " }" +
+      " }" +
+      "}",
+    {}
+  );
+
+  var edges = (((response || {}).data || {}).locations || {}).edges || [];
+  if (edges.length === 1 && edges[0] && edges[0].node && hasValue_(edges[0].node.id)) {
+    return String(edges[0].node.id).trim();
+  }
+
+  throw new Error("Shopify location could not be resolved automatically. Set SHOPIFY_LOCATION_ID in Script Properties.");
+}
+
+function shopifyGraphqlRequest_(query, variables) {
+  var props = PropertiesService.getScriptProperties();
+  var storeDomain = String(props.getProperty("SHOPIFY_STORE_DOMAIN") || "").trim();
+  var accessToken = String(props.getProperty("SHOPIFY_ADMIN_ACCESS_TOKEN") || "").trim();
+
+  if (!storeDomain || !accessToken) {
+    throw new Error("Shopify integration is not configured. Set SHOPIFY_STORE_DOMAIN and SHOPIFY_ADMIN_ACCESS_TOKEN in Script Properties.");
+  }
+
+  var normalizedDomain = storeDomain
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "");
+  var endpoint = "https://" + normalizedDomain + "/admin/api/" + SHOPIFY_API_VERSION + "/graphql.json";
+
+  var response = UrlFetchApp.fetch(endpoint, {
+    method: "post",
+    contentType: "application/json",
+    headers: {
+      "X-Shopify-Access-Token": accessToken
+    },
+    payload: JSON.stringify({
+      query: query,
+      variables: variables || {}
+    }),
+    muteHttpExceptions: true
+  });
+
+  var statusCode = response.getResponseCode();
+  var bodyText = response.getContentText();
+  var parsed = {};
+
+  if (bodyText) {
+    parsed = JSON.parse(bodyText);
+  }
+
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error("Shopify request failed (" + statusCode + ").");
+  }
+
+  if (parsed.errors && parsed.errors.length > 0) {
+    throw new Error(parsed.errors[0].message || "Shopify returned a GraphQL error.");
+  }
+
+  return parsed;
 }
 
 function handleClockIn_(sheet, data) {

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Time Clock</title>
+    <title>Operations Suite</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -374,6 +374,52 @@
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
                 timezoneOffsetMinutes: now.getTimezoneOffset(),
             };
+        };
+
+        const parseWholeNumber = (value, { allowNegative = false } = {}) => {
+            if (value === null || value === undefined) return null;
+            const trimmed = String(value).trim();
+            if (!trimmed) return null;
+            if (!/^[+-]?\d+$/.test(trimmed)) return null;
+            const parsed = Number(trimmed);
+            if (!Number.isFinite(parsed)) return null;
+            if (allowNegative) return parsed === 0 ? null : parsed;
+            return parsed > 0 ? parsed : null;
+        };
+
+        const getInventoryStatusWeight = (status) => {
+            switch (String(status || '').trim()) {
+                case 'Awaiting Approval':
+                    return 0;
+                case 'In Process':
+                    return 1;
+                case 'Open':
+                    return 2;
+                case 'Complete':
+                    return 3;
+                default:
+                    return 4;
+            }
+        };
+
+        const sortInventoryRows = (rows) => {
+            return (Array.isArray(rows) ? rows : []).slice().sort((a, b) => {
+                const statusDelta = getInventoryStatusWeight(a?.status) - getInventoryStatusWeight(b?.status);
+                if (statusDelta !== 0) return statusDelta;
+                return (b?.rowNumber || 0) - (a?.rowNumber || 0);
+            });
+        };
+
+        const getOpenInventoryRows = (rows) => {
+            return (Array.isArray(rows) ? rows : []).filter(row => (
+                Number(row?.stillNeeded || 0) > 0 ||
+                Number(row?.inProcess || 0) > 0 ||
+                Number(row?.awaitingApproval || 0) > 0
+            ));
+        };
+
+        const formatInventoryTimestamp = (value) => {
+            return value ? String(value) : 'Not yet updated';
         };
 
         const applySuccessfulPunchLocally = (rows, actionType, employeeName, timestamp, plan, reason = '') => {
@@ -1111,7 +1157,453 @@
                         {isSubmitting ? 'Saving...' : 'Save Changes'}
                     </button>
                 </div>
-            </div>
+                </div>
+            );
+        };
+
+        const EmployeeInventoryPanel = ({
+            inventoryRows,
+            isFetchingInventory,
+            isSubmittingInventory,
+            onRefresh,
+            onStart,
+            onFinish,
+            onBack,
+            onMessage
+        }) => {
+            const [drafts, setDrafts] = useState({});
+            const openRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
+
+            const updateDraft = (rowNumber, field, value) => {
+                setDrafts(prev => ({
+                    ...prev,
+                    [rowNumber]: {
+                        ...(prev[rowNumber] || {}),
+                        [field]: value,
+                    }
+                }));
+            };
+
+            const clearDraft = (rowNumber, field) => {
+                setDrafts(prev => ({
+                    ...prev,
+                    [rowNumber]: {
+                        ...(prev[rowNumber] || {}),
+                        [field]: '',
+                    }
+                }));
+            };
+
+            const submitAction = async (row, field, submitter) => {
+                const quantity = parseWholeNumber(drafts[row.rowNumber]?.[field]);
+                if (!quantity) {
+                    onMessage?.({ type: 'error', message: "Enter a whole number before saving inventory progress." });
+                    return;
+                }
+
+                const didSucceed = await submitter(row, quantity);
+                if (didSucceed) {
+                    clearDraft(row.rowNumber, field);
+                }
+            };
+
+            return (
+                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 md:mb-6 shrink-0">
+                        <div>
+                            <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">Inventory Board</h3>
+                            <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">Start work here, then move finished pieces into Awaiting Approval.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={onRefresh}
+                                disabled={isFetchingInventory || isSubmittingInventory}
+                                className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
+                            >
+                                <i className={`fas ${isFetchingInventory ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#38bdf8]`}></i>
+                                <span>{isFetchingInventory ? 'Refreshing...' : 'Refresh'}</span>
+                            </button>
+                            <button
+                                onClick={onBack}
+                                className="brutal-btn bg-[#38bdf8] hover:bg-[#0ea5e9] px-4 py-2 text-sm flex items-center gap-2"
+                            >
+                                <i className="fas fa-arrow-left"></i>
+                                <span>Timesheet</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pb-4 pr-1">
+                        {openRows.length === 0 ? (
+                            <div className="p-8 text-center text-gray-400 font-bold text-sm md:text-lg border-2 border-dashed border-gray-300 rounded-xl bg-white">
+                                No active inventory needs right now.
+                            </div>
+                        ) : openRows.map(row => (
+                            <div key={row.rowNumber} className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000]">
+                                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                                    <div>
+                                        <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">{row.sku || 'No SKU'}</div>
+                                        <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1">{row.product || row.sku}</h4>
+                                    </div>
+                                    <div className="inline-flex items-center rounded-full border-2 border-black bg-[#fef3c7] px-3 py-1 text-xs font-bold uppercase tracking-wide">
+                                        {row.status}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-4">
+                                    <div className="rounded-xl border-2 border-black bg-[#f5f3ff] px-3 py-2">
+                                        <div className="text-[10px] uppercase font-bold text-gray-500">Needed</div>
+                                        <div className="text-lg font-bold font-poppins">{row.needed}</div>
+                                    </div>
+                                    <div className="rounded-xl border-2 border-black bg-[#ecfccb] px-3 py-2">
+                                        <div className="text-[10px] uppercase font-bold text-gray-500">In Process</div>
+                                        <div className="text-lg font-bold font-poppins">{row.inProcess}</div>
+                                    </div>
+                                    <div className="rounded-xl border-2 border-black bg-[#fef3c7] px-3 py-2">
+                                        <div className="text-[10px] uppercase font-bold text-gray-500">Awaiting Approval</div>
+                                        <div className="text-lg font-bold font-poppins">{row.awaitingApproval}</div>
+                                    </div>
+                                    <div className="rounded-xl border-2 border-black bg-[#d1fae5] px-3 py-2">
+                                        <div className="text-[10px] uppercase font-bold text-gray-500">Added To Store</div>
+                                        <div className="text-lg font-bold font-poppins">{row.addedToStore}</div>
+                                    </div>
+                                    <div className="rounded-xl border-2 border-black bg-[#fee2e2] px-3 py-2">
+                                        <div className="text-[10px] uppercase font-bold text-gray-500">Still Needed</div>
+                                        <div className="text-lg font-bold font-poppins">{row.stillNeeded}</div>
+                                    </div>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-3 mt-4">
+                                    <div className="rounded-xl border-2 border-black bg-[#f0fdf4] p-3">
+                                        <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Start Qty</label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                value={drafts[row.rowNumber]?.start || ''}
+                                                onChange={e => updateDraft(row.rowNumber, 'start', e.target.value)}
+                                                className="brutal-input w-full px-3 py-2 text-sm"
+                                                placeholder={row.stillNeeded > 0 ? `${row.stillNeeded} left` : 'All covered'}
+                                            />
+                                            <button
+                                                onClick={() => submitAction(row, 'start', onStart)}
+                                                disabled={isSubmittingInventory || row.stillNeeded <= 0}
+                                                className="brutal-btn bg-[#4ade80] hover:bg-[#22c55e] px-4 py-2 text-sm whitespace-nowrap"
+                                            >
+                                                Start
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="rounded-xl border-2 border-black bg-[#fff7ed] p-3">
+                                        <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Finish Qty</label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                value={drafts[row.rowNumber]?.finish || ''}
+                                                onChange={e => updateDraft(row.rowNumber, 'finish', e.target.value)}
+                                                className="brutal-input w-full px-3 py-2 text-sm"
+                                                placeholder={row.inProcess > 0 ? `${row.inProcess} in process` : 'Nothing started'}
+                                            />
+                                            <button
+                                                onClick={() => submitAction(row, 'finish', onFinish)}
+                                                disabled={isSubmittingInventory || row.inProcess <= 0}
+                                                className="brutal-btn bg-[#fb923c] hover:bg-[#f97316] px-4 py-2 text-sm whitespace-nowrap"
+                                            >
+                                                Finish
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-3 text-[11px] md:text-xs font-bold text-gray-500 uppercase tracking-wide">
+                                    Updated {formatInventoryTimestamp(row.lastUpdated)}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminInventoryWorkspace = ({
+            adminUser,
+            inventoryRows,
+            isFetchingInventory,
+            isSubmittingInventory,
+            onRefresh,
+            onAddNeed,
+            onAdjustNeed,
+            onApprove,
+            onReject,
+            onOpenScheduler,
+            onReturnToStaff,
+            onSignOut,
+            onMessage
+        }) => {
+            const [createForm, setCreateForm] = useState({ sku: '', quantity: '' });
+            const [drafts, setDrafts] = useState({});
+            const openRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
+            const awaitingCount = openRows.filter(row => Number(row.awaitingApproval || 0) > 0).length;
+
+            const updateDraft = (rowNumber, field, value) => {
+                setDrafts(prev => ({
+                    ...prev,
+                    [rowNumber]: {
+                        ...(prev[rowNumber] || {}),
+                        [field]: value,
+                    }
+                }));
+            };
+
+            const clearDraft = (rowNumber, field) => {
+                setDrafts(prev => ({
+                    ...prev,
+                    [rowNumber]: {
+                        ...(prev[rowNumber] || {}),
+                        [field]: '',
+                    }
+                }));
+            };
+
+            const submitRowAction = async (row, field, submitter, options = {}) => {
+                const quantity = parseWholeNumber(drafts[row.rowNumber]?.[field], { allowNegative: Boolean(options.allowNegative) });
+                if (quantity === null) {
+                    onMessage?.({ type: 'error', message: options.invalidMessage || "Enter a whole number before saving this inventory change." });
+                    return;
+                }
+
+                const didSucceed = await submitter(row, quantity);
+                if (didSucceed) {
+                    clearDraft(row.rowNumber, field);
+                }
+            };
+
+            const submitCreate = async () => {
+                const sku = String(createForm.sku || '').trim().toUpperCase();
+                const quantity = parseWholeNumber(createForm.quantity);
+                if (!sku || !quantity) {
+                    onMessage?.({ type: 'error', message: "Enter both a SKU and a whole-number Need Qty." });
+                    return;
+                }
+
+                const didSucceed = await onAddNeed(sku, quantity);
+                if (didSucceed) {
+                    setCreateForm({ sku: '', quantity: '' });
+                }
+            };
+
+            return (
+                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
+                        <div>
+                            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Inventory Review</div>
+                            <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606] mt-1">Inventory Management</h3>
+                            <p className="text-sm font-bold text-gray-600 mt-1">Signed in as {adminUser?.name}. Finished quantities stay non-sellable until you approve them.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={onOpenScheduler}
+                                className="brutal-btn bg-[#38bdf8] hover:bg-[#0ea5e9] px-4 py-2 text-sm flex items-center gap-2"
+                            >
+                                <i className="fas fa-calendar-week"></i>
+                                <span>Scheduler</span>
+                            </button>
+                            <button
+                                onClick={onRefresh}
+                                disabled={isFetchingInventory || isSubmittingInventory}
+                                className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
+                            >
+                                <i className={`fas ${isFetchingInventory ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#38bdf8]`}></i>
+                                <span>{isFetchingInventory ? 'Refreshing...' : 'Refresh'}</span>
+                            </button>
+                            <button
+                                onClick={onReturnToStaff}
+                                className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
+                            >
+                                <i className="fas fa-users text-[#38bdf8]"></i>
+                                <span>Staff List</span>
+                            </button>
+                            <button
+                                onClick={onSignOut}
+                                className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
+                            >
+                                <i className="fas fa-user-lock text-[#f43f5e]"></i>
+                                <span>Sign Out</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid lg:grid-cols-[360px_minmax(0,1fr)] gap-4 min-h-0 flex-1">
+                        <div className="space-y-4">
+                            <div className="brutal-card bg-white p-4 md:p-5">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h4 className="text-lg font-bold font-poppins text-[#060606]">Add Inventory Need</h4>
+                                        <p className="text-xs font-bold text-gray-500 mt-1">Add a new SKU or increase an open row.</p>
+                                    </div>
+                                    <div className="rounded-full border-2 border-black bg-[#fef3c7] px-3 py-1 text-xs font-bold uppercase">
+                                        {awaitingCount} awaiting
+                                    </div>
+                                </div>
+                                <div className="space-y-3 mt-4">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">SKU</label>
+                                        <input
+                                            type="text"
+                                            value={createForm.sku}
+                                            onChange={e => setCreateForm(prev => ({ ...prev, sku: e.target.value.toUpperCase() }))}
+                                            className="brutal-input w-full px-3 py-2 text-sm"
+                                            placeholder="Enter SKU"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Need Qty</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            value={createForm.quantity}
+                                            onChange={e => setCreateForm(prev => ({ ...prev, quantity: e.target.value }))}
+                                            className="brutal-input w-full px-3 py-2 text-sm"
+                                            placeholder="How many should be made?"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={submitCreate}
+                                        disabled={isSubmittingInventory}
+                                        className="brutal-btn w-full bg-[#4ade80] hover:bg-[#22c55e] px-4 py-3 text-sm flex items-center justify-center gap-2"
+                                    >
+                                        <i className={`fas ${isSubmittingInventory ? 'fa-circle-notch spinner' : 'fa-plus'}`}></i>
+                                        <span>{isSubmittingInventory ? 'Saving...' : 'Add Need'}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="brutal-card bg-white p-4 md:p-5">
+                                <h4 className="text-lg font-bold font-poppins text-[#060606]">What This Means</h4>
+                                <div className="space-y-2 mt-4 text-sm font-bold text-gray-600">
+                                    <div>`Still Needed` is what has not been claimed, finished, or approved yet.</div>
+                                    <div>`Awaiting Approval` is finished work that still needs your review.</div>
+                                    <div>`Added To Store` is what has already been pushed into Shopify.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="min-h-0 overflow-y-auto no-scrollbar pr-1 space-y-4">
+                            {openRows.length === 0 ? (
+                                <div className="p-10 text-center text-gray-400 font-bold text-sm md:text-lg border-2 border-dashed border-gray-300 rounded-xl bg-white">
+                                    No active inventory rows are open.
+                                </div>
+                            ) : openRows.map(row => (
+                                <div key={row.rowNumber} className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000]">
+                                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
+                                        <div>
+                                            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">{row.sku || 'No SKU'}</div>
+                                            <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1">{row.product || row.sku}</h4>
+                                            <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 mt-2">Updated {formatInventoryTimestamp(row.lastUpdated)}</div>
+                                        </div>
+                                        <div className="inline-flex items-center rounded-full border-2 border-black bg-[#fef3c7] px-3 py-1 text-xs font-bold uppercase tracking-wide">
+                                            {row.status}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-3 mt-4">
+                                        <div className="rounded-xl border-2 border-black bg-[#f5f3ff] px-3 py-2">
+                                            <div className="text-[10px] uppercase font-bold text-gray-500">Needed</div>
+                                            <div className="text-lg font-bold font-poppins">{row.needed}</div>
+                                        </div>
+                                        <div className="rounded-xl border-2 border-black bg-[#ecfccb] px-3 py-2">
+                                            <div className="text-[10px] uppercase font-bold text-gray-500">In Process</div>
+                                            <div className="text-lg font-bold font-poppins">{row.inProcess}</div>
+                                        </div>
+                                        <div className="rounded-xl border-2 border-black bg-[#fef3c7] px-3 py-2">
+                                            <div className="text-[10px] uppercase font-bold text-gray-500">Awaiting Approval</div>
+                                            <div className="text-lg font-bold font-poppins">{row.awaitingApproval}</div>
+                                        </div>
+                                        <div className="rounded-xl border-2 border-black bg-[#d1fae5] px-3 py-2">
+                                            <div className="text-[10px] uppercase font-bold text-gray-500">Added To Store</div>
+                                            <div className="text-lg font-bold font-poppins">{row.addedToStore}</div>
+                                        </div>
+                                        <div className="rounded-xl border-2 border-black bg-[#fee2e2] px-3 py-2">
+                                            <div className="text-[10px] uppercase font-bold text-gray-500">Still Needed</div>
+                                            <div className="text-lg font-bold font-poppins">{row.stillNeeded}</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid xl:grid-cols-3 gap-3 mt-4">
+                                        <div className="rounded-xl border-2 border-black bg-[#eff6ff] p-3">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Adjust Needed</label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="number"
+                                                    step="1"
+                                                    value={drafts[row.rowNumber]?.adjust || ''}
+                                                    onChange={e => updateDraft(row.rowNumber, 'adjust', e.target.value)}
+                                                    className="brutal-input w-full px-3 py-2 text-sm"
+                                                    placeholder="Use -2 or +5"
+                                                />
+                                                <button
+                                                    onClick={() => submitRowAction(row, 'adjust', onAdjustNeed, { allowNegative: true, invalidMessage: "Enter a whole-number adjustment like 5 or -2." })}
+                                                    disabled={isSubmittingInventory}
+                                                    className="brutal-btn bg-[#60a5fa] hover:bg-[#3b82f6] px-4 py-2 text-sm whitespace-nowrap"
+                                                >
+                                                    Save
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-xl border-2 border-black bg-[#f0fdf4] p-3">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Approve To Shopify</label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    step="1"
+                                                    value={drafts[row.rowNumber]?.approve || ''}
+                                                    onChange={e => updateDraft(row.rowNumber, 'approve', e.target.value)}
+                                                    className="brutal-input w-full px-3 py-2 text-sm"
+                                                    placeholder={row.awaitingApproval > 0 ? `${row.awaitingApproval} waiting` : 'Nothing waiting'}
+                                                />
+                                                <button
+                                                    onClick={() => submitRowAction(row, 'approve', onApprove)}
+                                                    disabled={isSubmittingInventory || row.awaitingApproval <= 0}
+                                                    className="brutal-btn bg-[#4ade80] hover:bg-[#22c55e] px-4 py-2 text-sm whitespace-nowrap"
+                                                >
+                                                    Approve
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-xl border-2 border-black bg-[#fff7ed] p-3">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Send Back</label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    step="1"
+                                                    value={drafts[row.rowNumber]?.reject || ''}
+                                                    onChange={e => updateDraft(row.rowNumber, 'reject', e.target.value)}
+                                                    className="brutal-input w-full px-3 py-2 text-sm"
+                                                    placeholder={row.awaitingApproval > 0 ? `${row.awaitingApproval} waiting` : 'Nothing waiting'}
+                                                />
+                                                <button
+                                                    onClick={() => submitRowAction(row, 'reject', onReject)}
+                                                    disabled={isSubmittingInventory || row.awaitingApproval <= 0}
+                                                    className="brutal-btn bg-[#fb923c] hover:bg-[#f97316] px-4 py-2 text-sm whitespace-nowrap"
+                                                >
+                                                    Send Back
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             );
         };
 
@@ -1769,7 +2261,9 @@
             // Loading State
             const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
             const [isFetchingLogs, setIsFetchingLogs] = useState(false);
+            const [isFetchingInventory, setIsFetchingInventory] = useState(false);
             const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+            const [isSubmittingInventory, setIsSubmittingInventory] = useState(false);
             const [isSubmittingAdminSchedule, setIsSubmittingAdminSchedule] = useState(false);
             const [isSavingShiftTemplates, setIsSavingShiftTemplates] = useState(false);
             const [fetchError, setFetchError] = useState(null);
@@ -1777,6 +2271,7 @@
             // Dynamic Data State
             const [employees, setEmployees] = useState([]);
             const [sheetData, setSheetData] = useState([]);
+            const [inventoryRows, setInventoryRows] = useState([]);
             
             // Settings State (Branding)
             const [settings, setSettings] = useState({
@@ -1835,16 +2330,36 @@
                 }
             };
 
+            const refreshInventory = async ({ showSpinner = true } = {}) => {
+                if (showSpinner) setIsFetchingInventory(true);
+                try {
+                    const response = await fetch(buildApiUrl('inventory'), { cache: 'no-store' });
+                    if (!response.ok) throw new Error('Failed to fetch inventory rows');
+                    const inventoryData = await response.json();
+                    const rows = sortInventoryRows(Array.isArray(inventoryData) ? inventoryData : []);
+                    setInventoryRows(rows);
+                    return rows;
+                } catch (error) {
+                    console.error("Error refreshing inventory:", error);
+                    return null;
+                } finally {
+                    if (showSpinner) setIsFetchingInventory(false);
+                }
+            };
+
             const refreshSheetData = async (showToast = false, { showSpinner = true, isInitialLoad = false } = {}) => {
                 const hadEmployees = employees.length > 0;
                 if (showSpinner) setIsFetchingLogs(true);
+                if (showSpinner) setIsFetchingInventory(true);
 
                 let rows = null;
+                let inventory = null;
                 try {
-                    const [employeesResult, settingsResult, logsResult] = await Promise.allSettled([
+                    const [employeesResult, settingsResult, logsResult, inventoryResult] = await Promise.allSettled([
                         refreshEmployees(),
                         refreshSettings(),
                         refreshLogs({ showSpinner: false }),
+                        refreshInventory({ showSpinner: false }),
                     ]);
 
                     if (employeesResult.status === 'rejected') {
@@ -1859,18 +2374,20 @@
                     }
 
                     rows = logsResult.status === 'fulfilled' ? logsResult.value : null;
+                    inventory = inventoryResult.status === 'fulfilled' ? inventoryResult.value : null;
                 } finally {
                     if (showSpinner) setIsFetchingLogs(false);
+                    if (showSpinner) setIsFetchingInventory(false);
                     if (isInitialLoad) setIsLoadingEmployees(false);
                 }
 
                 if (showToast) {
-                    setNotification(rows
+                    setNotification((rows || inventory)
                         ? { type: 'info', message: "Latest spreadsheet updates loaded" }
                         : { type: 'error', message: "Could not pull the latest spreadsheet updates." }
                     );
                 }
-                return rows;
+                return { rows, inventory };
             };
 
             const getBaseAdminScheduleDraft = (employeeName, dateValue, rows = sheetData) => {
@@ -2216,7 +2733,9 @@
                 }, {})
             ).sort((a, b) => a.weekKey.localeCompare(b.weekKey));
             const stagedScheduleChangeCount = Object.keys(adminScheduleDrafts).length;
-            const isAdminWorkspaceOpen = Boolean(isAuthenticated && adminUser && viewMode === 'ADMIN');
+            const inventoryOpenRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
+            const inventoryAwaitingRows = inventoryOpenRows.filter(row => Number(row.awaitingApproval || 0) > 0);
+            const isAdminWorkspaceOpen = Boolean(isAuthenticated && adminUser && ['ADMIN', 'ADMIN_INVENTORY'].includes(viewMode));
             const editableRows = filterTimesheetRowsUpToToday(personalData)
                 .filter(row => !isEntryLocked(row))
                 .slice()
@@ -2245,6 +2764,134 @@
             ) || null;
             const canClockIn = Boolean(selectedEmployee) && !isSubmittingAction && selectedClockInPlan?.status === 'ready';
             const canClockOut = Boolean(selectedEmployee) && !isSubmittingAction && selectedClockOutPlan?.status === 'ready';
+
+            const submitInventoryAction = async (payload, successMessage, fallbackSuccessMessage = null) => {
+                if (isSubmittingInventory) return false;
+
+                lastActivityRef.current = Date.now();
+                setIsSubmittingInventory(true);
+
+                try {
+                    const timestamp = buildActionTimestamp();
+                    const result = await sendToSheet({
+                        ...payload,
+                        submittedAt: timestamp.isoTimestamp,
+                        timezone: timestamp.timezone,
+                        timezoneOffsetMinutes: timestamp.timezoneOffsetMinutes,
+                    });
+
+                    if (!result.ok) {
+                        setNotification({ type: 'error', message: result.error || "Could not save the inventory update." });
+                        return false;
+                    }
+
+                    const refreshedInventory = await refreshInventory({ showSpinner: false });
+                    if (refreshedInventory) {
+                        setNotification({ type: 'success', message: successMessage });
+                    } else {
+                        setNotification({
+                            type: 'info',
+                            message: fallbackSuccessMessage || `${successMessage}. The latest inventory rows could not be reloaded automatically.`
+                        });
+                    }
+                    return true;
+                } catch (err) {
+                    console.error("Inventory action failed:", err);
+                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted this inventory update." });
+                    return false;
+                } finally {
+                    setIsSubmittingInventory(false);
+                }
+            };
+
+            const handleOpenEmployeeInventory = async () => {
+                setViewMode('INVENTORY');
+                await refreshInventory({ showSpinner: false });
+            };
+
+            const handleOpenAdminInventory = async () => {
+                setViewMode('ADMIN_INVENTORY');
+                await refreshInventory({ showSpinner: false });
+            };
+
+            const handleInventoryStart = async (row, quantity) => {
+                return submitInventoryAction(
+                    {
+                        action: "INVENTORY_START",
+                        rowNumber: row.rowNumber,
+                        quantity,
+                    },
+                    `${quantity} ${quantity === 1 ? 'item' : 'items'} started for ${row.sku}.`
+                );
+            };
+
+            const handleInventoryFinish = async (row, quantity) => {
+                return submitInventoryAction(
+                    {
+                        action: "INVENTORY_FINISH",
+                        rowNumber: row.rowNumber,
+                        quantity,
+                    },
+                    `${quantity} ${quantity === 1 ? 'item' : 'items'} moved to Awaiting Approval for ${row.sku}.`
+                );
+            };
+
+            const handleInventoryAddNeed = async (sku, quantity) => {
+                if (!adminUser) return false;
+                return submitInventoryAction(
+                    {
+                        action: "INVENTORY_ADD_NEED",
+                        sku,
+                        quantity,
+                        editorName: adminUser.name,
+                        editorRole: adminUser.role || 'admin',
+                    },
+                    `${sku} now has ${quantity} more item${quantity === 1 ? '' : 's'} needed.`
+                );
+            };
+
+            const handleInventoryAdjustNeed = async (row, quantityDelta) => {
+                if (!adminUser) return false;
+                return submitInventoryAction(
+                    {
+                        action: "INVENTORY_ADJUST_NEED",
+                        rowNumber: row.rowNumber,
+                        quantityDelta,
+                        editorName: adminUser.name,
+                        editorRole: adminUser.role || 'admin',
+                    },
+                    `${row.sku} needed quantity was adjusted by ${quantityDelta}.`
+                );
+            };
+
+            const handleInventoryApprove = async (row, quantity) => {
+                if (!adminUser) return false;
+                return submitInventoryAction(
+                    {
+                        action: "INVENTORY_APPROVE",
+                        rowNumber: row.rowNumber,
+                        quantity,
+                        editorName: adminUser.name,
+                        editorRole: adminUser.role || 'admin',
+                    },
+                    `${quantity} ${quantity === 1 ? 'item was' : 'items were'} approved into Shopify for ${row.sku}.`,
+                    `${quantity} ${quantity === 1 ? 'item was' : 'items were'} approved for ${row.sku}, but the inventory board could not be refreshed automatically.`
+                );
+            };
+
+            const handleInventoryRejectAwaiting = async (row, quantity) => {
+                if (!adminUser) return false;
+                return submitInventoryAction(
+                    {
+                        action: "INVENTORY_REJECT_AWAITING",
+                        rowNumber: row.rowNumber,
+                        quantity,
+                        editorName: adminUser.name,
+                        editorRole: adminUser.role || 'admin',
+                    },
+                    `${quantity} ${quantity === 1 ? 'item was' : 'items were'} sent back from Awaiting Approval for ${row.sku}.`
+                );
+            };
 
             useEffect(() => {
                 if (employees.length === 0) return;
@@ -2841,6 +3488,13 @@
                                             <i className="fas fa-calendar-day text-xl md:text-3xl lg:text-2xl text-[#38bdf8]"></i> 
                                             <span>Schedule</span>
                                         </button>
+                                        <button
+                                            onClick={handleOpenEmployeeInventory}
+                                            className="brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3 bg-[#fef3c7] hover:bg-[#fde68a] text-[#060606]"
+                                        >
+                                            <i className="fas fa-boxes-stacked text-xl md:text-3xl lg:text-2xl text-[#f97316]"></i>
+                                            <span>Inventory</span>
+                                        </button>
                                         <button 
                                             onClick={handleLogout} 
                                             className="brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3 bg-white hover:bg-gray-50 text-[#060606]"
@@ -2856,7 +3510,11 @@
                             {isAuthenticated && adminUser && (
                                 <div className="brutal-card p-4 md:p-6 animate-fade-in bg-white">
                                     <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-2">Admin Session</h2>
-                                    <p className="text-sm font-bold text-gray-600 mb-5">Signed in as {adminUser.name}. The weekly scheduler is open on the right.</p>
+                                    <p className="text-sm font-bold text-gray-600 mb-5">
+                                        Signed in as {adminUser.name}. {viewMode === 'ADMIN_INVENTORY'
+                                            ? `${inventoryAwaitingRows.length} inventory row${inventoryAwaitingRows.length === 1 ? '' : 's'} currently need approval.`
+                                            : 'The weekly scheduler is open on the right.'}
+                                    </p>
                                     <div className="grid grid-cols-2 gap-3">
                                         <button
                                             onClick={() => setViewMode('ADMIN')}
@@ -2864,6 +3522,13 @@
                                         >
                                             <i className="fas fa-calendar-week"></i>
                                             <span>Scheduler</span>
+                                        </button>
+                                        <button
+                                            onClick={handleOpenAdminInventory}
+                                            className="brutal-btn py-3 text-sm md:text-base bg-[#fef3c7] hover:bg-[#fde68a] text-[#060606] flex items-center justify-center gap-2"
+                                        >
+                                            <i className="fas fa-boxes-stacked text-[#f97316]"></i>
+                                            <span>Inventory Review</span>
                                         </button>
                                         <button
                                             onClick={() => {
@@ -2898,7 +3563,7 @@
                         <div className={`${isAdminWorkspaceOpen ? 'lg:col-span-12' : 'lg:col-span-7'} transition-all duration-300 ${!selectedId && !isAdminWorkspaceOpen ? 'hidden lg:block' : 'block'}`}>
                             
                             {/* Adding relative positioning so absolute children (toast) anchor exactly here */}
-                            <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-170px)]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : viewMode === 'ADMIN' ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
+                            <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-170px)]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : ['ADMIN', 'ADMIN_INVENTORY'].includes(viewMode) ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
                                 
                                 {/* TIMEOUT WARNING OVERLAY */}
                                 {showTimeoutWarning && (
@@ -2933,6 +3598,18 @@
                                     <div className="flex-1 min-h-0 overflow-hidden">
                                         {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinBackspace={handlePinBackspace} handlePinClear={handlePinClear} selectedEmployee={selectedUser} onCancel={handleSelectionCancel} />}
                                         {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} isFetchingLogs={isFetchingLogs} />}
+                                        {viewMode === 'INVENTORY' && (
+                                            <EmployeeInventoryPanel
+                                                inventoryRows={inventoryRows}
+                                                isFetchingInventory={isFetchingInventory}
+                                                isSubmittingInventory={isSubmittingInventory}
+                                                onRefresh={() => refreshInventory({ showSpinner: true })}
+                                                onStart={handleInventoryStart}
+                                                onFinish={handleInventoryFinish}
+                                                onBack={() => setViewMode('DASHBOARD')}
+                                                onMessage={setNotification}
+                                            />
+                                        )}
                                         {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} reasonValidationTriggered={reasonValidationTriggered} onPrev={handleEditPrev} onNext={handleEditNext} canPrev={canEditPrev} canNext={canEditNext} onClose={() => { setReasonValidationTriggered(false); setViewMode('DASHBOARD'); }} isSubmitting={isSubmittingAction} />}
                                         {viewMode === 'ADMIN' && (
                                             <AdminScheduleWorkspace
@@ -2973,6 +3650,23 @@
                                                 }}
                                                 onReturnToStaff={returnToEmployeeDirectory}
                                                 onSignOut={handleLogout}
+                                            />
+                                        )}
+                                        {viewMode === 'ADMIN_INVENTORY' && (
+                                            <AdminInventoryWorkspace
+                                                adminUser={adminUser}
+                                                inventoryRows={inventoryRows}
+                                                isFetchingInventory={isFetchingInventory}
+                                                isSubmittingInventory={isSubmittingInventory}
+                                                onRefresh={() => refreshInventory({ showSpinner: true })}
+                                                onAddNeed={handleInventoryAddNeed}
+                                                onAdjustNeed={handleInventoryAdjustNeed}
+                                                onApprove={handleInventoryApprove}
+                                                onReject={handleInventoryRejectAwaiting}
+                                                onOpenScheduler={() => setViewMode('ADMIN')}
+                                                onReturnToStaff={returnToEmployeeDirectory}
+                                                onSignOut={handleLogout}
+                                                onMessage={setNotification}
                                             />
                                         )}
                                     </div>
