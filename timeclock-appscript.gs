@@ -80,6 +80,10 @@ function doPost(e) {
       return handleAdminUpsertSchedule_(sheet, data);
     }
 
+    if (data.action === "ADMIN_BATCH_UPSERT_SCHEDULES") {
+      return handleAdminBatchUpsertSchedules_(sheet, data);
+    }
+
     throw new Error("Unsupported action: " + data.action);
   } catch (err) {
     return jsonResponse_({
@@ -277,18 +281,95 @@ function handleEdit_(sheet, data) {
 }
 
 function handleAdminUpsertSchedule_(sheet, data) {
-  validateRequiredFields_(data, ["name", "date", "schedIn", "schedOut", "scheduleStatus", "editorName", "editorRole"]);
+  var records = getLogRecords_(sheet);
+  return jsonResponse_(upsertAdminScheduleEntry_(sheet, records, data));
+}
+
+function handleAdminBatchUpsertSchedules_(sheet, data) {
+  validateRequiredFields_(data, ["editorName", "editorRole"]);
 
   if (!isAdminRole_(data.editorRole)) {
     throw new Error("Unauthorized. Only admin-capable accounts can save schedules.");
   }
 
-  if (calculateWorkedMinutes_(data.schedIn, data.schedOut) === null) {
-    throw new Error("Invalid scheduled in/out time format.");
+  if (!Array.isArray(data.entries) || data.entries.length === 0) {
+    throw new Error("No schedule entries were provided for the weekly save.");
   }
 
-  var records = getLogRecords_(sheet);
+  var results = [];
+  for (var i = 0; i < data.entries.length; i++) {
+    var entry = data.entries[i] || {};
+    var mergedEntry = {
+      name: entry.name,
+      date: entry.date,
+      schedIn: entry.schedIn,
+      schedOut: entry.schedOut,
+      scheduleStatus: entry.scheduleStatus,
+      clearSchedule: entry.clearSchedule,
+      editorName: data.editorName,
+      editorRole: data.editorRole,
+      targetRowDate: entry.targetRowDate,
+      targetRowKey: entry.targetRowKey,
+      targetRowTimeIn: entry.targetRowTimeIn,
+      targetRowTimeOut: entry.targetRowTimeOut,
+      targetRowSchedIn: entry.targetRowSchedIn,
+      targetRowSchedOut: entry.targetRowSchedOut,
+      targetRowPayrollStatus: entry.targetRowPayrollStatus,
+      targetRowScheduleStatus: entry.targetRowScheduleStatus
+    };
+    var records = getLogRecords_(sheet);
+    results.push(upsertAdminScheduleEntry_(sheet, records, mergedEntry));
+  }
+
+  return jsonResponse_({
+    status: "success",
+    action: "ADMIN_BATCH_UPSERT_SCHEDULES",
+    count: results.length,
+    results: results
+  });
+}
+
+function upsertAdminScheduleEntry_(sheet, records, data) {
+  validateRequiredFields_(data, ["name", "date", "editorName", "editorRole"]);
+
+  if (!isAdminRole_(data.editorRole)) {
+    throw new Error("Unauthorized. Only admin-capable accounts can save schedules.");
+  }
+
+  var shouldClear = data.clearSchedule === true || String(data.clearSchedule).toLowerCase() === "true";
+  if (!shouldClear) {
+    validateRequiredFields_(data, ["schedIn", "schedOut", "scheduleStatus"]);
+    if (calculateWorkedMinutes_(data.schedIn, data.schedOut) === null) {
+      throw new Error("Invalid scheduled in/out time format.");
+    }
+  }
+
   var targetRow = resolveScheduleRow_(records, data);
+
+  if (shouldClear) {
+    if (!targetRow) {
+      return {
+        status: "success",
+        action: "ADMIN_UPSERT_SCHEDULE",
+        rowNumber: 0,
+        mode: "already-clear"
+      };
+    }
+
+    sheet.getRange(targetRow.rowNumber, LOG_COL.DAY).setValue(data.date);
+    sheet.getRange(targetRow.rowNumber, LOG_COL.NAME).setValue(data.name);
+    sheet.getRange(targetRow.rowNumber, LOG_COL.SCHED_IN).clearContent();
+    sheet.getRange(targetRow.rowNumber, LOG_COL.SCHED_OUT).clearContent();
+    sheet.getRange(targetRow.rowNumber, LOG_COL.SCHEDULE_STATUS).clearContent();
+    writeScheduledDurationValue_(sheet, targetRow.rowNumber, "", "");
+
+    return {
+      status: "success",
+      action: "ADMIN_UPSERT_SCHEDULE",
+      rowNumber: targetRow.rowNumber,
+      mode: "cleared-existing-row"
+    };
+  }
 
   if (targetRow) {
     sheet.getRange(targetRow.rowNumber, LOG_COL.DAY).setValue(data.date);
@@ -298,12 +379,12 @@ function handleAdminUpsertSchedule_(sheet, data) {
     sheet.getRange(targetRow.rowNumber, LOG_COL.SCHEDULE_STATUS).setValue(data.scheduleStatus);
     writeScheduledDurationValue_(sheet, targetRow.rowNumber, data.schedIn, data.schedOut);
 
-    return jsonResponse_({
+    return {
       status: "success",
       action: "ADMIN_UPSERT_SCHEDULE",
       rowNumber: targetRow.rowNumber,
       mode: "updated-existing-row"
-    });
+    };
   }
 
   var nextRow = Math.max(sheet.getLastRow() + 1, 2);
@@ -314,12 +395,12 @@ function handleAdminUpsertSchedule_(sheet, data) {
   sheet.getRange(nextRow, LOG_COL.SCHEDULE_STATUS).setValue(data.scheduleStatus);
   writeScheduledDurationValue_(sheet, nextRow, data.schedIn, data.schedOut);
 
-  return jsonResponse_({
+  return {
     status: "success",
     action: "ADMIN_UPSERT_SCHEDULE",
     rowNumber: nextRow,
     mode: "appended-row"
-  });
+  };
 }
 
 function getLogsSheet_() {

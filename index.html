@@ -172,14 +172,16 @@
             return ADMIN_ROLES.includes(String(role || '').trim().toLowerCase());
         };
 
-        const buildEmptyAdminScheduleForm = (employeeName = '') => ({
+        const buildEmptyAdminScheduleForm = (employeeName = '', dateValue = new Date()) => ({
             name: employeeName,
-            date: normalizeDate(new Date()),
+            date: normalizeDate(dateValue),
             schedIn: '',
             schedInPeriod: 'AM',
             schedOut: '',
             schedOutPeriod: 'PM',
             scheduleStatus: 'Published',
+            clearSchedule: false,
+            sourceRow: null,
         });
 
         const hasTimeValue = (value) => {
@@ -618,6 +620,88 @@
             const hour = parseInt(match[1], 10);
             if (hour < 1 || hour > 12) return null;
             return `${hour}:${match[2]} ${period}`;
+        };
+
+        const ADMIN_SHIFT_TEMPLATES = [
+            { id: 'morning', label: 'Morning', schedIn: '9:00 AM', schedOut: '5:00 PM', scheduleStatus: 'Published', accent: 'bg-[#bfdbfe]' },
+            { id: 'mid', label: 'Midday', schedIn: '10:00 AM', schedOut: '6:00 PM', scheduleStatus: 'Published', accent: 'bg-[#fde68a]' },
+            { id: 'evening', label: 'Evening', schedIn: '12:00 PM', schedOut: '8:00 PM', scheduleStatus: 'Published', accent: 'bg-[#fecdd3]' },
+            { id: 'short', label: 'Short', schedIn: '9:00 AM', schedOut: '1:00 PM', scheduleStatus: 'Published', accent: 'bg-[#bbf7d0]' },
+            { id: 'draft', label: 'Draft', schedIn: '9:00 AM', schedOut: '5:00 PM', scheduleStatus: 'Draft', accent: 'bg-[#e5e7eb]' },
+            { id: 'off', label: 'Off', schedIn: '', schedOut: '', scheduleStatus: '', clearSchedule: true, accent: 'bg-[#f8fafc]' },
+        ];
+
+        const buildScheduleCellKey = (employeeName, dateValue) => {
+            return `${normalizeDate(dateValue)}::${String(employeeName || '').trim()}`;
+        };
+
+        const getScheduleRowForEmployeeDate = (rows, employeeName, dateValue) => {
+            const targetDate = normalizeDate(dateValue);
+            const candidates = getEmployeeRows(rows, employeeName).filter(row =>
+                normalizeDate(row.date) === targetDate &&
+                !isEntryLocked(row)
+            );
+
+            if (candidates.length === 0) return null;
+            return candidates.find(row => hasTimeValue(row.schedIn) || hasTimeValue(row.schedOut)) ||
+                candidates.find(row => !hasTimeValue(row.timeIn) && !hasTimeValue(row.timeOut)) ||
+                candidates[0];
+        };
+
+        const buildAdminScheduleDraftFromRow = (row, employeeName = '', dateValue = new Date()) => {
+            const parsedIn = parseTimeField(row?.schedIn || '');
+            const parsedOut = parseTimeField(row?.schedOut || '');
+            return {
+                ...buildEmptyAdminScheduleForm(employeeName || row?.name || '', dateValue || row?.date || new Date()),
+                schedIn: parsedIn.time,
+                schedInPeriod: parsedIn.period || 'AM',
+                schedOut: parsedOut.time,
+                schedOutPeriod: parsedOut.period || 'PM',
+                scheduleStatus: row?.scheduleStatus || 'Published',
+                clearSchedule: false,
+                sourceRow: row || null,
+            };
+        };
+
+        const normalizeAdminScheduleDraftForComparison = (draft) => {
+            if (!draft) {
+                return {
+                    name: '',
+                    date: '',
+                    schedIn: '',
+                    schedOut: '',
+                    scheduleStatus: '',
+                    clearSchedule: false,
+                };
+            }
+
+            return {
+                name: String(draft.name || '').trim(),
+                date: normalizeDate(draft.date),
+                schedIn: draft.clearSchedule ? '' : (formatTimeField(draft.schedIn, draft.schedInPeriod) || ''),
+                schedOut: draft.clearSchedule ? '' : (formatTimeField(draft.schedOut, draft.schedOutPeriod) || ''),
+                scheduleStatus: draft.clearSchedule ? '' : String(draft.scheduleStatus || 'Published').trim(),
+                clearSchedule: Boolean(draft.clearSchedule),
+            };
+        };
+
+        const areAdminScheduleDraftsEquivalent = (a, b) => {
+            const normalizedA = normalizeAdminScheduleDraftForComparison(a);
+            const normalizedB = normalizeAdminScheduleDraftForComparison(b);
+            return normalizedA.name === normalizedB.name &&
+                normalizedA.date === normalizedB.date &&
+                normalizedA.schedIn === normalizedB.schedIn &&
+                normalizedA.schedOut === normalizedB.schedOut &&
+                normalizedA.scheduleStatus === normalizedB.scheduleStatus &&
+                normalizedA.clearSchedule === normalizedB.clearSchedule;
+        };
+
+        const isExpectedScheduleCellCleared = (rows, payload) => {
+            const row = getScheduleRowForEmployeeDate(rows, payload?.name, payload?.date);
+            if (!row) return true;
+            return !hasTimeValue(row.schedIn) &&
+                !hasTimeValue(row.schedOut) &&
+                !String(row.scheduleStatus || '').trim();
         };
 
         const parseEditHistory = (reasonText) => {
@@ -1092,151 +1176,151 @@
             );
         };
 
-        const AdminAccessModal = ({
-            isOpen,
-            onClose,
+        const AdminScheduleWorkspace = ({
             adminUser,
-            pinInput,
-            onPinPress,
-            onPinBackspace,
-            onPinClear,
-            onLogout,
             employees,
             sheetData,
-            adminScheduleForm,
-            updateAdminScheduleForm,
-            loadScheduleIntoForm,
-            saveAdminSchedule,
+            weekStart,
+            onPrevWeek,
+            onNextWeek,
+            selectedCell,
+            onSelectCell,
+            getCellDraft,
+            updateCellDraft,
+            applyTemplateToCell,
+            upcomingSchedules,
+            loadScheduleIntoWeek,
+            saveWeekSchedules,
+            dirtyCount,
+            isRefreshing,
             isSubmitting,
         }) => {
-            if (!isOpen) return null;
+            if (!adminUser) return null;
 
-            const adminAccounts = employees.filter(emp => isAdminRole(emp.role));
-            const todayKey = normalizeDate(new Date());
-            const upcomingSchedules = sheetData
-                .filter(row => (row.schedIn || row.schedOut) && normalizeDate(row.date) >= todayKey)
+            const sortedEmployees = employees
                 .slice()
-                .sort((a, b) => {
-                    const dateCompare = normalizeDate(a.date).localeCompare(normalizeDate(b.date));
-                    if (dateCompare !== 0) return dateCompare;
-                    return String(a.name || '').localeCompare(String(b.name || ''));
-                })
-                .slice(0, 18);
+                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 
-            const previewIn = formatTimeField(adminScheduleForm.schedIn, adminScheduleForm.schedInPeriod);
-            const previewOut = formatTimeField(adminScheduleForm.schedOut, adminScheduleForm.schedOutPeriod);
-            const previewMinutes = calculateWorkedMinutes(previewIn, previewOut);
+            const weekDays = Array.from({ length: 7 }).map((_, i) => {
+                const nextDay = new Date(weekStart);
+                nextDay.setDate(nextDay.getDate() + i);
+                return nextDay;
+            });
+
+            const formatShortDate = (dateValue) => {
+                return dateValue.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            };
+
+            const selectedDraft = selectedCell ? getCellDraft(selectedCell.name, selectedCell.date) : null;
+            const selectedFormattedIn = selectedDraft && !selectedDraft.clearSchedule
+                ? formatTimeField(selectedDraft.schedIn, selectedDraft.schedInPeriod)
+                : '';
+            const selectedFormattedOut = selectedDraft && !selectedDraft.clearSchedule
+                ? formatTimeField(selectedDraft.schedOut, selectedDraft.schedOutPeriod)
+                : '';
+            const selectedPreviewMinutes = selectedDraft && !selectedDraft.clearSchedule
+                ? calculateWorkedMinutes(selectedFormattedIn, selectedFormattedOut)
+                : null;
 
             return (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70] animate-fade-in">
-                    <div className="brutal-card w-full max-w-6xl max-h-[95vh] overflow-hidden bg-white">
-                        {!adminUser ? (
-                            <div className="p-4 md:p-6">
-                                <div className="flex items-center justify-between gap-4 mb-5">
-                                    <div>
-                                        <h3 className="text-2xl font-bold font-poppins text-[#060606]">Admin Access</h3>
-                                        <p className="text-sm font-bold text-gray-600 mt-1">Enter an admin PIN to open scheduling tools.</p>
-                                    </div>
-                                    <button onClick={onClose} className="brutal-btn w-12 h-12 bg-white flex items-center justify-center text-[#060606] hover:bg-gray-100 text-xl">
-                                        <i className="fas fa-times"></i>
-                                    </button>
-                                </div>
-
-                                <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-5 items-center">
-                                    <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-5 shadow-[4px_4px_0px_0px_#000000]">
-                                        <div className="flex items-center gap-3 mb-3">
-                                            <div className="w-12 h-12 rounded-xl border-2 border-black bg-[#38bdf8] flex items-center justify-center text-[#060606] text-xl">
-                                                <i className="fas fa-user-shield"></i>
-                                            </div>
-                                            <div>
-                                                <div className="font-bold font-poppins text-[#060606] text-lg">Admin PIN</div>
-                                                <div className="text-sm font-bold text-gray-600">Use an active account with role `admin`, `manager`, or `owner`.</div>
-                                            </div>
-                                        </div>
-                                        <div className="text-sm font-bold text-[#060606] leading-relaxed">
-                                            <div>Current schedule view only shows shifts whose status is `Published`.</div>
-                                            <div className="mt-2">Schedule data refreshes automatically when this screen opens and when team members sign in.</div>
-                                        </div>
-                                        <div className="mt-4 text-xs md:text-sm font-bold text-gray-600">
-                                            {adminAccounts.length > 0
-                                                ? `${adminAccounts.length} admin-capable account${adminAccounts.length === 1 ? '' : 's'} found.`
-                                                : 'No admin-capable accounts were found in the Employees sheet yet.'}
-                                        </div>
-                                    </div>
-
-                                    <div className="rounded-2xl border-2 border-black bg-white p-5 shadow-[4px_4px_0px_0px_#000000]">
-                                        <div className="flex gap-2 mb-5 justify-center">
-                                            {[0, 1, 2, 3].map(i => (
-                                                <div key={i} className={`w-3.5 h-3.5 rounded-full border-2 border-black transition-all ${i < pinInput.length ? 'bg-[#38bdf8] scale-125' : 'bg-gray-200'}`}></div>
-                                            ))}
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-3">
-                                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                                                <button key={num} onClick={() => onPinPress(num.toString())} className="brutal-btn bg-white hover:bg-gray-50 aspect-square text-xl flex items-center justify-center">
-                                                    {num}
-                                                </button>
-                                            ))}
-                                            <button onClick={onPinClear} className="brutal-btn bg-[#fde047] hover:bg-[#facc15] aspect-square text-xs md:text-sm uppercase tracking-wide flex items-center justify-center">
-                                                Clear
-                                            </button>
-                                            <button onClick={() => onPinPress("0")} className="brutal-btn bg-white hover:bg-gray-50 aspect-square text-xl flex items-center justify-center">0</button>
-                                            <button onClick={onPinBackspace} className="brutal-btn bg-[#fb7185] hover:bg-[#f43f5e] aspect-square text-white text-lg flex items-center justify-center">
-                                                <i className="fas fa-backspace"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
+                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+                    <div className="flex flex-col lg:flex-row justify-between gap-4 mb-4 md:mb-6 shrink-0">
+                        <div>
+                            <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">Weekly Schedule Studio</h3>
+                            <p className="text-sm font-bold text-[#060606]/70 mt-1">Signed in as {adminUser.name}. Drag a template onto a day, or select a cell to type times manually.</p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                            <div className="flex items-center gap-2 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
+                                <button onClick={onPrevWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
+                                    <i className="fas fa-chevron-left"></i>
+                                </button>
+                                <span className="font-bold font-poppins text-[#060606] w-44 text-center text-sm md:text-base">
+                                    {formatShortDate(weekStart)} - {formatShortDate(weekDays[6])}
+                                </span>
+                                <button onClick={onNextWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
+                                    <i className="fas fa-chevron-right"></i>
+                                </button>
                             </div>
-                        ) : (
-                            <div className="flex flex-col max-h-[95vh]">
-                                <div className="p-4 md:p-6 border-b-3 border-black flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-[#38bdf8]">
-                                    <div>
-                                        <h3 className="text-2xl font-bold font-poppins text-[#060606]">Admin Schedule Tools</h3>
-                                        <p className="text-sm font-bold text-[#060606]/70 mt-1">Signed in as {adminUser.name}. Published shifts appear in the employee schedule view.</p>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-3">
-                                        <button onClick={onLogout} className="brutal-btn bg-white px-4 py-2 text-sm md:text-base flex items-center gap-2">
-                                            <i className="fas fa-user-lock text-[#f43f5e]"></i>
-                                            <span>Sign Out</span>
-                                        </button>
-                                        <button onClick={onClose} className="brutal-btn w-12 h-12 bg-white flex items-center justify-center text-[#060606] hover:bg-gray-100 text-xl">
-                                            <i className="fas fa-times"></i>
-                                        </button>
-                                    </div>
+                            <button
+                                onClick={saveWeekSchedules}
+                                disabled={isSubmitting || dirtyCount === 0}
+                                className="brutal-btn bg-[#4ade80] hover:bg-[#22c55e] px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 min-w-[190px]"
+                            >
+                                <i className={`fas ${isSubmitting ? 'fa-circle-notch spinner' : 'fa-save'}`}></i>
+                                <span>{isSubmitting ? 'Saving Week...' : `Save ${dirtyCount} Change${dirtyCount === 1 ? '' : 's'}`}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-4 flex-1 min-h-0">
+                        <div className="flex flex-col gap-4 overflow-y-auto no-scrollbar pr-1">
+                            <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] space-y-4">
+                                <div>
+                                    <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Shift Templates</h4>
+                                    <p className="text-sm font-bold text-gray-600 mt-1">Click a template after selecting a cell, or drag it onto the weekly grid.</p>
                                 </div>
 
-                                <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-4 p-4 md:p-6 bg-white overflow-y-auto no-scrollbar">
-                                    <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] space-y-4">
-                                        <div>
-                                            <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Schedule Editor</h4>
-                                            <p className="text-sm font-bold text-gray-600 mt-1">Create a new shift or load an existing one from the list and update it.</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {ADMIN_SHIFT_TEMPLATES.map(template => (
+                                        <button
+                                            key={template.id}
+                                            type="button"
+                                            draggable
+                                            onDragStart={e => {
+                                                e.dataTransfer.effectAllowed = 'copy';
+                                                e.dataTransfer.setData('text/plain', template.id);
+                                            }}
+                                            onClick={() => {
+                                                if (!selectedCell) return;
+                                                applyTemplateToCell(selectedCell.name, selectedCell.date, template.id);
+                                            }}
+                                            className={`brutal-btn ${template.accent} p-3 text-left min-h-[96px] flex flex-col justify-between`}
+                                        >
+                                            <div className="font-bold font-poppins text-sm md:text-base">{template.label}</div>
+                                            <div className="text-xs md:text-sm font-bold text-[#060606]/70">
+                                                {template.clearSchedule ? 'Clear the cell' : `${template.schedIn} - ${template.schedOut}`}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {!selectedCell && (
+                                    <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-3 text-xs md:text-sm font-bold text-gray-500">
+                                        Select a day cell first if you want template clicks to apply instantly.
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] space-y-4">
+                                <div>
+                                    <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Selected Shift</h4>
+                                    <p className="text-sm font-bold text-gray-600 mt-1">Edits here are staged immediately. Use Save when the week looks right.</p>
+                                </div>
+
+                                {!selectedDraft ? (
+                                    <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
+                                        Pick a cell from the weekly grid to edit it.
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="rounded-xl border-2 border-black bg-[#f8fafc] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <div className="font-bold font-poppins text-[#060606] text-base md:text-lg">{selectedDraft.name}</div>
+                                                    <div className="text-sm font-bold text-gray-600">{formatFullDate(selectedDraft.date)}</div>
+                                                </div>
+                                                <div className={`text-xs md:text-sm font-bold px-3 py-1 rounded-full border-2 border-black ${selectedDraft.sourceRow ? 'bg-[#bae6fd]' : 'bg-[#fde68a]'}`}>
+                                                    {selectedDraft.sourceRow ? 'Loaded Row' : 'New Row'}
+                                                </div>
+                                            </div>
+                                            {selectedDraft.clearSchedule && (
+                                                <div className="mt-3 text-xs md:text-sm font-bold text-[#e11d48]">
+                                                    This cell will be cleared when you save.
+                                                </div>
+                                            )}
                                         </div>
 
-                                        <div>
-                                            <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Employee</label>
-                                            <select
-                                                value={adminScheduleForm.name}
-                                                onChange={e => updateAdminScheduleForm({ name: e.target.value }, { clearSource: true })}
-                                                className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
-                                            >
-                                                <option value="">Select employee</option>
-                                                {employees.map(emp => (
-                                                    <option key={emp.id} value={emp.name}>{emp.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Date</label>
-                                            <input
-                                                type="date"
-                                                value={adminScheduleForm.date}
-                                                onChange={e => updateAdminScheduleForm({ date: e.target.value }, { clearSource: true })}
-                                                className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
-                                            />
-                                        </div>
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-2 gap-3">
                                             <div>
                                                 <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Scheduled In</label>
                                                 <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-stretch">
@@ -1244,17 +1328,21 @@
                                                         type="text"
                                                         inputMode="numeric"
                                                         placeholder="9:00"
-                                                        value={adminScheduleForm.schedIn}
+                                                        value={selectedDraft.clearSchedule ? '' : selectedDraft.schedIn}
                                                         onChange={e => {
-                                                            const next = normalizeTimeInputWithPeriod(e.target.value, adminScheduleForm.schedInPeriod);
-                                                            updateAdminScheduleForm({ schedIn: next.time, schedInPeriod: next.period });
+                                                            const next = normalizeTimeInputWithPeriod(e.target.value, selectedDraft.schedInPeriod);
+                                                            updateCellDraft(selectedDraft.name, selectedDraft.date, {
+                                                                schedIn: next.time,
+                                                                schedInPeriod: next.period,
+                                                                clearSchedule: false,
+                                                            });
                                                         }}
                                                         className="flex-1 px-3 py-3 font-bold text-sm md:text-base bg-transparent outline-none"
                                                         maxLength={5}
                                                     />
                                                     <div className="flex shrink-0 items-center gap-2 pr-3">
-                                                        <button type="button" onClick={() => updateAdminScheduleForm({ schedInPeriod: 'AM' })} className={`text-xs md:text-sm font-bold ${adminScheduleForm.schedInPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
-                                                        <button type="button" onClick={() => updateAdminScheduleForm({ schedInPeriod: 'PM' })} className={`text-xs md:text-sm font-bold ${adminScheduleForm.schedInPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
+                                                        <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedInPeriod: 'AM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedInPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
+                                                        <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedInPeriod: 'PM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedInPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1264,18 +1352,22 @@
                                                     <input
                                                         type="text"
                                                         inputMode="numeric"
-                                                        placeholder="3:00"
-                                                        value={adminScheduleForm.schedOut}
+                                                        placeholder="5:00"
+                                                        value={selectedDraft.clearSchedule ? '' : selectedDraft.schedOut}
                                                         onChange={e => {
-                                                            const next = normalizeTimeInputWithPeriod(e.target.value, adminScheduleForm.schedOutPeriod);
-                                                            updateAdminScheduleForm({ schedOut: next.time, schedOutPeriod: next.period });
+                                                            const next = normalizeTimeInputWithPeriod(e.target.value, selectedDraft.schedOutPeriod);
+                                                            updateCellDraft(selectedDraft.name, selectedDraft.date, {
+                                                                schedOut: next.time,
+                                                                schedOutPeriod: next.period,
+                                                                clearSchedule: false,
+                                                            });
                                                         }}
                                                         className="flex-1 px-3 py-3 font-bold text-sm md:text-base bg-transparent outline-none"
                                                         maxLength={5}
                                                     />
                                                     <div className="flex shrink-0 items-center gap-2 pr-3">
-                                                        <button type="button" onClick={() => updateAdminScheduleForm({ schedOutPeriod: 'AM' })} className={`text-xs md:text-sm font-bold ${adminScheduleForm.schedOutPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
-                                                        <button type="button" onClick={() => updateAdminScheduleForm({ schedOutPeriod: 'PM' })} className={`text-xs md:text-sm font-bold ${adminScheduleForm.schedOutPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
+                                                        <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedOutPeriod: 'AM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedOutPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
+                                                        <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedOutPeriod: 'PM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedOutPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1284,8 +1376,8 @@
                                         <div>
                                             <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Schedule Status</label>
                                             <select
-                                                value={adminScheduleForm.scheduleStatus}
-                                                onChange={e => updateAdminScheduleForm({ scheduleStatus: e.target.value })}
+                                                value={selectedDraft.clearSchedule ? 'Published' : (selectedDraft.scheduleStatus || 'Published')}
+                                                onChange={e => updateCellDraft(selectedDraft.name, selectedDraft.date, { scheduleStatus: e.target.value, clearSchedule: false })}
                                                 className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
                                             >
                                                 <option value="Published">Published</option>
@@ -1293,58 +1385,161 @@
                                             </select>
                                         </div>
 
-                                        <div className="rounded-xl border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                                        <div className="rounded-xl border-2 border-black bg-[#f8fafc] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
                                             <div className="text-xs md:text-sm font-bold text-gray-500 uppercase">Scheduled Total</div>
                                             <div className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1">
-                                                {previewMinutes === null ? '--' : formatWorkedDurationForDisplay(previewMinutes)}
+                                                {selectedDraft.clearSchedule ? 'Cleared' : (selectedPreviewMinutes === null ? '--' : formatWorkedDurationForDisplay(selectedPreviewMinutes))}
                                             </div>
                                         </div>
 
-                                        <button onClick={saveAdminSchedule} disabled={isSubmitting} className="brutal-btn w-full bg-[#4ade80] hover:bg-[#22c55e] py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2">
-                                            <i className={`fas ${isSubmitting ? 'fa-circle-notch spinner' : 'fa-save'}`}></i>
-                                            <span>{isSubmitting ? 'Saving Schedule...' : 'Save Schedule'}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => applyTemplateToCell(selectedDraft.name, selectedDraft.date, 'off')}
+                                            className="brutal-btn w-full bg-white py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2"
+                                        >
+                                            <i className="fas fa-eraser text-[#f43f5e]"></i>
+                                            <span>Clear This Cell</span>
                                         </button>
+                                    </>
+                                )}
+                            </div>
+
+                            <div className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000]">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+                                    <div>
+                                        <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Upcoming Shifts</h4>
+                                        <p className="text-sm font-bold text-gray-600 mt-1">Load a saved row to jump straight to that employee and week.</p>
                                     </div>
-
-                                    <div className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000]">
-                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
-                                            <div>
-                                                <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Upcoming Shifts</h4>
-                                                <p className="text-sm font-bold text-gray-600 mt-1">Loading an existing row lets you update its date, times, or publish status.</p>
-                                            </div>
-                                            <div className="text-xs md:text-sm font-bold text-gray-500">
-                                                {upcomingSchedules.length} future schedule row{upcomingSchedules.length === 1 ? '' : 's'}
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-3 max-h-[55vh] overflow-y-auto no-scrollbar pr-1">
-                                            {upcomingSchedules.length === 0 ? (
-                                                <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
-                                                    No future schedule rows found yet.
-                                                </div>
-                                            ) : (
-                                                upcomingSchedules.map((row, idx) => (
-                                                    <div key={`${row.name}-${row.date}-${idx}`} className="rounded-xl border-2 border-black bg-[#f8fafc] px-4 py-3 shadow-[3px_3px_0px_0px_#000000] flex flex-col md:flex-row md:items-center justify-between gap-3">
-                                                        <div>
-                                                            <div className="font-bold font-poppins text-[#060606] text-base md:text-lg">{row.name}</div>
-                                                            <div className="text-sm font-bold text-gray-600">{formatFullDate(row.date)} · {row.schedIn || '--'} - {row.schedOut || '--'}</div>
-                                                            <div className="text-xs md:text-sm font-bold mt-1">
-                                                                <span className={String(row.scheduleStatus || '').trim() === 'Published' ? 'text-[#0284c7]' : 'text-gray-500'}>
-                                                                    {row.scheduleStatus || 'Draft'}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        <button onClick={() => loadScheduleIntoForm(row)} className="brutal-btn bg-white px-4 py-2 text-sm md:text-base self-start md:self-auto">
-                                                            Load
-                                                        </button>
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
+                                    <div className="text-xs md:text-sm font-bold text-gray-500">
+                                        {upcomingSchedules.length} future schedule row{upcomingSchedules.length === 1 ? '' : 's'}
                                     </div>
                                 </div>
+
+                                <div className="space-y-3 max-h-[42vh] overflow-y-auto no-scrollbar pr-1">
+                                    {upcomingSchedules.length === 0 ? (
+                                        <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
+                                            No future schedule rows found yet.
+                                        </div>
+                                    ) : (
+                                        upcomingSchedules.map((row, idx) => (
+                                            <div key={`${row.name}-${row.date}-${idx}`} className="rounded-xl border-2 border-black bg-[#f8fafc] px-4 py-3 shadow-[3px_3px_0px_0px_#000000] flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                                <div>
+                                                    <div className="font-bold font-poppins text-[#060606] text-base md:text-lg">{row.name}</div>
+                                                    <div className="text-sm font-bold text-gray-600">{formatFullDate(row.date)} · {row.schedIn || '--'} - {row.schedOut || '--'}</div>
+                                                    <div className="text-xs md:text-sm font-bold mt-1">
+                                                        <span className={String(row.scheduleStatus || '').trim() === 'Published' ? 'text-[#0284c7]' : 'text-gray-500'}>
+                                                            {row.scheduleStatus || 'Draft'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => loadScheduleIntoWeek(row)} className="brutal-btn bg-white px-4 py-2 text-sm md:text-base self-start md:self-auto">
+                                                    Load
+                                                </button>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
                             </div>
-                        )}
+                        </div>
+
+                        <div className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] overflow-hidden flex flex-col">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 shrink-0">
+                                <div>
+                                    <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Week Grid</h4>
+                                    <p className="text-sm font-bold text-gray-600 mt-1">Templates can be dragged onto any day cell. Yellow cells have staged changes.</p>
+                                </div>
+                                <div className="text-xs md:text-sm font-bold text-gray-500">
+                                    {isRefreshing ? 'Syncing latest schedule rows...' : `${sortedEmployees.length} active team member${sortedEmployees.length === 1 ? '' : 's'}`}
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-auto no-scrollbar">
+                                {sortedEmployees.length === 0 ? (
+                                    <div className="h-full flex items-center justify-center text-center text-sm md:text-base font-bold text-gray-400 border-2 border-dashed border-gray-300 rounded-xl">
+                                        No active employees were found for scheduling.
+                                    </div>
+                                ) : (
+                                    <div className="min-w-[1080px]">
+                                        <div className="grid gap-px bg-black rounded-2xl overflow-hidden" style={{ gridTemplateColumns: '180px repeat(7, minmax(128px, 1fr))' }}>
+                                            <div className="bg-[#38bdf8] px-4 py-3 font-bold font-poppins text-[#060606]">Team</div>
+                                            {weekDays.map(dayObj => {
+                                                const dayKey = normalizeDate(dayObj);
+                                                const isToday = dayKey === normalizeDate(new Date());
+                                                return (
+                                                    <div key={dayKey} className={`px-3 py-3 font-bold text-center ${isToday ? 'bg-[#0ea5e9] text-white' : 'bg-[#bae6fd] text-[#060606]'}`}>
+                                                        <div className="text-xs md:text-sm uppercase">{dayObj.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                                                        <div className="text-sm md:text-base mt-1">{formatShortDate(dayObj)}</div>
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {sortedEmployees.map(emp => (
+                                                <React.Fragment key={emp.id}>
+                                                    <div className="bg-[#fff7ed] px-4 py-4 border-t border-black">
+                                                        <div className="font-bold font-poppins text-[#060606] text-sm md:text-base leading-tight">{emp.name}</div>
+                                                        <div className="text-[10px] md:text-xs font-bold text-gray-500 mt-1">{emp.department}</div>
+                                                    </div>
+                                                    {weekDays.map(dayObj => {
+                                                        const dayKey = normalizeDate(dayObj);
+                                                        const draft = getCellDraft(emp.name, dayKey);
+                                                        const cellFormattedIn = draft.clearSchedule ? '' : formatTimeField(draft.schedIn, draft.schedInPeriod);
+                                                        const cellFormattedOut = draft.clearSchedule ? '' : formatTimeField(draft.schedOut, draft.schedOutPeriod);
+                                                        const cellMinutes = draft.clearSchedule ? null : calculateWorkedMinutes(cellFormattedIn, cellFormattedOut);
+                                                        const isSelected = selectedCell && selectedCell.name === emp.name && selectedCell.date === dayKey;
+                                                        const isDirty = !areAdminScheduleDraftsEquivalent(draft, draft.sourceRow
+                                                            ? buildAdminScheduleDraftFromRow(draft.sourceRow, emp.name, dayKey)
+                                                            : buildEmptyAdminScheduleForm(emp.name, dayKey));
+                                                        const cellStateClass = isSelected
+                                                            ? 'bg-[#38bdf8] text-[#060606]'
+                                                            : isDirty
+                                                                ? 'bg-[#fef3c7] text-[#060606]'
+                                                                : (cellFormattedIn && cellFormattedOut)
+                                                                    ? 'bg-white text-[#060606]'
+                                                                    : 'bg-[#f8fafc] text-[#060606]';
+
+                                                        return (
+                                                            <button
+                                                                key={`${emp.id}-${dayKey}`}
+                                                                type="button"
+                                                                onClick={() => onSelectCell(emp.name, dayKey)}
+                                                                onDragOver={e => e.preventDefault()}
+                                                                onDrop={e => {
+                                                                    e.preventDefault();
+                                                                    const templateId = e.dataTransfer.getData('text/plain');
+                                                                    if (!templateId) return;
+                                                                    onSelectCell(emp.name, dayKey);
+                                                                    applyTemplateToCell(emp.name, dayKey, templateId);
+                                                                }}
+                                                                className={`min-h-[124px] border-t border-black px-3 py-3 text-left flex flex-col justify-between gap-3 transition-colors ${cellStateClass}`}
+                                                            >
+                                                                <div className="flex items-start justify-between gap-2">
+                                                                    <div className="text-xs md:text-sm font-bold leading-snug">
+                                                                        {draft.clearSchedule
+                                                                            ? 'Clear on save'
+                                                                            : (cellFormattedIn && cellFormattedOut ? `${cellFormattedIn} - ${cellFormattedOut}` : 'No shift assigned')}
+                                                                    </div>
+                                                                    {draft.sourceRow && <span className="w-2.5 h-2.5 rounded-full bg-[#0284c7] border border-black shrink-0 mt-1"></span>}
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    <div className="text-[10px] md:text-xs font-bold uppercase tracking-wide opacity-70">
+                                                                        {draft.clearSchedule ? 'Clearing' : (draft.scheduleStatus || 'Draft')}
+                                                                    </div>
+                                                                    <div className="text-[10px] md:text-xs font-bold opacity-70">
+                                                                        {draft.clearSchedule
+                                                                            ? 'Schedule will be removed'
+                                                                            : (cellMinutes === null ? 'Type or drag a shift' : formatWorkedDurationForDisplay(cellMinutes))}
+                                                                    </div>
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </React.Fragment>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             );
@@ -1372,11 +1567,11 @@
                 newReason: ''
             });
             const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
-            const [isAdminModalOpen, setAdminModalOpen] = useState(false);
-            const [adminPinInput, setAdminPinInput] = useState("");
+            const [directoryMode, setDirectoryMode] = useState('employee');
             const [adminUser, setAdminUser] = useState(null);
-            const [adminScheduleForm, setAdminScheduleForm] = useState(buildEmptyAdminScheduleForm());
-            const [adminSourceRow, setAdminSourceRow] = useState(null);
+            const [adminWeekStart, setAdminWeekStart] = useState(getWeekStartDate(new Date()));
+            const [adminScheduleDrafts, setAdminScheduleDrafts] = useState({});
+            const [selectedAdminCell, setSelectedAdminCell] = useState(null);
             
             // Timeout Logic States
             const lastActivityRef = useRef(Date.now());
@@ -1488,16 +1683,89 @@
                 return rows;
             };
 
-            const updateAdminScheduleForm = (patch, { clearSource = false } = {}) => {
-                setAdminScheduleForm(prev => ({ ...prev, ...patch }));
-                if (clearSource) {
-                    setAdminSourceRow(null);
-                }
+            const getBaseAdminScheduleDraft = (employeeName, dateValue, rows = sheetData) => {
+                const sourceRow = getScheduleRowForEmployeeDate(rows, employeeName, dateValue);
+                return sourceRow
+                    ? buildAdminScheduleDraftFromRow(sourceRow, employeeName, dateValue)
+                    : buildEmptyAdminScheduleForm(employeeName, dateValue);
             };
 
-            const resetAdminScheduleForm = (employeeName = '') => {
-                setAdminSourceRow(null);
-                setAdminScheduleForm(buildEmptyAdminScheduleForm(employeeName));
+            const getAdminScheduleDraft = (employeeName, dateValue, draftMap = adminScheduleDrafts, rows = sheetData) => {
+                const draftKey = buildScheduleCellKey(employeeName, dateValue);
+                return draftMap[draftKey] || getBaseAdminScheduleDraft(employeeName, dateValue, rows);
+            };
+
+            const updateAdminScheduleDraft = (employeeName, dateValue, patch) => {
+                const normalizedDate = normalizeDate(dateValue);
+                setAdminScheduleDrafts(prev => {
+                    const draftKey = buildScheduleCellKey(employeeName, normalizedDate);
+                    const baseDraft = getBaseAdminScheduleDraft(employeeName, normalizedDate);
+                    const currentDraft = prev[draftKey] || baseDraft;
+                    const nextDraft = typeof patch === 'function'
+                        ? patch(currentDraft)
+                        : { ...currentDraft, ...patch };
+                    const normalizedDraft = {
+                        ...nextDraft,
+                        name: employeeName,
+                        date: normalizedDate,
+                        sourceRow: nextDraft?.sourceRow === undefined ? (currentDraft.sourceRow || baseDraft.sourceRow || null) : nextDraft.sourceRow,
+                    };
+
+                    if (areAdminScheduleDraftsEquivalent(normalizedDraft, baseDraft)) {
+                        const { [draftKey]: _removed, ...rest } = prev;
+                        return rest;
+                    }
+
+                    return {
+                        ...prev,
+                        [draftKey]: normalizedDraft,
+                    };
+                });
+            };
+
+            const applyTemplateToAdminSchedule = (employeeName, dateValue, templateId) => {
+                const template = ADMIN_SHIFT_TEMPLATES.find(item => item.id === templateId);
+                if (!template) return;
+
+                updateAdminScheduleDraft(employeeName, dateValue, currentDraft => {
+                    if (template.clearSchedule) {
+                        return {
+                            ...currentDraft,
+                            schedIn: '',
+                            schedInPeriod: 'AM',
+                            schedOut: '',
+                            schedOutPeriod: 'PM',
+                            scheduleStatus: '',
+                            clearSchedule: true,
+                        };
+                    }
+
+                    const parsedIn = parseTimeField(template.schedIn);
+                    const parsedOut = parseTimeField(template.schedOut);
+                    return {
+                        ...currentDraft,
+                        schedIn: parsedIn.time,
+                        schedInPeriod: parsedIn.period || 'AM',
+                        schedOut: parsedOut.time,
+                        schedOutPeriod: parsedOut.period || 'PM',
+                        scheduleStatus: template.scheduleStatus || 'Published',
+                        clearSchedule: false,
+                    };
+                });
+            };
+
+            const selectAdminCell = (employeeName, dateValue) => {
+                setSelectedAdminCell({
+                    name: employeeName,
+                    date: normalizeDate(dateValue),
+                });
+            };
+
+            const loadScheduleIntoWeek = (row) => {
+                if (!row?.name || !row?.date) return;
+                setAdminWeekStart(getWeekStartDate(row.date));
+                selectAdminCell(row.name, row.date);
+                setViewMode('ADMIN');
             };
 
             // Fetch Data on Mount
@@ -1517,15 +1785,38 @@
                 }
             }, [notification]);
 
-            const handleLogout = () => {
+            const handleSelectionCancel = () => {
                 setSelectedId(null);
                 setPinInput("");
                 setIsAuthenticated(false);
+                setAdminUser(null);
                 setViewMode('PINPAD');
                 setEditTarget(null);
                 setReasonValidationTriggered(false);
                 setShowTimeoutWarning(false);
                 lastActivityRef.current = Date.now();
+            };
+
+            const handleLogout = () => {
+                handleSelectionCancel();
+                setDirectoryMode('employee');
+                setAdminWeekStart(getWeekStartDate(new Date()));
+                setAdminScheduleDrafts({});
+                setSelectedAdminCell(null);
+            };
+
+            const openAdminDirectory = async () => {
+                handleSelectionCancel();
+                setDirectoryMode('admin');
+                await refreshSheetData(false, { showSpinner: false });
+            };
+
+            const returnToEmployeeDirectory = () => {
+                handleSelectionCancel();
+                setDirectoryMode('employee');
+                setAdminWeekStart(getWeekStartDate(new Date()));
+                setAdminScheduleDrafts({});
+                setSelectedAdminCell(null);
             };
 
             // Activity Tracker
@@ -1573,10 +1864,31 @@
                 return () => clearInterval(timer);
             }, [isAuthenticated]);
 
-            const selectedEmployee = employees.find(e => e.id === selectedId);
+            const selectedUser = employees.find(e => e.id === selectedId) || null;
+            const selectedEmployee = selectedUser && !isAdminRole(selectedUser.role) ? selectedUser : null;
+            const publicEmployees = employees
+                .filter(emp => !isAdminRole(emp.role))
+                .slice()
+                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+            const adminAccounts = employees
+                .filter(emp => isAdminRole(emp.role))
+                .slice()
+                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+            const directoryEmployees = directoryMode === 'admin' ? adminAccounts : publicEmployees;
             const personalData = selectedEmployee 
                 ? sheetData.filter(row => row.name === selectedEmployee.name) 
                 : [];
+            const todayKey = normalizeDate(new Date());
+            const upcomingSchedules = sheetData
+                .filter(row => (row.schedIn || row.schedOut) && normalizeDate(row.date) >= todayKey)
+                .slice()
+                .sort((a, b) => {
+                    const dateCompare = normalizeDate(a.date).localeCompare(normalizeDate(b.date));
+                    if (dateCompare !== 0) return dateCompare;
+                    return String(a.name || '').localeCompare(String(b.name || ''));
+                })
+                .slice(0, 18);
+            const stagedScheduleChangeCount = Object.keys(adminScheduleDrafts).length;
             const editableRows = filterTimesheetRowsUpToToday(personalData)
                 .filter(row => !isEntryLocked(row))
                 .slice()
@@ -1592,7 +1904,6 @@
                 : -1;
             const canEditPrev = editTargetIndex > 0;
             const canEditNext = editTargetIndex >= 0 && editTargetIndex < editableRows.length - 1;
-            const todayKey = normalizeDate(new Date());
             const selectedClockInPlan = selectedEmployee
                 ? resolveClockInPlan(sheetData, selectedEmployee.name, todayKey)
                 : null;
@@ -1625,91 +1936,28 @@
                 setSelectedId(id);
                 setPinInput("");
                 setIsAuthenticated(false);
+                setAdminUser(null);
                 setViewMode('PINPAD');
                 lastActivityRef.current = Date.now(); // Reset activity when interacting
 
                 await refreshSheetData(false);
             };
 
-            const openAdminAccess = async () => {
-                setAdminModalOpen(true);
-                await refreshSheetData(false, { showSpinner: false });
-            };
-
-            const closeAdminAccess = () => {
-                setAdminModalOpen(false);
-                setAdminPinInput("");
-            };
-
-            const validateAdminPin = async (inputPin) => {
-                const adminMatch = employees.find(emp => isAdminRole(emp.role) && inputPin === emp.pin);
-                if (!adminMatch) {
-                    setNotification({ type: 'error', message: "Incorrect admin PIN" });
-                    setAdminPinInput("");
-                    return;
-                }
-
-                setAdminUser(adminMatch);
-                setAdminPinInput("");
-                setNotification({ type: 'success', message: `Admin Access: ${adminMatch.name}` });
-                await refreshSheetData(false, { showSpinner: false });
-            };
-
-            const handleAdminPinPress = (num) => {
-                if (!isAdminModalOpen || adminUser) return;
-                if (adminPinInput.length < 4) {
-                    const newPin = adminPinInput + num;
-                    setAdminPinInput(newPin);
-                    if (newPin.length === 4) {
-                        validateAdminPin(newPin);
-                    }
-                }
-            };
-
-            const handleAdminPinBackspace = () => {
-                setAdminPinInput(prev => prev.slice(0, -1));
-            };
-
-            const handleAdminPinClear = () => setAdminPinInput("");
-
-            const handleAdminLogout = () => {
-                setAdminUser(null);
-                setAdminPinInput("");
-                resetAdminScheduleForm();
-            };
-
-            const loadScheduleIntoForm = (row) => {
-                const parsedIn = parseTimeField(row.schedIn || '');
-                const parsedOut = parseTimeField(row.schedOut || '');
-                setAdminSourceRow(row);
-                setAdminScheduleForm({
-                    name: row.name || '',
-                    date: normalizeDate(row.date),
-                    schedIn: parsedIn.time,
-                    schedInPeriod: parsedIn.period || 'AM',
-                    schedOut: parsedOut.time,
-                    schedOutPeriod: parsedOut.period || 'PM',
-                    scheduleStatus: row.scheduleStatus || 'Published',
-                });
-                setAdminModalOpen(true);
-            };
-
-            const saveAdminSchedule = async () => {
+            const saveAdminWeekSchedules = async () => {
                 if (!adminUser || !isAdminRole(adminUser.role) || isSubmittingAdminSchedule) return;
-
-                const formattedSchedIn = formatTimeField(adminScheduleForm.schedIn, adminScheduleForm.schedInPeriod);
-                const formattedSchedOut = formatTimeField(adminScheduleForm.schedOut, adminScheduleForm.schedOutPeriod);
-
-                if (!adminScheduleForm.name) {
-                    setNotification({ type: 'error', message: "Choose an employee before saving a schedule." });
+                const stagedDrafts = Object.values(adminScheduleDrafts);
+                if (stagedDrafts.length === 0) {
+                    setNotification({ type: 'info', message: "No schedule changes are staged yet." });
                     return;
                 }
-                if (!adminScheduleForm.date) {
-                    setNotification({ type: 'error', message: "Choose a schedule date before saving." });
-                    return;
-                }
-                if (!formattedSchedIn || !formattedSchedOut) {
-                    setNotification({ type: 'error', message: "Enter valid scheduled in/out times." });
+
+                const invalidDraft = stagedDrafts.find(draft =>
+                    !draft.clearSchedule &&
+                    (!formatTimeField(draft.schedIn, draft.schedInPeriod) || !formatTimeField(draft.schedOut, draft.schedOutPeriod))
+                );
+                if (invalidDraft) {
+                    selectAdminCell(invalidDraft.name, invalidDraft.date);
+                    setNotification({ type: 'error', message: `Enter valid scheduled in/out times for ${invalidDraft.name} on ${formatFullDate(invalidDraft.date)}.` });
                     return;
                 }
 
@@ -1721,54 +1969,70 @@
                         return;
                     }
 
-                    let latestSourceRow = null;
-                    if (adminSourceRow) {
-                        const sourceKey = buildRowFingerprint(adminSourceRow);
-                        latestSourceRow = latestRows.find(row => buildRowFingerprint(row) === sourceKey) || null;
-                        if (!latestSourceRow) {
-                            setNotification({ type: 'error', message: "The schedule row changed before it could be updated. Reload it and try again." });
-                            return;
+                    const payloadEntries = [];
+                    for (const draft of stagedDrafts) {
+                        let latestSourceRow = null;
+                        if (draft.sourceRow) {
+                            const sourceKey = buildRowFingerprint(draft.sourceRow);
+                            latestSourceRow = latestRows.find(row => buildRowFingerprint(row) === sourceKey) || null;
+                            if (!latestSourceRow) {
+                                selectAdminCell(draft.name, draft.date);
+                                setNotification({ type: 'error', message: `The schedule row for ${draft.name} on ${formatFullDate(draft.date)} changed before it could be updated. Reload it and try again.` });
+                                return;
+                            }
+                        } else {
+                            latestSourceRow = getScheduleRowForEmployeeDate(latestRows, draft.name, draft.date);
                         }
+
+                        payloadEntries.push({
+                            name: draft.name,
+                            date: normalizeDate(draft.date),
+                            schedIn: draft.clearSchedule ? '' : formatTimeField(draft.schedIn, draft.schedInPeriod),
+                            schedOut: draft.clearSchedule ? '' : formatTimeField(draft.schedOut, draft.schedOutPeriod),
+                            scheduleStatus: draft.clearSchedule ? '' : (draft.scheduleStatus || 'Published'),
+                            clearSchedule: Boolean(draft.clearSchedule),
+                            ...buildRowContextPayload(latestSourceRow),
+                        });
                     }
 
-                    const payload = {
-                        action: "ADMIN_UPSERT_SCHEDULE",
-                        date: normalizeDate(adminScheduleForm.date),
-                        name: adminScheduleForm.name,
-                        schedIn: formattedSchedIn,
-                        schedOut: formattedSchedOut,
-                        scheduleStatus: adminScheduleForm.scheduleStatus || 'Published',
+                    const result = await sendToSheet({
+                        action: "ADMIN_BATCH_UPSERT_SCHEDULES",
                         editorName: adminUser.name,
                         editorRole: adminUser.role || 'admin',
-                        ...buildRowContextPayload(latestSourceRow),
-                    };
-
-                    const result = await sendToSheet(payload);
+                        entries: payloadEntries,
+                    });
                     if (!result.ok) {
-                        setNotification({ type: 'error', message: result.error || "Could not save the schedule." });
+                        setNotification({ type: 'error', message: result.error || "Could not save the staged schedules." });
                         return;
                     }
 
                     const refreshedRows = await refreshLogs();
-                    const refreshConfirmedSchedule = Boolean(getExpectedScheduleRow(refreshedRows, payload));
                     const isStructuredSheetSuccess = String(result?.parsed?.status || '').toLowerCase() === 'success';
+                    const refreshConfirmedSchedule = Boolean(refreshedRows) && payloadEntries.every(entry =>
+                        entry.clearSchedule
+                            ? isExpectedScheduleCellCleared(refreshedRows, entry)
+                            : Boolean(getExpectedScheduleRow(refreshedRows, entry))
+                    );
 
                     if (refreshConfirmedSchedule) {
-                        setNotification({ type: 'success', message: "Schedule saved" });
-                        resetAdminScheduleForm(adminScheduleForm.name);
+                        setNotification({
+                            type: 'success',
+                            message: `${payloadEntries.length} schedule change${payloadEntries.length === 1 ? '' : 's'} saved`
+                        });
+                        setAdminScheduleDrafts({});
                     } else if (isStructuredSheetSuccess && !refreshedRows) {
-                        setNotification({ type: 'info', message: "The server confirmed the schedule save, but the latest sheet rows could not be reloaded automatically yet." });
+                        setNotification({ type: 'info', message: "The server confirmed the weekly save, but the latest sheet rows could not be reloaded automatically yet." });
                     } else if (result.isLegacyTextSuccess) {
                         setNotification({
                             type: 'error',
-                            message: "This schedule save could not be confirmed in the spreadsheet. The live Apps Script deployment is still the older version and needs the updated web-app deployment before admin schedule saves can be verified safely."
+                            message: "This weekly schedule save could not be confirmed in the spreadsheet. The live Apps Script deployment is still the older version and needs the updated web-app deployment before batch schedule saves can be verified safely."
                         });
                     } else {
-                        setNotification({ type: 'error', message: "This schedule save could not be confirmed in the latest spreadsheet rows." });
+                        setNotification({ type: 'error', message: "These weekly schedule changes could not be confirmed in the latest spreadsheet rows." });
                     }
                 } catch (err) {
-                    console.error("Admin schedule save failed:", err);
-                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted the schedule save." });
+                    console.error("Admin week schedule save failed:", err);
+                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted the weekly schedule save." });
                 } finally {
                     setIsSubmittingAdminSchedule(false);
                 }
@@ -1793,13 +2057,20 @@
                 const emp = employees.find(e => e.id === selectedId);
                 if (!emp) {
                     setNotification({ type: 'error', message: "That employee record changed. Please select your name again." });
-                    handleLogout();
+                    handleSelectionCancel();
                     return;
                 }
                 if (inputPin === emp.pin) {
+                    const isAdminAccount = isAdminRole(emp.role);
                     setIsAuthenticated(true);
-                    setViewMode('DASHBOARD');
-                    setNotification({ type: 'success', message: `Identity Verified: ${emp.name}` });
+                    setPinInput("");
+                    setViewMode(isAdminAccount ? 'ADMIN' : 'DASHBOARD');
+                    setAdminUser(isAdminAccount ? emp : null);
+                    setDirectoryMode(isAdminAccount ? 'admin' : 'employee');
+                    setNotification({
+                        type: 'success',
+                        message: isAdminAccount ? `Admin Access: ${emp.name}` : `Identity Verified: ${emp.name}`
+                    });
                     await refreshSheetData(false);
                 } else {
                     setNotification({ type: 'error', message: "Incorrect PIN" });
@@ -2101,36 +2372,19 @@
             return (
                 <div className="min-h-screen p-2 md:p-8 flex flex-col items-center">
                     <TeamScheduleModal isOpen={isScheduleModalOpen} onClose={() => setScheduleModalOpen(false)} sheetData={sheetData} onRefresh={refreshSheetData} />
-                    <AdminAccessModal
-                        isOpen={isAdminModalOpen}
-                        onClose={closeAdminAccess}
-                        adminUser={adminUser}
-                        pinInput={adminPinInput}
-                        onPinPress={handleAdminPinPress}
-                        onPinBackspace={handleAdminPinBackspace}
-                        onPinClear={handleAdminPinClear}
-                        onLogout={handleAdminLogout}
-                        employees={employees}
-                        sheetData={sheetData}
-                        adminScheduleForm={adminScheduleForm}
-                        updateAdminScheduleForm={updateAdminScheduleForm}
-                        loadScheduleIntoForm={loadScheduleIntoForm}
-                        saveAdminSchedule={saveAdminSchedule}
-                        isSubmitting={isSubmittingAdminSchedule}
-                    />
                     
                     {/* Header */}
                     <div className="w-full max-w-[1400px] flex justify-between items-center mb-4 md:mb-8 brutal-card p-3 md:p-6">
                         <div className="flex items-center gap-2 md:gap-4 overflow-hidden">
                             <button
-                                onClick={openAdminAccess}
+                                onClick={openAdminDirectory}
                                 className={`brutal-btn flex items-center justify-center shrink-0 overflow-hidden ${
                                     settings.logoUrl
                                         ? 'bg-white p-0.5 md:p-1'
                                         : 'bg-[#38bdf8] w-8 h-8 md:w-12 md:h-12 text-sm md:text-xl'
                                 }`}
-                                title="Open admin tools"
-                                aria-label="Open admin tools"
+                                title="Open secret admin menu"
+                                aria-label="Open secret admin menu"
                             >
                             {settings.logoUrl ? (
                                 <img src={settings.logoUrl} alt="Logo" className="h-8 md:h-12 w-auto object-contain drop-shadow-md shrink-0" />
@@ -2157,9 +2411,24 @@
                             
                             {/* Employee List (Hides when a user is authenticated, or on mobile when selected) */}
                             <div className={`brutal-card p-4 md:p-6 transition-all duration-300 ${!selectedId ? 'block' : isAuthenticated ? 'hidden' : 'hidden lg:block'}`}>
-                                <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
-                                    <i className="fas fa-users text-[#f43f5e] text-xl md:text-2xl"></i> Select Name
-                                </h2>
+                                <div className="flex items-start justify-between gap-3 mb-4 md:mb-6">
+                                    <div>
+                                        <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] flex items-center gap-2 md:gap-3">
+                                            <i className={`fas ${directoryMode === 'admin' ? 'fa-user-shield text-[#38bdf8]' : 'fa-users text-[#f43f5e]'} text-xl md:text-2xl`}></i>
+                                            {directoryMode === 'admin' ? 'Secret Admin Menu' : 'Select Name'}
+                                        </h2>
+                                        <p className="text-xs md:text-sm font-bold text-gray-600 mt-2">
+                                            {directoryMode === 'admin'
+                                                ? 'Only admin, manager, and owner accounts appear here.'
+                                                : 'Admin-capable accounts stay hidden until the top-left button is used.'}
+                                        </p>
+                                    </div>
+                                    {directoryMode === 'admin' && (
+                                        <button onClick={returnToEmployeeDirectory} className="brutal-btn bg-white px-3 py-2 text-xs md:text-sm whitespace-nowrap">
+                                            Back to Staff
+                                        </button>
+                                    )}
+                                </div>
 
                                 {isLoadingEmployees ? (
                                     <div className="flex flex-col items-center justify-center h-32 md:h-48 text-[#060606] font-bold gap-3">
@@ -2173,31 +2442,41 @@
                                         <button onClick={() => window.location.reload()} className="brutal-btn bg-white py-1 md:py-2 px-3 md:px-4 mt-2 text-sm md:text-base">Retry</button>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 lg:gap-4">
-                                        {employees.map(emp => (
-                                            <button
-                                                key={emp.id}
-                                                onClick={() => handleEmployeeSelect(emp.id)}
-                                                className={`
-                                                    brutal-btn p-2 md:p-3 flex flex-col items-center justify-center gap-1 relative h-20 md:h-24
-                                                    ${selectedId === emp.id ? 'bg-[#38bdf8]' : emp.isClockedIn ? 'bg-[#a7f3d0]' : 'bg-white hover:bg-gray-50'}
-                                                `}
-                                            >
-                                                {emp.isClockedIn && (
-                                                    <div className="absolute top-1.5 md:top-2 right-1.5 md:right-2 flex items-center gap-1">
-                                                        <div className="w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full bg-[#10b981] border border-black animate-pulse"></div>
-                                                    </div>
-                                                )}
-                                                <span className="font-bold font-poppins text-[#060606] text-center text-sm md:text-base lg:text-lg leading-tight">{emp.name}</span>
-                                                <span className="text-[9px] md:text-[10px] lg:text-xs font-bold opacity-70 text-[#060606]">{emp.department}</span>
-                                            </button>
-                                        ))}
-                                    </div>
+                                    directoryEmployees.length === 0 ? (
+                                        <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
+                                            {directoryMode === 'admin'
+                                                ? 'No admin-capable accounts are active in the Employees sheet yet.'
+                                                : 'No active employee accounts were found.'}
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 lg:gap-4">
+                                            {directoryEmployees.map(emp => (
+                                                <button
+                                                    key={emp.id}
+                                                    onClick={() => handleEmployeeSelect(emp.id)}
+                                                    className={`
+                                                        brutal-btn p-2 md:p-3 flex flex-col items-center justify-center gap-1 relative h-20 md:h-24
+                                                        ${selectedId === emp.id ? 'bg-[#38bdf8]' : emp.isClockedIn ? 'bg-[#a7f3d0]' : 'bg-white hover:bg-gray-50'}
+                                                    `}
+                                                >
+                                                    {emp.isClockedIn && (
+                                                        <div className="absolute top-1.5 md:top-2 right-1.5 md:right-2 flex items-center gap-1">
+                                                            <div className="w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full bg-[#10b981] border border-black animate-pulse"></div>
+                                                        </div>
+                                                    )}
+                                                    <span className="font-bold font-poppins text-[#060606] text-center text-sm md:text-base lg:text-lg leading-tight">{emp.name}</span>
+                                                    <span className="text-[9px] md:text-[10px] lg:text-xs font-bold opacity-70 text-[#060606]">
+                                                        {directoryMode === 'admin' ? String(emp.role || 'admin').toUpperCase() : emp.department}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )
                                 )}
                             </div>
 
-                            {/* Actions (ONLY rendered if Authenticated) */}
-                            {isAuthenticated && (
+                            {/* Employee Actions */}
+                            {isAuthenticated && !adminUser && (
                                 <div className="brutal-card p-4 md:p-6 animate-fade-in bg-white">
                                     <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-4 md:mb-6 truncate">Hello, {selectedEmployee?.name}!</h2>
                                     {actionAlertPlan && (
@@ -2244,13 +2523,54 @@
                                     </div>
                                 </div>
                             )}
+
+                            {/* Admin Actions */}
+                            {isAuthenticated && adminUser && (
+                                <div className="brutal-card p-4 md:p-6 animate-fade-in bg-white">
+                                    <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-2">Admin Session</h2>
+                                    <p className="text-sm font-bold text-gray-600 mb-5">Signed in as {adminUser.name}. The weekly scheduler is open on the right.</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            onClick={() => setViewMode('ADMIN')}
+                                            className="brutal-btn py-3 text-sm md:text-base bg-[#38bdf8] hover:bg-[#0ea5e9] text-[#060606] flex items-center justify-center gap-2"
+                                        >
+                                            <i className="fas fa-calendar-week"></i>
+                                            <span>Scheduler</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                handleSelectionCancel();
+                                                setDirectoryMode('admin');
+                                            }}
+                                            className="brutal-btn py-3 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
+                                        >
+                                            <i className="fas fa-user-pen text-[#f59e0b]"></i>
+                                            <span>Switch Admin</span>
+                                        </button>
+                                        <button
+                                            onClick={returnToEmployeeDirectory}
+                                            className="brutal-btn py-3 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
+                                        >
+                                            <i className="fas fa-users text-[#38bdf8]"></i>
+                                            <span>Staff List</span>
+                                        </button>
+                                        <button
+                                            onClick={handleLogout}
+                                            className="brutal-btn py-3 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
+                                        >
+                                            <i className="fas fa-user-lock text-[#f43f5e]"></i>
+                                            <span>Sign Out</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* RIGHT: Dynamic Panel */}
                         <div className={`lg:col-span-7 transition-all duration-300 ${!selectedId ? 'hidden lg:block' : 'block'}`}>
                             
                             {/* Adding relative positioning so absolute children (toast) anchor exactly here */}
-                            <div className={`brutal-card min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px] mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : 'p-3 md:p-8'}`}>
+                            <div className={`brutal-card min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px] mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : 'p-3 md:p-6'}`}>
                                 
                                 {/* TIMEOUT WARNING OVERLAY */}
                                 {showTimeoutWarning && (
@@ -2276,14 +2596,45 @@
 
                                 {!selectedId ? (
                                     <div className="h-full flex flex-col items-center justify-center text-gray-400 animate-fade-in">
-                                        <i className="fas fa-hand-pointer text-4xl md:text-6xl mb-4 md:mb-6 opacity-30 text-[#060606]"></i>
-                                        <p className="font-bold font-poppins text-lg md:text-2xl text-[#060606] opacity-30">Select a name to begin</p>
+                                        <i className={`fas ${directoryMode === 'admin' ? 'fa-user-shield' : 'fa-hand-pointer'} text-4xl md:text-6xl mb-4 md:mb-6 opacity-30 text-[#060606]`}></i>
+                                        <p className="font-bold font-poppins text-lg md:text-2xl text-[#060606] opacity-30">
+                                            {directoryMode === 'admin' ? 'Select an admin account to continue' : 'Select a name to begin'}
+                                        </p>
                                     </div>
                                 ) : (
                                     <div className="flex-1 overflow-hidden">
-                                        {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinBackspace={handlePinBackspace} handlePinClear={handlePinClear} selectedEmployee={selectedEmployee} onCancel={handleLogout} />}
+                                        {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinBackspace={handlePinBackspace} handlePinClear={handlePinClear} selectedEmployee={selectedUser} onCancel={handleSelectionCancel} />}
                                         {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} isFetchingLogs={isFetchingLogs} />}
                                         {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} reasonValidationTriggered={reasonValidationTriggered} onPrev={handleEditPrev} onNext={handleEditNext} canPrev={canEditPrev} canNext={canEditNext} onClose={() => { setReasonValidationTriggered(false); setViewMode('DASHBOARD'); }} isSubmitting={isSubmittingAction} />}
+                                        {viewMode === 'ADMIN' && (
+                                            <AdminScheduleWorkspace
+                                                adminUser={adminUser}
+                                                employees={employees}
+                                                sheetData={sheetData}
+                                                weekStart={adminWeekStart}
+                                                onPrevWeek={() => setAdminWeekStart(prev => {
+                                                    const next = new Date(prev);
+                                                    next.setDate(next.getDate() - 7);
+                                                    return next;
+                                                })}
+                                                onNextWeek={() => setAdminWeekStart(prev => {
+                                                    const next = new Date(prev);
+                                                    next.setDate(next.getDate() + 7);
+                                                    return next;
+                                                })}
+                                                selectedCell={selectedAdminCell}
+                                                onSelectCell={selectAdminCell}
+                                                getCellDraft={getAdminScheduleDraft}
+                                                updateCellDraft={updateAdminScheduleDraft}
+                                                applyTemplateToCell={applyTemplateToAdminSchedule}
+                                                upcomingSchedules={upcomingSchedules}
+                                                loadScheduleIntoWeek={loadScheduleIntoWeek}
+                                                saveWeekSchedules={saveAdminWeekSchedules}
+                                                dirtyCount={stagedScheduleChangeCount}
+                                                isRefreshing={isFetchingLogs}
+                                                isSubmitting={isSubmittingAdminSchedule}
+                                            />
+                                        )}
                                     </div>
                                 )}
                                 
