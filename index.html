@@ -970,14 +970,14 @@
             );
         };
 
-        const TeamScheduleModal = ({ isOpen, onClose, sheetData, onRefresh, isRefreshing }) => {
+        const TeamScheduleModal = ({ isOpen, onClose, sheetData, onRefresh }) => {
             const [currentWeekStart, setCurrentWeekStart] = useState(null);
 
             useEffect(() => {
                 if (isOpen) {
                     setCurrentWeekStart(getWeekStartDate(new Date()));
                     if (onRefresh) {
-                        onRefresh(false);
+                        onRefresh(false, { showSpinner: false });
                     }
                 }
             }, [isOpen]);
@@ -1025,14 +1025,7 @@
                                 <p className="text-sm font-bold mt-1 text-[#060606]/70 text-center md:text-left">Weekly View · Published shifts only</p>
                             </div>
                             
-                            <div className="flex flex-col md:flex-row items-center gap-3">
-                                <button
-                                    onClick={() => onRefresh && onRefresh()}
-                                    className="brutal-btn bg-white px-4 py-2 text-sm md:text-base flex items-center gap-2"
-                                >
-                                    <i className={`fas ${isRefreshing ? 'fa-circle-notch spinner' : 'fa-sync-alt'} text-[#38bdf8]`}></i>
-                                    <span>{isRefreshing ? 'Syncing...' : 'Sync'}</span>
-                                </button>
+                            <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-4 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
                                     <button onClick={prevWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
                                         <i className="fas fa-chevron-left"></i>
@@ -1114,8 +1107,6 @@
             updateAdminScheduleForm,
             loadScheduleIntoForm,
             saveAdminSchedule,
-            onRefresh,
-            isRefreshing,
             isSubmitting,
         }) => {
             if (!isOpen) return null;
@@ -1164,7 +1155,7 @@
                                         </div>
                                         <div className="text-sm font-bold text-[#060606] leading-relaxed">
                                             <div>Current schedule view only shows shifts whose status is `Published`.</div>
-                                            <div className="mt-2">A new sync button is available in both the header and the schedule modal so spreadsheet changes can be pulled in on demand.</div>
+                                            <div className="mt-2">Schedule data refreshes automatically when this screen opens and when team members sign in.</div>
                                         </div>
                                         <div className="mt-4 text-xs md:text-sm font-bold text-gray-600">
                                             {adminAccounts.length > 0
@@ -1204,10 +1195,6 @@
                                         <p className="text-sm font-bold text-[#060606]/70 mt-1">Signed in as {adminUser.name}. Published shifts appear in the employee schedule view.</p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-3">
-                                        <button onClick={() => onRefresh()} className="brutal-btn bg-white px-4 py-2 text-sm md:text-base flex items-center gap-2">
-                                            <i className={`fas ${isRefreshing ? 'fa-circle-notch spinner' : 'fa-sync-alt'} text-[#38bdf8]`}></i>
-                                            <span>{isRefreshing ? 'Syncing...' : 'Sync'}</span>
-                                        </button>
                                         <button onClick={onLogout} className="brutal-btn bg-white px-4 py-2 text-sm md:text-base flex items-center gap-2">
                                             <i className="fas fa-user-lock text-[#f43f5e]"></i>
                                             <span>Sign Out</span>
@@ -1368,11 +1355,7 @@
         function App() {
             // Updated API URL to your current endpoint
             const scriptUrl = "https://script.google.com/macros/s/AKfycbzPAIaXEZZPamrYn24IAZBr4C2GPf0hcWvxCXUMU_diUPBlGKn0mZsOJM7O8AaeFOAK/exec";
-            const apiDeploymentId = (() => {
-                const match = scriptUrl.match(/\/s\/([^/]+)\/exec/);
-                return match ? match[1] : '';
-            })();
-            const apiDeploymentShort = apiDeploymentId ? apiDeploymentId.slice(-8) : 'unknown';
+            const employeeFetchErrorMessage = "Could not load employees. Please check the Google Sheet setup.";
 
             const [currentTime, setCurrentTime] = useState(new Date());
             const [viewMode, setViewMode] = useState('PINPAD'); 
@@ -1423,6 +1406,33 @@
 
             const buildApiUrl = (type) => `${scriptUrl}?type=${encodeURIComponent(type)}&_=${Date.now()}`;
 
+            const refreshEmployees = async () => {
+                const response = await fetch(buildApiUrl('employees'), { cache: 'no-store' });
+                if (!response.ok) throw new Error('Failed to fetch employees');
+                const data = await response.json();
+                const formattedEmployees = data.map(emp => ({ ...emp, isClockedIn: false }));
+                setEmployees(formattedEmployees);
+                setFetchError(null);
+                return formattedEmployees;
+            };
+
+            const refreshSettings = async () => {
+                try {
+                    const response = await fetch(buildApiUrl('settings'), { cache: 'no-store' });
+                    if (!response.ok) return null;
+                    const data = await response.json();
+                    const nextSettings = {
+                        companyName: (data.companyName || "").trim(),
+                        logoUrl: data.logoUrl || "",
+                    };
+                    setSettings(nextSettings);
+                    return nextSettings;
+                } catch (error) {
+                    console.error("Error fetching settings:", error);
+                    return null;
+                }
+            };
+
             const refreshLogs = async ({ showSpinner = true } = {}) => {
                 if (showSpinner) setIsFetchingLogs(true);
                 try {
@@ -1440,8 +1450,35 @@
                 }
             };
 
-            const refreshSheetData = async (showToast = false) => {
-                const rows = await refreshLogs();
+            const refreshSheetData = async (showToast = false, { showSpinner = true, isInitialLoad = false } = {}) => {
+                const hadEmployees = employees.length > 0;
+                if (showSpinner) setIsFetchingLogs(true);
+
+                let rows = null;
+                try {
+                    const [employeesResult, settingsResult, logsResult] = await Promise.allSettled([
+                        refreshEmployees(),
+                        refreshSettings(),
+                        refreshLogs({ showSpinner: false }),
+                    ]);
+
+                    if (employeesResult.status === 'rejected') {
+                        console.error("Error fetching employees:", employeesResult.reason);
+                        if (!hadEmployees) {
+                            setFetchError(employeeFetchErrorMessage);
+                        }
+                    }
+
+                    if (settingsResult.status === 'rejected') {
+                        console.error("Error refreshing settings:", settingsResult.reason);
+                    }
+
+                    rows = logsResult.status === 'fulfilled' ? logsResult.value : null;
+                } finally {
+                    if (showSpinner) setIsFetchingLogs(false);
+                    if (isInitialLoad) setIsLoadingEmployees(false);
+                }
+
                 if (showToast) {
                     setNotification(rows
                         ? { type: 'info', message: "Latest spreadsheet updates loaded" }
@@ -1466,36 +1503,7 @@
             // Fetch Data on Mount
             useEffect(() => {
                 const fetchData = async () => {
-                    await Promise.allSettled([
-                        (async () => {
-                            try {
-                                const response = await fetch(buildApiUrl('employees'), { cache: 'no-store' });
-                                if (!response.ok) throw new Error('Failed to fetch employees');
-                                const data = await response.json();
-                                const formattedEmployees = data.map(emp => ({ ...emp, isClockedIn: false }));
-                                setEmployees(formattedEmployees);
-                            } catch (error) {
-                                console.error("Error fetching employees:", error);
-                                setFetchError("Could not load employees. Please check the Google Sheet setup.");
-                            } finally {
-                                setIsLoadingEmployees(false);
-                            }
-                        })(),
-                        (async () => {
-                            try {
-                                const response = await fetch(buildApiUrl('settings'), { cache: 'no-store' });
-                                if (!response.ok) return;
-                                const data = await response.json();
-                                setSettings({
-                                    companyName: (data.companyName || "").trim(),
-                                    logoUrl: data.logoUrl || "",
-                                });
-                            } catch (error) {
-                                console.error("Error fetching settings:", error);
-                            }
-                        })(),
-                        refreshLogs({ showSpinner: false }),
-                    ]);
+                    await refreshSheetData(false, { showSpinner: false, isInitialLoad: true });
                 };
 
                 fetchData();
@@ -1620,12 +1628,12 @@
                 setViewMode('PINPAD');
                 lastActivityRef.current = Date.now(); // Reset activity when interacting
 
-                await refreshLogs();
+                await refreshSheetData(false);
             };
 
             const openAdminAccess = async () => {
                 setAdminModalOpen(true);
-                await refreshLogs({ showSpinner: false });
+                await refreshSheetData(false, { showSpinner: false });
             };
 
             const closeAdminAccess = () => {
@@ -1644,7 +1652,7 @@
                 setAdminUser(adminMatch);
                 setAdminPinInput("");
                 setNotification({ type: 'success', message: `Admin Access: ${adminMatch.name}` });
-                await refreshLogs({ showSpinner: false });
+                await refreshSheetData(false, { showSpinner: false });
             };
 
             const handleAdminPinPress = (num) => {
@@ -1781,12 +1789,18 @@
 
             const handlePinClear = () => setPinInput("");
 
-            const validatePin = (inputPin) => {
+            const validatePin = async (inputPin) => {
                 const emp = employees.find(e => e.id === selectedId);
+                if (!emp) {
+                    setNotification({ type: 'error', message: "That employee record changed. Please select your name again." });
+                    handleLogout();
+                    return;
+                }
                 if (inputPin === emp.pin) {
                     setIsAuthenticated(true);
                     setViewMode('DASHBOARD');
                     setNotification({ type: 'success', message: `Identity Verified: ${emp.name}` });
+                    await refreshSheetData(false);
                 } else {
                     setNotification({ type: 'error', message: "Incorrect PIN" });
                     setPinInput("");
@@ -2086,7 +2100,7 @@
 
             return (
                 <div className="min-h-screen p-2 md:p-8 flex flex-col items-center">
-                    <TeamScheduleModal isOpen={isScheduleModalOpen} onClose={() => setScheduleModalOpen(false)} sheetData={sheetData} onRefresh={refreshSheetData} isRefreshing={isFetchingLogs} />
+                    <TeamScheduleModal isOpen={isScheduleModalOpen} onClose={() => setScheduleModalOpen(false)} sheetData={sheetData} onRefresh={refreshSheetData} />
                     <AdminAccessModal
                         isOpen={isAdminModalOpen}
                         onClose={closeAdminAccess}
@@ -2102,8 +2116,6 @@
                         updateAdminScheduleForm={updateAdminScheduleForm}
                         loadScheduleIntoForm={loadScheduleIntoForm}
                         saveAdminSchedule={saveAdminSchedule}
-                        onRefresh={refreshSheetData}
-                        isRefreshing={isFetchingLogs}
                         isSubmitting={isSubmittingAdminSchedule}
                     />
                     
@@ -2131,16 +2143,7 @@
                                 <p className="text-gray-600 font-bold text-[10px] md:text-base truncate">{currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-3 md:gap-4 shrink-0 ml-2">
-                            <div className="flex flex-col items-end gap-1">
-                                <button onClick={() => refreshSheetData(true)} className="brutal-btn bg-white px-3 md:px-4 py-2 text-xs md:text-sm flex items-center gap-2">
-                                    <i className={`fas ${isFetchingLogs ? 'fa-circle-notch spinner' : 'fa-sync-alt'} text-[#38bdf8]`}></i>
-                                    <span>{isFetchingLogs ? 'Syncing...' : 'Sync'}</span>
-                                </button>
-                                <div className="text-[10px] md:text-xs font-bold text-gray-500 tracking-wide">
-                                    API {apiDeploymentShort}
-                                </div>
-                            </div>
+                        <div className="flex items-center shrink-0 ml-2">
                             <div className="text-xl md:text-5xl font-bold font-poppins text-[#060606] tracking-tighter">
                                 {currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} 
                             </div>
