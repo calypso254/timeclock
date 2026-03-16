@@ -33,6 +33,13 @@ var LOG_COL = {
   DECIMAL_HOURS: 12
 };
 
+var SETTINGS_COL = {
+  COMPANY_NAME: 1,
+  LOGO_URL: 2,
+  THEME_COLOR: 3,
+  SHIFT_TEMPLATES: 4
+};
+
 function doGet(e) {
   var type = (e && e.parameter && e.parameter.type) || "employees";
 
@@ -84,6 +91,10 @@ function doPost(e) {
       return handleAdminBatchUpsertSchedules_(sheet, data);
     }
 
+    if (data.action === "SAVE_SHIFT_TEMPLATES") {
+      return handleSaveShiftTemplates_(data);
+    }
+
     throw new Error("Unsupported action: " + data.action);
   } catch (err) {
     return jsonResponse_({
@@ -99,20 +110,42 @@ function doPost(e) {
 
 function getSettings_() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SETTINGS_SHEET_NAME);
-  var settings = {};
+  var settings = {
+    shiftTemplates: []
+  };
 
   if (sheet) {
     var data = sheet.getDataRange().getDisplayValues();
     if (data.length >= 2) {
       settings = {
-        companyName: data[1][0],
-        logoUrl: data[1][1],
-        themeColor: data[1][2]
+        companyName: data[1][SETTINGS_COL.COMPANY_NAME - 1],
+        logoUrl: data[1][SETTINGS_COL.LOGO_URL - 1],
+        themeColor: data[1][SETTINGS_COL.THEME_COLOR - 1],
+        shiftTemplates: parseShiftTemplates_(data[1][SETTINGS_COL.SHIFT_TEMPLATES - 1])
       };
     }
   }
 
   return jsonResponse_(settings);
+}
+
+function handleSaveShiftTemplates_(data) {
+  validateRequiredFields_(data, ["editorName", "editorRole"]);
+
+  if (!isAdminRole_(data.editorRole)) {
+    throw new Error("Unauthorized. Only admin-capable accounts can save shift templates.");
+  }
+
+  var nextTemplates = sanitizeShiftTemplates_(data.shiftTemplates);
+  var sheet = getOrCreateSettingsSheet_();
+  ensureSettingsStorage_(sheet);
+  sheet.getRange(2, SETTINGS_COL.SHIFT_TEMPLATES).setValue(JSON.stringify(nextTemplates));
+
+  return jsonResponse_({
+    status: "success",
+    action: "SAVE_SHIFT_TEMPLATES",
+    shiftTemplates: nextTemplates
+  });
 }
 
 function getLogs_() {
@@ -669,6 +702,84 @@ function isLocked_(record) {
 function isAdminRole_(role) {
   var normalized = String(role || "").trim().toLowerCase();
   return normalized === "admin" || normalized === "manager" || normalized === "owner";
+}
+
+function getOrCreateSettingsSheet_() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  return spreadsheet.getSheetByName(SETTINGS_SHEET_NAME) || spreadsheet.insertSheet(SETTINGS_SHEET_NAME);
+}
+
+function ensureSettingsStorage_(sheet) {
+  if (sheet.getMaxRows() < 2) {
+    sheet.insertRowsAfter(sheet.getMaxRows(), 2 - sheet.getMaxRows());
+  }
+}
+
+function parseShiftTemplates_(rawValue) {
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    return sanitizeShiftTemplates_(JSON.parse(rawValue));
+  } catch (err) {
+    return [];
+  }
+}
+
+function sanitizeShiftTemplates_(templates) {
+  if (!Array.isArray(templates)) {
+    return [];
+  }
+
+  var results = [];
+  var seenIds = {};
+
+  for (var i = 0; i < templates.length; i++) {
+    var template = templates[i];
+    if (!template || typeof template !== "object") {
+      continue;
+    }
+
+    var label = String(template.label || "").trim();
+    var schedIn = String(template.schedIn || "").trim();
+    var schedOut = String(template.schedOut || "").trim();
+    var scheduleStatus = String(template.scheduleStatus || "Published").trim() || "Published";
+    var templateId = String(template.id || buildTemplateId_(label, i)).trim();
+
+    if (!label || !templateId) {
+      continue;
+    }
+    if (calculateWorkedMinutes_(schedIn, schedOut) === null) {
+      continue;
+    }
+    if (seenIds[templateId]) {
+      continue;
+    }
+
+    seenIds[templateId] = true;
+    results.push({
+      id: templateId,
+      label: label,
+      schedIn: schedIn,
+      schedOut: schedOut,
+      scheduleStatus: scheduleStatus
+    });
+  }
+
+  return results;
+}
+
+function buildTemplateId_(label, index) {
+  var base = String(label || "template")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (!base) {
+    base = "template";
+  }
+  return base + "-" + index;
 }
 
 function writeDurationValues_(sheet, rowNumber, timeIn, timeOut) {
