@@ -1,0 +1,6 @@
+*
+**/*
+.*
+**/.*
+!timeclock-appscript.gs
+!appsscript.json

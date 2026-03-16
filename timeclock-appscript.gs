@@ -43,6 +43,8 @@ var SETTINGS_COL = {
   SHIFT_TEMPLATES: 4
 };
 
+var DEFAULT_ADMIN_SCHEDULE_STATUS = "Draft";
+
 var INVENTORY_COL = {
   SKU: 1,
   PRODUCT: 2,
@@ -172,6 +174,7 @@ function getSettings_() {
   };
 
   if (sheet) {
+    ensureSettingsStorage_(sheet);
     var data = sheet.getDataRange().getDisplayValues();
     if (data.length >= 2) {
       settings = {
@@ -1561,6 +1564,21 @@ function ensureSettingsStorage_(sheet) {
   if (sheet.getMaxRows() < 2) {
     sheet.insertRowsAfter(sheet.getMaxRows(), 2 - sheet.getMaxRows());
   }
+
+  if (sheet.getMaxColumns() < SETTINGS_COL.SHIFT_TEMPLATES) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), SETTINGS_COL.SHIFT_TEMPLATES - sheet.getMaxColumns());
+  }
+
+  var headerRange = sheet.getRange(1, 1, 1, SETTINGS_COL.SHIFT_TEMPLATES);
+  var currentHeaders = headerRange.getValues()[0];
+  var expectedHeaders = ["Company Name", "Logo URL", "Theme Color", "Shift Templates"];
+  var shouldWriteHeaders = currentHeaders.every(function(value) {
+    return !String(value || "").trim();
+  });
+
+  if (shouldWriteHeaders) {
+    headerRange.setValues([expectedHeaders]);
+  }
 }
 
 function parseShiftTemplates_(rawValue) {
@@ -1592,7 +1610,7 @@ function sanitizeShiftTemplates_(templates) {
     var label = String(template.label || "").trim();
     var schedIn = String(template.schedIn || "").trim();
     var schedOut = String(template.schedOut || "").trim();
-    var scheduleStatus = String(template.scheduleStatus || "Published").trim() || "Published";
+    var scheduleStatus = String(template.scheduleStatus || DEFAULT_ADMIN_SCHEDULE_STATUS).trim() || DEFAULT_ADMIN_SCHEDULE_STATUS;
     var templateId = String(template.id || buildTemplateId_(label, i)).trim();
 
     if (!label || !templateId) {

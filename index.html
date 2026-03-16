@@ -167,9 +167,15 @@
         };
 
         const ADMIN_ROLES = ['admin', 'manager', 'owner'];
+        const DEFAULT_ADMIN_SCHEDULE_STATUS = 'Draft';
 
         const isAdminRole = (role) => {
             return ADMIN_ROLES.includes(String(role || '').trim().toLowerCase());
+        };
+
+        const normalizeAdminScheduleStatus = (value, fallback = DEFAULT_ADMIN_SCHEDULE_STATUS) => {
+            const normalized = String(value || '').trim();
+            return normalized || fallback;
         };
 
         const buildEmptyAdminScheduleForm = (employeeName = '', dateValue = new Date()) => ({
@@ -179,7 +185,7 @@
             schedInPeriod: 'AM',
             schedOut: '',
             schedOutPeriod: 'PM',
-            scheduleStatus: 'Published',
+            scheduleStatus: DEFAULT_ADMIN_SCHEDULE_STATUS,
             clearSchedule: false,
             sourceRow: null,
         });
@@ -714,7 +720,7 @@
                 label,
                 schedIn,
                 schedOut,
-                scheduleStatus: String(template.scheduleStatus || 'Published').trim() || 'Published',
+                scheduleStatus: normalizeAdminScheduleStatus(template.scheduleStatus),
                 accent: ADMIN_SHIFT_TEMPLATE_ACCENTS[index % ADMIN_SHIFT_TEMPLATE_ACCENTS.length],
                 clearSchedule: false,
             };
@@ -764,7 +770,7 @@
                 schedInPeriod: parsedIn.period || 'AM',
                 schedOut: parsedOut.time,
                 schedOutPeriod: parsedOut.period || 'PM',
-                scheduleStatus: row?.scheduleStatus || 'Published',
+                scheduleStatus: normalizeAdminScheduleStatus(row?.scheduleStatus),
                 clearSchedule: false,
                 sourceRow: row || null,
             };
@@ -782,12 +788,17 @@
                 };
             }
 
+            const normalizedSchedIn = String(draft.schedIn || '').trim();
+            const normalizedSchedOut = String(draft.schedOut || '').trim();
+
             return {
                 name: String(draft.name || '').trim(),
                 date: normalizeDate(draft.date),
-                schedIn: draft.clearSchedule ? '' : (formatTimeField(draft.schedIn, draft.schedInPeriod) || ''),
-                schedOut: draft.clearSchedule ? '' : (formatTimeField(draft.schedOut, draft.schedOutPeriod) || ''),
-                scheduleStatus: draft.clearSchedule ? '' : String(draft.scheduleStatus || 'Published').trim(),
+                schedIn: draft.clearSchedule ? '' : normalizedSchedIn,
+                schedInPeriod: draft.clearSchedule || !normalizedSchedIn ? '' : String(draft.schedInPeriod || '').trim().toUpperCase(),
+                schedOut: draft.clearSchedule ? '' : normalizedSchedOut,
+                schedOutPeriod: draft.clearSchedule || !normalizedSchedOut ? '' : String(draft.schedOutPeriod || '').trim().toUpperCase(),
+                scheduleStatus: draft.clearSchedule ? '' : normalizeAdminScheduleStatus(draft.scheduleStatus),
                 clearSchedule: Boolean(draft.clearSchedule),
             };
         };
@@ -798,7 +809,9 @@
             return normalizedA.name === normalizedB.name &&
                 normalizedA.date === normalizedB.date &&
                 normalizedA.schedIn === normalizedB.schedIn &&
+                normalizedA.schedInPeriod === normalizedB.schedInPeriod &&
                 normalizedA.schedOut === normalizedB.schedOut &&
+                normalizedA.schedOutPeriod === normalizedB.schedOutPeriod &&
                 normalizedA.scheduleStatus === normalizedB.scheduleStatus &&
                 normalizedA.clearSchedule === normalizedB.clearSchedule;
         };
@@ -1752,8 +1765,6 @@
             isRefreshing,
             isSubmitting,
             isSavingTemplates,
-            onSwitchAdmin,
-            onReturnToStaff,
             onSignOut,
         }) => {
             const [weekJumpValue, setWeekJumpValue] = useState('');
@@ -1858,20 +1869,6 @@
 
                             <div className="flex flex-wrap items-center gap-3">
                                 <button
-                                    onClick={onReturnToStaff}
-                                    className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm md:text-base flex items-center gap-2"
-                                >
-                                    <i className="fas fa-users text-[#38bdf8]"></i>
-                                    <span>Staff List</span>
-                                </button>
-                                <button
-                                    onClick={onSwitchAdmin}
-                                    className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm md:text-base flex items-center gap-2"
-                                >
-                                    <i className="fas fa-user-pen text-[#f59e0b]"></i>
-                                    <span>Change Admin</span>
-                                </button>
-                                <button
                                     onClick={onSignOut}
                                     className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm md:text-base flex items-center gap-2"
                                 >
@@ -1883,7 +1880,7 @@
                     </div>
 
                     <div className="flex flex-col gap-3 md:gap-4 flex-1 min-h-0">
-                        <div className="flex flex-col gap-3 shrink-0">
+                        <div className="flex flex-col gap-3 shrink-0 order-2">
                             <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-3 md:p-4 shadow-[4px_4px_0px_0px_#000000]">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
                                     <div>
@@ -1920,7 +1917,7 @@
                                                     </div>
                                                 </div>
                                                 <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-[#060606]/60 mt-2">
-                                                    {template.clearSchedule ? 'Utility' : (template.scheduleStatus || 'Published')}
+                                                    {template.clearSchedule ? 'Utility' : normalizeAdminScheduleStatus(template.scheduleStatus)}
                                                 </div>
                                             </button>
 
@@ -1984,7 +1981,7 @@
 
                                         <div>
                                             <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Scheduled In</label>
-                                            <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-stretch">
+                                            <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
                                                 <input
                                                     type="text"
                                                     inputMode="numeric"
@@ -1998,10 +1995,10 @@
                                                             clearSchedule: false,
                                                         });
                                                     }}
-                                                    className="flex-1 px-3 py-3 font-bold text-sm md:text-base bg-transparent outline-none"
+                                                    className="w-[5ch] min-w-[5ch] py-3 font-bold text-sm md:text-base bg-transparent outline-none"
                                                     maxLength={5}
                                                 />
-                                                <div className="flex shrink-0 items-center gap-2 pr-3">
+                                                <div className="ml-auto flex shrink-0 items-center gap-2">
                                                     <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedInPeriod: 'AM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedInPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
                                                     <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedInPeriod: 'PM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedInPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
                                                 </div>
@@ -2010,7 +2007,7 @@
 
                                         <div>
                                             <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Scheduled Out</label>
-                                            <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-stretch">
+                                            <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
                                                 <input
                                                     type="text"
                                                     inputMode="numeric"
@@ -2024,10 +2021,10 @@
                                                             clearSchedule: false,
                                                         });
                                                     }}
-                                                    className="flex-1 px-3 py-3 font-bold text-sm md:text-base bg-transparent outline-none"
+                                                    className="w-[5ch] min-w-[5ch] py-3 font-bold text-sm md:text-base bg-transparent outline-none"
                                                     maxLength={5}
                                                 />
-                                                <div className="flex shrink-0 items-center gap-2 pr-3">
+                                                <div className="ml-auto flex shrink-0 items-center gap-2">
                                                     <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedOutPeriod: 'AM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedOutPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
                                                     <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedOutPeriod: 'PM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedOutPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
                                                 </div>
@@ -2037,12 +2034,12 @@
                                         <div>
                                             <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Status</label>
                                             <select
-                                                value={selectedDraft.clearSchedule ? 'Published' : (selectedDraft.scheduleStatus || 'Published')}
+                                                value={selectedDraft.clearSchedule ? DEFAULT_ADMIN_SCHEDULE_STATUS : normalizeAdminScheduleStatus(selectedDraft.scheduleStatus)}
                                                 onChange={e => updateCellDraft(selectedDraft.name, selectedDraft.date, { scheduleStatus: e.target.value, clearSchedule: false })}
                                                 className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
                                             >
-                                                <option value="Published">Published</option>
                                                 <option value="Draft">Draft</option>
+                                                <option value="Published">Published</option>
                                             </select>
                                         </div>
 
@@ -2104,7 +2101,7 @@
                                                     <div className="text-sm font-bold text-gray-600">{formatFullDate(row.date)} · {row.schedIn || '--'} - {row.schedOut || '--'}</div>
                                                     <div className="text-xs md:text-sm font-bold mt-1">
                                                         <span className={String(row.scheduleStatus || '').trim() === 'Published' ? 'text-[#0284c7]' : 'text-gray-500'}>
-                                                            {row.scheduleStatus || 'Draft'}
+                                                            {normalizeAdminScheduleStatus(row.scheduleStatus)}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -2118,12 +2115,12 @@
                             </div>
                         </div>
 
-                        <div className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] overflow-hidden flex flex-col flex-1 min-h-[360px] lg:min-h-[440px]">
+                        <div className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] overflow-hidden flex flex-col flex-1 min-h-[360px] lg:min-h-[440px] order-1">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 shrink-0">
                                 <div>
                                     <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Week Grid</h4>
                                     <p className="text-sm font-bold text-gray-600 mt-1">
-                                        The full week lives here. Drag templates into any cell, or click a cell to edit it above.
+                                        The full week lives here. Drag templates into any cell, or click a cell to edit it below.
                                     </p>
                                 </div>
                                 <div className="text-xs md:text-sm font-bold text-gray-500">
@@ -2137,9 +2134,9 @@
                                         No active employees were found for scheduling.
                                     </div>
                                 ) : (
-                                    <div className="min-w-[1260px]">
-                                        <div className="grid gap-px bg-black rounded-2xl overflow-hidden" style={{ gridTemplateColumns: '210px repeat(7, minmax(150px, 1fr))' }}>
-                                            <div className="sticky left-0 top-0 z-20 bg-[#38bdf8] px-4 py-3 font-bold font-poppins text-[#060606]">Team</div>
+                                    <div className="min-w-[1135px]">
+                                        <div className="grid gap-px bg-black rounded-2xl overflow-hidden" style={{ gridTemplateColumns: '168px repeat(7, minmax(138px, 1fr))' }}>
+                                            <div className="sticky left-0 top-0 z-20 bg-[#38bdf8] px-3 py-3 font-bold font-poppins text-[#060606]">Team</div>
                                             {weekDays.map(dayObj => {
                                                 const dayKey = normalizeDate(dayObj);
                                                 const isToday = dayKey === normalizeDate(new Date());
@@ -2153,7 +2150,7 @@
 
                                             {sortedEmployees.map(emp => (
                                                 <React.Fragment key={emp.id}>
-                                                    <div className="sticky left-0 z-10 bg-[#fff7ed] px-4 py-4 border-t border-black">
+                                                    <div className="sticky left-0 z-10 bg-[#fff7ed] px-3 py-4 border-t border-black">
                                                         <div className="font-bold font-poppins text-[#060606] text-sm md:text-base leading-tight">{emp.name}</div>
                                                         <div className="text-[10px] md:text-xs font-bold text-gray-500 mt-1">{emp.department}</div>
                                                     </div>
@@ -2200,7 +2197,7 @@
                                                                 </div>
                                                                 <div className="space-y-1">
                                                                     <div className="text-[10px] md:text-xs font-bold uppercase tracking-wide opacity-70">
-                                                                        {draft.clearSchedule ? 'Clearing' : (draft.scheduleStatus || 'Draft')}
+                                                                        {draft.clearSchedule ? 'Clearing' : normalizeAdminScheduleStatus(draft.scheduleStatus)}
                                                                     </div>
                                                                     <div className="text-[10px] md:text-xs font-bold opacity-70">
                                                                         {draft.clearSchedule
@@ -2455,7 +2452,7 @@
                         schedInPeriod: parsedIn.period || 'AM',
                         schedOut: parsedOut.time,
                         schedOutPeriod: parsedOut.period || 'PM',
-                        scheduleStatus: template.scheduleStatus || 'Published',
+                        scheduleStatus: normalizeAdminScheduleStatus(template.scheduleStatus),
                         clearSchedule: false,
                     };
                 });
@@ -2493,7 +2490,7 @@
                         label: template.label,
                         schedIn: template.schedIn,
                         schedOut: template.schedOut,
-                        scheduleStatus: template.scheduleStatus,
+                        scheduleStatus: normalizeAdminScheduleStatus(template.scheduleStatus),
                     }));
 
                     const result = await sendToSheet({
@@ -2558,7 +2555,7 @@
                     label,
                     schedIn,
                     schedOut,
-                    scheduleStatus: selectedDraft.scheduleStatus || 'Published',
+                    scheduleStatus: normalizeAdminScheduleStatus(selectedDraft.scheduleStatus),
                 };
                 const nextTemplates = existingIndex >= 0
                     ? normalizedTemplates.map((template, index) => index === existingIndex ? nextTemplate : template)
@@ -2964,7 +2961,7 @@
                             date: normalizeDate(draft.date),
                             schedIn: draft.clearSchedule ? '' : formatTimeField(draft.schedIn, draft.schedInPeriod),
                             schedOut: draft.clearSchedule ? '' : formatTimeField(draft.schedOut, draft.schedOutPeriod),
-                            scheduleStatus: draft.clearSchedule ? '' : (draft.scheduleStatus || 'Published'),
+                            scheduleStatus: draft.clearSchedule ? '' : normalizeAdminScheduleStatus(draft.scheduleStatus),
                             clearSchedule: Boolean(draft.clearSchedule),
                             ...buildRowContextPayload(latestSourceRow),
                         });
@@ -3643,12 +3640,6 @@
                                                 isRefreshing={isFetchingLogs}
                                                 isSubmitting={isSubmittingAdminSchedule}
                                                 isSavingTemplates={isSavingShiftTemplates}
-                                                onSwitchAdmin={() => {
-                                                    handleSelectionCancel();
-                                                    setDirectoryMode('admin');
-                                                    setAdminTemplateName('');
-                                                }}
-                                                onReturnToStaff={returnToEmployeeDirectory}
                                                 onSignOut={handleLogout}
                                             />
                                         )}
