@@ -99,6 +99,10 @@
         /* Hide scrollbar for clean UI but allow scroll */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .shadow-safe-2 { padding: 2px; }
+        .shadow-safe-3 { padding: 3px; }
+        .shadow-safe-4 { padding: 4px; }
+        .shadow-safe-6 { padding: 6px; }
     </style>
 </head>
 <body>
@@ -987,7 +991,7 @@
                     ))}
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 md:gap-3 w-48 sm:w-52 md:w-56 lg:w-60 shrink-0">
+                <div className="grid grid-cols-3 gap-2 md:gap-3 w-48 sm:w-52 md:w-56 lg:w-60 shrink-0 shadow-safe-4">
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
                         <button key={num} onClick={() => handlePinPress(num.toString())} className="brutal-btn pin-btn bg-white hover:bg-gray-50 text-lg md:text-xl flex items-center justify-center">
                             {num}
@@ -1589,8 +1593,8 @@
                         </div>
                     )}
 
-                    <div className="flex-1 overflow-y-auto no-scrollbar px-1 py-1 pr-2 pb-4">
-                        <div className="flex flex-wrap gap-3">
+                    <div className="flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pr-2 pb-4">
+                        <div className="flex flex-wrap gap-4">
                             {todayShifts.length === 0 ? (
                                 <div className="w-full rounded-2xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
                                     No published shifts today.
@@ -1598,7 +1602,7 @@
                             ) : todayShifts.map((shift, idx) => (
                                 <div
                                     key={`${todayKey}-${shift.name}-${idx}`}
-                                    className="w-[148px] sm:w-[156px] max-w-full flex flex-col rounded-xl border-2 border-black overflow-hidden shadow-[3px_3px_0px_0px_#000000] bg-[#e0f2fe]"
+                                    className="w-[180px] max-w-full flex flex-col rounded-xl border-2 border-black overflow-hidden shadow-[3px_3px_0px_0px_#000000] bg-[#e0f2fe]"
                                 >
                                     <div className="p-2 border-b-2 border-black flex flex-col justify-center items-center bg-[#38bdf8] text-[#060606]">
                                         <div className="text-[10px] font-bold font-poppins uppercase tracking-wider">
@@ -1649,15 +1653,15 @@
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto no-scrollbar px-1 py-1 pr-2 pb-4">
+                    <div className="flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pr-2 pb-4">
                         {openRows.length === 0 ? (
                             <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
                                 No open inventory tasks right now.
                             </div>
                         ) : (
-                            <div className="flex flex-wrap gap-3 content-start">
+                            <div className="flex flex-wrap gap-4 content-start">
                                 {openRows.map(row => (
-                                    <div key={row.rowNumber} className="w-[172px] sm:w-[184px] max-w-full rounded-xl border-2 border-black bg-white p-2.5 shadow-[3px_3px_0px_0px_#000000]">
+                                    <div key={row.rowNumber} className="w-[180px] max-w-full rounded-xl border-2 border-black bg-white p-2.5 shadow-[3px_3px_0px_0px_#000000]">
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0 flex-1">
                                                 <div className="text-[9px] uppercase font-bold text-gray-500">SKU</div>
@@ -1711,7 +1715,7 @@
                         <h2 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">Today at a Glance</h2>
                     </div>
 
-                    <div className="flex flex-col gap-4 min-h-0 flex-1 overflow-y-auto no-scrollbar px-1 pt-1 pb-4 pr-2">
+                    <div className="flex flex-col gap-4 min-h-0 flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pt-1 pb-4 pr-2">
                         <div className="rounded-2xl border-2 border-black bg-[#f8fafc] p-3 md:p-4 shadow-[4px_4px_0px_0px_#000000] min-h-[220px] overflow-visible">
                             <TodaySchedulePanel sheetData={sheetData} />
                         </div>
@@ -4119,7 +4123,7 @@
                     <div className="w-full max-w-[1680px] grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
                         
                         {/* LEFT: Employee Selection & Actions */}
-                        <div className="lg:col-span-4 flex flex-col gap-4 lg:gap-8">
+                        <div className="lg:col-span-3 flex flex-col gap-4 lg:gap-8">
                             
                             {/* Employee List (Hides when a user is authenticated, or on mobile when selected) */}
                             <div className={`brutal-card p-4 md:p-6 transition-all duration-300 ${!selectedId ? 'block' : isAuthenticated ? 'hidden' : 'hidden lg:block'}`}>
@@ -4161,7 +4165,7 @@
                                                 : 'No active employee accounts were found.'}
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 lg:gap-4">
+                                        <div className="grid grid-cols-2 gap-3 lg:gap-4 shadow-safe-4">
                                             {directoryEmployees.map(emp => (
                                                 <button
                                                     key={emp.id}
@@ -4194,7 +4198,7 @@
                                     <p className="text-sm font-bold text-gray-600 mb-5">
                                         Open your timesheet, the published schedule, or the live inventory board from here.
                                     </p>
-                                    <div className="grid grid-cols-2 gap-3 lg:gap-4">
+                                    <div className="grid grid-cols-2 gap-3 lg:gap-4 shadow-safe-4">
                                         <button
                                             onClick={handleOpenEmployeeTimesheet}
                                             className={`brutal-btn py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
@@ -4244,7 +4248,7 @@
                                                 ? 'Review biweekly payroll totals and mark the period complete from here.'
                                                 : 'Open the schedule studio, payroll, or the inventory request board from here.'}
                                     </p>
-                                    <div className="grid grid-cols-1 gap-3">
+                                    <div className="grid grid-cols-2 gap-3 shadow-safe-4">
                                         <button
                                             onClick={() => setViewMode('ADMIN')}
                                             className={`brutal-btn py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
@@ -4285,7 +4289,7 @@
                         </div>
 
                         {/* RIGHT: Dynamic Panel */}
-                        <div className={`lg:col-span-8 transition-all duration-300 ${!selectedId && directoryMode === 'admin' && !isAdminWorkspaceOpen ? 'hidden lg:block' : 'block'}`}>
+                        <div className={`lg:col-span-9 transition-all duration-300 ${!selectedId && directoryMode === 'admin' && !isAdminWorkspaceOpen ? 'hidden lg:block' : 'block'}`}>
                             
                             {/* Adding relative positioning so absolute children (toast) anchor exactly here */}
                             <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-220px)] lg:max-h-[860px]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PAYROLL'].includes(viewMode) ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
