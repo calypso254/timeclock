@@ -1435,7 +1435,7 @@
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto no-scrollbar pr-1">
+                    <div className="flex-1 overflow-y-auto no-scrollbar px-1 pt-1 pb-4">
                         <div className={`grid grid-cols-1 ${compact ? '2xl:grid-cols-7 xl:grid-cols-4' : 'lg:grid-cols-7'} gap-3`}>
                             {weekDays.map(dayObj => {
                                 const dayKey = normalizeDate(dayObj);
@@ -1648,7 +1648,7 @@
                 <div className="flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
                         <div>
-                            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Inventory Review</div>
+                            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Inventory</div>
                             <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606] mt-1">Inventory Management</h3>
                             <p className="text-sm font-bold text-gray-600 mt-1">Signed in as {adminUser?.name}. Finished quantities stay non-sellable until you approve them.</p>
                         </div>
@@ -1658,7 +1658,7 @@
                                 className="brutal-btn bg-[#38bdf8] hover:bg-[#0ea5e9] px-4 py-2 text-sm flex items-center gap-2"
                             >
                                 <i className="fas fa-calendar-week"></i>
-                                <span>Scheduler</span>
+                                <span>Schedule</span>
                             </button>
                             <button
                                 onClick={onRefresh}
@@ -2409,13 +2409,13 @@
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-auto">
+                            <div className="flex-1 overflow-auto rounded-2xl border-2 border-black bg-[#f8fafc] p-2 md:p-3">
                                 {sortedEmployees.length === 0 ? (
                                     <div className="h-full flex items-center justify-center text-center text-sm md:text-base font-bold text-gray-400 border-2 border-dashed border-gray-300 rounded-xl">
                                         No active employees were found for scheduling.
                                     </div>
                                 ) : (
-                                    <div className="space-y-4">
+                                    <div className="space-y-4 min-h-full pb-2">
                                         <div className="hidden lg:block w-full">
                                             <div className="grid gap-px bg-black rounded-2xl overflow-hidden w-full" style={{ gridTemplateColumns: '96px repeat(7, minmax(0, 1fr))' }}>
                                                 <div className="sticky left-0 top-0 z-20 bg-[#38bdf8] px-1.5 py-3 font-bold font-poppins text-[#060606] text-sm">Team</div>
@@ -3682,7 +3682,7 @@
                     <div className="w-full max-w-[1680px] grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
                         
                         {/* LEFT: Employee Selection & Actions */}
-                        <div className={`${isAdminWorkspaceOpen ? 'hidden' : 'lg:col-span-4 flex flex-col gap-4 lg:gap-8'}`}>
+                        <div className="lg:col-span-4 flex flex-col gap-4 lg:gap-8">
                             
                             {/* Employee List (Hides when a user is authenticated, or on mobile when selected) */}
                             <div className={`brutal-card p-4 md:p-6 transition-all duration-300 ${!selectedId ? 'block' : isAuthenticated ? 'hidden' : 'hidden lg:block'}`}>
@@ -3803,22 +3803,26 @@
                                     <p className="text-sm font-bold text-gray-600 mb-5">
                                         Signed in as {adminUser.name}. {viewMode === 'ADMIN_INVENTORY'
                                             ? `${inventoryAwaitingRows.length} inventory row${inventoryAwaitingRows.length === 1 ? '' : 's'} currently need approval.`
-                                            : 'The weekly scheduler is open on the right.'}
+                                            : 'Open the schedule studio or the inventory request board from here.'}
                                     </p>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 gap-3">
                                         <button
                                             onClick={() => setViewMode('ADMIN')}
-                                            className="brutal-btn py-3 text-sm md:text-base bg-[#38bdf8] hover:bg-[#0ea5e9] text-[#060606] flex items-center justify-center gap-2"
+                                            className={`brutal-btn py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
+                                                viewMode === 'ADMIN' ? 'bg-[#38bdf8] hover:bg-[#0ea5e9]' : 'bg-white hover:bg-gray-50'
+                                            }`}
                                         >
                                             <i className="fas fa-calendar-week"></i>
-                                            <span>Scheduler</span>
+                                            <span>Schedule</span>
                                         </button>
                                         <button
                                             onClick={handleOpenAdminInventory}
-                                            className="brutal-btn py-3 text-sm md:text-base bg-[#fef3c7] hover:bg-[#fde68a] text-[#060606] flex items-center justify-center gap-2"
+                                            className={`brutal-btn py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
+                                                viewMode === 'ADMIN_INVENTORY' ? 'bg-[#fef3c7] hover:bg-[#fde68a]' : 'bg-white hover:bg-gray-50'
+                                            }`}
                                         >
                                             <i className="fas fa-boxes-stacked text-[#f97316]"></i>
-                                            <span>Inventory Review</span>
+                                            <span>Inventory</span>
                                         </button>
                                         <button
                                             onClick={handleLogout}
@@ -3833,10 +3837,10 @@
                         </div>
 
                         {/* RIGHT: Dynamic Panel */}
-                        <div className={`${isAdminWorkspaceOpen ? 'lg:col-span-12' : 'lg:col-span-8'} transition-all duration-300 ${!selectedId && directoryMode === 'admin' && !isAdminWorkspaceOpen ? 'hidden lg:block' : 'block'}`}>
+                        <div className={`lg:col-span-8 transition-all duration-300 ${!selectedId && directoryMode === 'admin' && !isAdminWorkspaceOpen ? 'hidden lg:block' : 'block'}`}>
                             
                             {/* Adding relative positioning so absolute children (toast) anchor exactly here */}
-                            <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-170px)]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : ['ADMIN', 'ADMIN_INVENTORY'].includes(viewMode) ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
+                            <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-220px)] lg:max-h-[860px]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : ['ADMIN', 'ADMIN_INVENTORY'].includes(viewMode) ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
                                 
                                 {/* TIMEOUT WARNING OVERLAY */}
                                 {showTimeoutWarning && (
