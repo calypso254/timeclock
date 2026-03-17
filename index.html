@@ -27,6 +27,11 @@
     <!-- Clean, professional dual-font pairing -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --panel-card-width: 180px;
+            --panel-card-gap: 16px;
+            --panel-five-col-max: 964px;
+        }
         body {
             /* Creamy pastel yellow background */
             background-color: #fef3c7; 
@@ -103,6 +108,23 @@
         .shadow-safe-3 { padding: 3px; }
         .shadow-safe-4 { padding: 4px; }
         .shadow-safe-6 { padding: 6px; }
+        .panel-content-5 {
+            width: 100%;
+            max-width: var(--panel-five-col-max);
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .panel-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(var(--panel-card-width), var(--panel-card-width)));
+            gap: var(--panel-card-gap);
+            justify-content: start;
+            align-content: start;
+        }
+        .panel-card-width {
+            width: min(100%, var(--panel-card-width));
+            max-width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -1025,7 +1047,7 @@
             const visibleData = filterTimesheetRowsUpToToday(personalData);
 
             return (
-                <div className="flex flex-col h-full animate-fade-in relative overflow-hidden">
+                <div className="panel-content-5 flex flex-col h-full animate-fade-in relative overflow-hidden">
                     <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
                         <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">My Timesheet</h3>
                         <div className="flex items-center gap-4">
@@ -1339,7 +1361,7 @@
             };
 
             return (
-                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+                <div className="panel-content-5 flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 md:mb-6 shrink-0">
                         <div>
                             <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">Inventory Board</h3>
@@ -1594,7 +1616,7 @@
                     )}
 
                     <div className="flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pr-2 pb-4">
-                        <div className="flex flex-wrap gap-4">
+                        <div className="panel-card-grid">
                             {todayShifts.length === 0 ? (
                                 <div className="w-full rounded-2xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
                                     No published shifts today.
@@ -1602,7 +1624,7 @@
                             ) : todayShifts.map((shift, idx) => (
                                 <div
                                     key={`${todayKey}-${shift.name}-${idx}`}
-                                    className="w-[180px] max-w-full flex flex-col rounded-xl border-2 border-black overflow-hidden shadow-[3px_3px_0px_0px_#000000] bg-[#e0f2fe]"
+                                    className="panel-card-width flex flex-col rounded-xl border-2 border-black overflow-hidden shadow-[3px_3px_0px_0px_#000000] bg-[#e0f2fe]"
                                 >
                                     <div className="p-2 border-b-2 border-black flex flex-col justify-center items-center bg-[#38bdf8] text-[#060606]">
                                         <div className="text-[10px] font-bold font-poppins uppercase tracking-wider">
@@ -1642,7 +1664,7 @@
             const openRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
 
             return (
-                <div className="flex flex-col h-full min-h-0 animate-fade-in">
+                <div className="panel-content-5 flex flex-col h-full min-h-0 animate-fade-in">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 shrink-0">
                         <div>
                             <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">{title}</h3>
@@ -1659,9 +1681,9 @@
                                 No open inventory tasks right now.
                             </div>
                         ) : (
-                            <div className="flex flex-wrap gap-4 content-start">
+                            <div className="panel-card-grid">
                                 {openRows.map(row => (
-                                    <div key={row.rowNumber} className="w-[180px] max-w-full rounded-xl border-2 border-black bg-white p-2.5 shadow-[3px_3px_0px_0px_#000000]">
+                                    <div key={row.rowNumber} className="panel-card-width rounded-xl border-2 border-black bg-white p-2.5 shadow-[3px_3px_0px_0px_#000000]">
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0 flex-1">
                                                 <div className="text-[9px] uppercase font-bold text-gray-500">SKU</div>
@@ -1710,7 +1732,7 @@
 
         const PublicOverviewPanel = ({ sheetData, inventoryRows }) => {
             return (
-                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+                <div className="panel-content-5 flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="mb-4 md:mb-6 shrink-0">
                         <h2 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">Today at a Glance</h2>
                     </div>
@@ -1798,7 +1820,7 @@
             };
 
             return (
-                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+                <div className="panel-content-5 flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
                         <div>
                             <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Inventory</div>
@@ -2027,211 +2049,231 @@
             const [selectedPeriodKey, setSelectedPeriodKey] = useState(currentPeriodKey);
 
             if (!adminUser) return null;
+            try {
+                const safeEmployees = Array.isArray(employees) ? employees : [];
+                const payrollRows = (Array.isArray(sheetData) ? sheetData : []).filter(row =>
+                    hasValue(row?.name) &&
+                    hasValue(row?.date) &&
+                    isPayrollRelevantRow(row)
+                );
 
-            const payrollRows = (Array.isArray(sheetData) ? sheetData : []).filter(row =>
-                hasValue(row?.name) &&
-                hasValue(row?.date) &&
-                isPayrollRelevantRow(row)
-            );
+                const periodStartKeys = payrollRows.map(row => normalizeDate(getPayrollPeriodStart(row.date)));
+                const availablePeriodKeys = [...new Set([...periodStartKeys, currentPeriodKey])].sort((a, b) => a.localeCompare(b));
+                const activePeriodKey = availablePeriodKeys.includes(selectedPeriodKey) ? selectedPeriodKey : currentPeriodKey;
+                const currentPeriodIndex = availablePeriodKeys.indexOf(activePeriodKey);
+                const selectedPeriod = buildPayrollPeriodFromStart(activePeriodKey);
+                const selectedPeriodRows = payrollRows.filter(row => {
+                    const rowDateKey = normalizeDate(row.date);
+                    return rowDateKey >= selectedPeriod.startKey && rowDateKey <= selectedPeriod.endKey;
+                });
 
-            const periodStartKeys = payrollRows.map(row => normalizeDate(getPayrollPeriodStart(row.date)));
-            const availablePeriodKeys = [...new Set([...periodStartKeys, currentPeriodKey])].sort((a, b) => a.localeCompare(b));
-            const activePeriodKey = availablePeriodKeys.includes(selectedPeriodKey) ? selectedPeriodKey : currentPeriodKey;
-            const currentPeriodIndex = availablePeriodKeys.indexOf(activePeriodKey);
-            const selectedPeriod = buildPayrollPeriodFromStart(activePeriodKey);
-            const selectedPeriodRows = payrollRows.filter(row => {
-                const rowDateKey = normalizeDate(row.date);
-                return rowDateKey >= selectedPeriod.startKey && rowDateKey <= selectedPeriod.endKey;
-            });
+                const allEmployeeNames = [...new Set([
+                    ...safeEmployees.map(emp => String(emp?.name || '').trim()).filter(Boolean),
+                    ...selectedPeriodRows.map(row => String(row?.name || '').trim()).filter(Boolean),
+                ])].sort((a, b) => a.localeCompare(b));
 
-            const allEmployeeNames = [...new Set([
-                ...employees.map(emp => String(emp?.name || '').trim()).filter(Boolean),
-                ...selectedPeriodRows.map(row => String(row?.name || '').trim()).filter(Boolean),
-            ])].sort((a, b) => a.localeCompare(b));
+                const employeeSummaries = allEmployeeNames.map(name => {
+                    const rows = selectedPeriodRows.filter(row => String(row.name || '').trim() === name);
+                    const totalMinutes = rows.reduce((sum, row) => sum + getPayrollRowMinutes(row), 0);
+                    const isComplete = rows.length > 0 && rows.every(isEntryLocked);
+                    return {
+                        name,
+                        rowCount: rows.length,
+                        totalMinutes,
+                        isComplete,
+                    };
+                });
 
-            const employeeSummaries = allEmployeeNames.map(name => {
-                const rows = selectedPeriodRows.filter(row => String(row.name || '').trim() === name);
-                const totalMinutes = rows.reduce((sum, row) => sum + getPayrollRowMinutes(row), 0);
-                const isComplete = rows.length > 0 && rows.every(isEntryLocked);
-                return {
-                    name,
-                    rowCount: rows.length,
-                    totalMinutes,
-                    isComplete,
-                };
-            });
+                const employeesWithHoursCount = employeeSummaries.filter(summary => summary.totalMinutes > 0).length;
+                const periodLockedCount = selectedPeriodRows.filter(isEntryLocked).length;
+                const periodTotalMinutes = employeeSummaries.reduce((sum, summary) => sum + summary.totalMinutes, 0);
+                const completionState = selectedPeriodRows.length === 0
+                    ? 'empty'
+                    : periodLockedCount === 0
+                        ? 'open'
+                        : periodLockedCount === selectedPeriodRows.length
+                            ? 'completed'
+                            : 'mixed';
+                const completionLabel = completionState === 'completed'
+                    ? 'Completed'
+                    : completionState === 'mixed'
+                        ? 'Partially Complete'
+                        : completionState === 'empty'
+                            ? 'No Hours Yet'
+                            : 'Open';
+                const completionBadgeClass = completionState === 'completed'
+                    ? 'bg-[#bbf7d0]'
+                    : completionState === 'mixed'
+                        ? 'bg-[#fde68a]'
+                        : completionState === 'empty'
+                            ? 'bg-[#e5e7eb]'
+                            : 'bg-[#bae6fd]';
 
-            const employeesWithHoursCount = employeeSummaries.filter(summary => summary.totalMinutes > 0).length;
-            const periodLockedCount = selectedPeriodRows.filter(isEntryLocked).length;
-            const periodTotalMinutes = employeeSummaries.reduce((sum, summary) => sum + summary.totalMinutes, 0);
-            const completionState = selectedPeriodRows.length === 0
-                ? 'empty'
-                : periodLockedCount === 0
-                    ? 'open'
-                    : periodLockedCount === selectedPeriodRows.length
-                        ? 'completed'
-                        : 'mixed';
-            const completionLabel = completionState === 'completed'
-                ? 'Completed'
-                : completionState === 'mixed'
-                    ? 'Partially Complete'
-                    : completionState === 'empty'
-                        ? 'No Hours Yet'
-                        : 'Open';
-            const completionBadgeClass = completionState === 'completed'
-                ? 'bg-[#bbf7d0]'
-                : completionState === 'mixed'
-                    ? 'bg-[#fde68a]'
-                    : completionState === 'empty'
-                        ? 'bg-[#e5e7eb]'
-                        : 'bg-[#bae6fd]';
+                return (
+                    <div className="panel-content-5 flex flex-col h-full min-h-0 animate-fade-in overflow-hidden">
+                        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
+                            <div>
+                                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Payroll</div>
+                                <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606] mt-1">Payroll Hours</h3>
+                                <p className="text-sm font-bold text-gray-600 mt-1">Hi, {adminUser.name}</p>
+                                <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">
+                                    Each payroll period is anchored to Monday, March 16, 2026 and runs for two weeks.
+                                </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 shadow-safe-4">
+                                <button
+                                    onClick={onRefresh}
+                                    disabled={isRefreshing || isSubmittingPayroll}
+                                    className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
+                                >
+                                    <i className={`fas ${isRefreshing ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#38bdf8]`}></i>
+                                    <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                                </button>
+                                <button
+                                    onClick={() => onToggleCompletion(selectedPeriod, completionState !== 'completed')}
+                                    disabled={isSubmittingPayroll || selectedPeriodRows.length === 0}
+                                    className={`brutal-btn px-4 py-2 text-sm flex items-center gap-2 ${
+                                        completionState === 'completed'
+                                            ? 'bg-white hover:bg-gray-50'
+                                            : 'bg-[#4ade80] hover:bg-[#22c55e]'
+                                    }`}
+                                >
+                                    <i className={`fas ${isSubmittingPayroll ? 'fa-circle-notch spinner' : (completionState === 'completed' ? 'fa-lock-open' : 'fa-lock')}`}></i>
+                                    <span>
+                                        {isSubmittingPayroll
+                                            ? 'Saving...'
+                                            : (completionState === 'completed' ? 'Mark Incomplete' : 'Mark Complete')}
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
 
-            return (
-                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
-                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
-                        <div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-4 shrink-0 shadow-safe-4">
+                            <div className="xl:col-span-2 flex items-center gap-2 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
+                                <button
+                                    onClick={() => currentPeriodIndex > 0 && setSelectedPeriodKey(availablePeriodKeys[currentPeriodIndex - 1])}
+                                    disabled={currentPeriodIndex <= 0}
+                                    className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg disabled:opacity-40"
+                                >
+                                    <i className="fas fa-chevron-left"></i>
+                                </button>
+                                <span className="font-bold font-poppins text-[#060606] min-w-0 flex-1 text-center text-sm md:text-base px-2">
+                                    {selectedPeriod.label}
+                                </span>
+                                <button
+                                    onClick={() => currentPeriodIndex < availablePeriodKeys.length - 1 && setSelectedPeriodKey(availablePeriodKeys[currentPeriodIndex + 1])}
+                                    disabled={currentPeriodIndex >= availablePeriodKeys.length - 1}
+                                    className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg disabled:opacity-40"
+                                >
+                                    <i className="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+
+                            <div className="xl:col-span-2 h-12 flex items-center gap-2 rounded-xl border-2 border-black bg-white px-3 shadow-[2px_2px_0px_0px_#000000]">
+                                <i className="fas fa-calendar-days text-[#0284c7]"></i>
+                                <select
+                                    value={activePeriodKey}
+                                    onChange={e => setSelectedPeriodKey(e.target.value)}
+                                    className="h-full bg-transparent outline-none font-bold text-sm md:text-base min-w-0 flex-1"
+                                >
+                                    {availablePeriodKeys.slice().reverse().map(periodKey => {
+                                        const period = buildPayrollPeriodFromStart(periodKey);
+                                        return (
+                                            <option key={period.key} value={period.key}>
+                                                {period.fullLabel}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+
+                            <div className="xl:col-span-1 flex items-center xl:justify-end text-xs md:text-sm font-bold text-gray-500 px-1">
+                                Pay date {formatFullDate(selectedPeriod.payDate)}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-4 shrink-0 shadow-safe-4">
+                            <div className="xl:col-span-2 rounded-2xl border-2 border-black bg-[#f8fafc] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                                <div className="text-[10px] uppercase font-bold text-gray-500">Period Status</div>
+                                <div className={`inline-flex items-center mt-3 rounded-full border-2 border-black px-3 py-1 text-xs font-bold uppercase tracking-wide ${completionBadgeClass}`}>
+                                    {completionLabel}
+                                </div>
+                            </div>
+                            <div className="rounded-2xl border-2 border-black bg-[#ecfccb] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                                <div className="text-[10px] uppercase font-bold text-gray-500">Total Hours</div>
+                                <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{formatPayrollHours(periodTotalMinutes)}</div>
+                            </div>
+                            <div className="rounded-2xl border-2 border-black bg-[#fff7ed] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                                <div className="text-[10px] uppercase font-bold text-gray-500">Employees With Hours</div>
+                                <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{employeesWithHoursCount}</div>
+                            </div>
+                            <div className="rounded-2xl border-2 border-black bg-[#dbeafe] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                                <div className="text-[10px] uppercase font-bold text-gray-500">Worked Entries</div>
+                                <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{selectedPeriodRows.length}</div>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pr-1 pb-4">
+                            {employeeSummaries.length === 0 ? (
+                                <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
+                                    No employee records were found for this payroll period.
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 content-start">
+                                    {employeeSummaries.map(summary => {
+                                        const rowStatusLabel = summary.rowCount === 0
+                                            ? 'No hours'
+                                            : summary.isComplete
+                                                ? 'Locked'
+                                                : 'Open';
+                                        const rowStatusClass = summary.rowCount === 0
+                                            ? 'bg-[#e5e7eb]'
+                                            : summary.isComplete
+                                                ? 'bg-[#bbf7d0]'
+                                                : 'bg-[#bae6fd]';
+
+                                        return (
+                                            <div key={`${selectedPeriod.key}-${summary.name}`} className="xl:col-span-5 rounded-2xl border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                                                <div className="grid md:grid-cols-[minmax(0,1.4fr)_150px_120px] gap-3 items-center">
+                                                    <div className="min-w-0">
+                                                        <div className="font-bold font-poppins text-[#060606] text-base md:text-lg truncate">{summary.name}</div>
+                                                        <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 mt-1">
+                                                            {summary.rowCount === 0
+                                                                ? 'No worked shifts yet in this pay period'
+                                                                : `${summary.rowCount} worked entr${summary.rowCount === 1 ? 'y' : 'ies'}`}
+                                                        </div>
+                                                    </div>
+                                                    <div className="rounded-xl border-2 border-black bg-[#f8fafc] px-3 py-2">
+                                                        <div className="text-[10px] uppercase font-bold text-gray-500">Hours</div>
+                                                        <div className="text-lg font-bold font-poppins text-[#060606] mt-1">{formatPayrollHours(summary.totalMinutes)}</div>
+                                                    </div>
+                                                    <div className={`inline-flex items-center justify-center rounded-full border-2 border-black px-3 py-2 text-xs font-bold uppercase tracking-wide ${rowStatusClass}`}>
+                                                        {rowStatusLabel}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            } catch (error) {
+                console.error("Admin payroll workspace render failed:", error);
+                return (
+                    <div className="panel-content-5 flex flex-col h-full min-h-0 animate-fade-in">
+                        <div className="rounded-2xl border-2 border-black bg-white px-5 py-6 shadow-[4px_4px_0px_0px_#000000]">
                             <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Payroll</div>
-                            <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606] mt-1">Payroll Hours</h3>
-                            <p className="text-sm font-bold text-gray-600 mt-1">Hi, {adminUser.name}</p>
-                            <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">
-                                Each payroll period is anchored to Monday, March 16, 2026 and runs for two weeks.
+                            <h3 className="text-2xl font-bold font-poppins text-[#060606] mt-1">Payroll Hours</h3>
+                            <p className="text-sm font-bold text-[#e11d48] mt-3">The payroll workspace could not be displayed right now.</p>
+                            <p className="text-xs md:text-sm font-bold text-gray-500 mt-2">
+                                Refresh the logs and try again. If it happens again, the browser console will show the render error details.
                             </p>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <button
-                                onClick={onRefresh}
-                                disabled={isRefreshing || isSubmittingPayroll}
-                                className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
-                            >
-                                <i className={`fas ${isRefreshing ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#38bdf8]`}></i>
-                                <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
-                            </button>
-                            <button
-                                onClick={() => onToggleCompletion(selectedPeriod, completionState !== 'completed')}
-                                disabled={isSubmittingPayroll || selectedPeriodRows.length === 0}
-                                className={`brutal-btn px-4 py-2 text-sm flex items-center gap-2 ${
-                                    completionState === 'completed'
-                                        ? 'bg-white hover:bg-gray-50'
-                                        : 'bg-[#4ade80] hover:bg-[#22c55e]'
-                                }`}
-                            >
-                                <i className={`fas ${isSubmittingPayroll ? 'fa-circle-notch spinner' : (completionState === 'completed' ? 'fa-lock-open' : 'fa-lock')}`}></i>
-                                <span>
-                                    {isSubmittingPayroll
-                                        ? 'Saving...'
-                                        : (completionState === 'completed' ? 'Mark Incomplete' : 'Mark Complete')}
-                                </span>
-                            </button>
-                        </div>
                     </div>
-
-                    <div className="flex flex-col xl:flex-row xl:items-center gap-3 mb-4 shrink-0">
-                        <div className="flex items-center gap-2 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
-                            <button
-                                onClick={() => currentPeriodIndex > 0 && setSelectedPeriodKey(availablePeriodKeys[currentPeriodIndex - 1])}
-                                disabled={currentPeriodIndex <= 0}
-                                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg disabled:opacity-40"
-                            >
-                                <i className="fas fa-chevron-left"></i>
-                            </button>
-                            <span className="font-bold font-poppins text-[#060606] min-w-[190px] md:min-w-[250px] text-center text-sm md:text-base px-2">
-                                {selectedPeriod.label}
-                            </span>
-                            <button
-                                onClick={() => currentPeriodIndex < availablePeriodKeys.length - 1 && setSelectedPeriodKey(availablePeriodKeys[currentPeriodIndex + 1])}
-                                disabled={currentPeriodIndex >= availablePeriodKeys.length - 1}
-                                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg disabled:opacity-40"
-                            >
-                                <i className="fas fa-chevron-right"></i>
-                            </button>
-                        </div>
-
-                        <div className="h-12 flex items-center gap-2 rounded-xl border-2 border-black bg-white px-3 shadow-[2px_2px_0px_0px_#000000]">
-                            <i className="fas fa-calendar-days text-[#0284c7]"></i>
-                            <select
-                                value={activePeriodKey}
-                                onChange={e => setSelectedPeriodKey(e.target.value)}
-                                className="h-full bg-transparent outline-none font-bold text-sm md:text-base min-w-[210px]"
-                            >
-                                {availablePeriodKeys.slice().reverse().map(periodKey => {
-                                    const period = buildPayrollPeriodFromStart(periodKey);
-                                    return (
-                                        <option key={period.key} value={period.key}>
-                                            {period.fullLabel}
-                                        </option>
-                                    );
-                                })}
-                            </select>
-                        </div>
-
-                        <div className="text-xs md:text-sm font-bold text-gray-500">
-                            Pay date {formatFullDate(selectedPeriod.payDate)}
-                        </div>
-                    </div>
-
-                    <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4 shrink-0">
-                        <div className="rounded-2xl border-2 border-black bg-[#f8fafc] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
-                            <div className="text-[10px] uppercase font-bold text-gray-500">Period Status</div>
-                            <div className={`inline-flex items-center mt-3 rounded-full border-2 border-black px-3 py-1 text-xs font-bold uppercase tracking-wide ${completionBadgeClass}`}>
-                                {completionLabel}
-                            </div>
-                        </div>
-                        <div className="rounded-2xl border-2 border-black bg-[#ecfccb] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
-                            <div className="text-[10px] uppercase font-bold text-gray-500">Total Hours</div>
-                            <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{formatPayrollHours(periodTotalMinutes)}</div>
-                        </div>
-                        <div className="rounded-2xl border-2 border-black bg-[#fff7ed] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
-                            <div className="text-[10px] uppercase font-bold text-gray-500">Employees With Hours</div>
-                            <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{employeesWithHoursCount}</div>
-                        </div>
-                        <div className="rounded-2xl border-2 border-black bg-[#dbeafe] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
-                            <div className="text-[10px] uppercase font-bold text-gray-500">Worked Entries</div>
-                            <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{selectedPeriodRows.length}</div>
-                        </div>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto no-scrollbar pr-1 space-y-3 pb-4">
-                        {employeeSummaries.length === 0 ? (
-                            <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
-                                No employee records were found for this payroll period.
-                            </div>
-                        ) : employeeSummaries.map(summary => {
-                            const rowStatusLabel = summary.rowCount === 0
-                                ? 'No hours'
-                                : summary.isComplete
-                                    ? 'Locked'
-                                    : 'Open';
-                            const rowStatusClass = summary.rowCount === 0
-                                ? 'bg-[#e5e7eb]'
-                                : summary.isComplete
-                                    ? 'bg-[#bbf7d0]'
-                                    : 'bg-[#bae6fd]';
-
-                            return (
-                                <div key={`${selectedPeriod.key}-${summary.name}`} className="rounded-2xl border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
-                                    <div className="grid md:grid-cols-[minmax(0,1.4fr)_150px_120px] gap-3 items-center">
-                                        <div className="min-w-0">
-                                            <div className="font-bold font-poppins text-[#060606] text-base md:text-lg truncate">{summary.name}</div>
-                                            <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 mt-1">
-                                                {summary.rowCount === 0
-                                                    ? 'No worked shifts yet in this pay period'
-                                                    : `${summary.rowCount} worked entr${summary.rowCount === 1 ? 'y' : 'ies'}`}
-                                            </div>
-                                        </div>
-                                        <div className="rounded-xl border-2 border-black bg-[#f8fafc] px-3 py-2">
-                                            <div className="text-[10px] uppercase font-bold text-gray-500">Hours</div>
-                                            <div className="text-lg font-bold font-poppins text-[#060606] mt-1">{formatPayrollHours(summary.totalMinutes)}</div>
-                                        </div>
-                                        <div className={`inline-flex items-center justify-center rounded-full border-2 border-black px-3 py-2 text-xs font-bold uppercase tracking-wide ${rowStatusClass}`}>
-                                            {rowStatusLabel}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            );
+                );
+            }
         };
 
         const TeamScheduleModal = ({ isOpen, onClose, sheetData, onRefresh }) => {
@@ -4090,7 +4132,7 @@
             return (
                 <div className="min-h-screen p-2 md:p-8 flex flex-col items-center">
                     {/* Header */}
-                    <div className="w-full max-w-[1680px] flex justify-between items-center mb-4 md:mb-8 brutal-card p-3 md:p-6">
+                    <div className="w-full max-w-[1450px] flex justify-between items-center mb-4 md:mb-8 brutal-card p-3 md:p-6">
                         <div className="flex items-center gap-2 md:gap-4 overflow-hidden">
                             <button
                                 onClick={openAdminDirectory}
@@ -4120,7 +4162,7 @@
                         </div>
                     </div>
 
-                    <div className="w-full max-w-[1680px] grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
+                    <div className="w-full max-w-[1450px] grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
                         
                         {/* LEFT: Employee Selection & Actions */}
                         <div className="lg:col-span-3 flex flex-col gap-4 lg:gap-8">
