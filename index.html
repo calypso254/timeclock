@@ -1562,8 +1562,8 @@
 
         const TodaySchedulePanel = ({
             sheetData,
-            title = "Who's Working Today",
-            subtitle = 'Published shifts for today',
+            title = '',
+            subtitle = '',
         }) => {
             const todayKey = normalizeDate(new Date());
             const todayDate = parseLocalDate(todayKey);
@@ -1581,13 +1581,15 @@
                 });
 
             return (
-                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
-                    <div className="mb-4 shrink-0">
-                        <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">{title}</h3>
-                        <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">{subtitle}</p>
-                    </div>
+                <div className="flex flex-col h-full min-h-0 animate-fade-in">
+                    {(title || subtitle) && (
+                        <div className="mb-4 shrink-0">
+                            {title && <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">{title}</h3>}
+                            {subtitle && <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">{subtitle}</p>}
+                        </div>
+                    )}
 
-                    <div className="flex-1 overflow-y-auto no-scrollbar px-1 pt-1 pb-4">
+                    <div className="flex-1 overflow-y-auto no-scrollbar px-1 py-1 pr-2 pb-4">
                         <div className="flex flex-wrap gap-3">
                             {todayShifts.length === 0 ? (
                                 <div className="w-full rounded-2xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
@@ -1596,25 +1598,25 @@
                             ) : todayShifts.map((shift, idx) => (
                                 <div
                                     key={`${todayKey}-${shift.name}-${idx}`}
-                                    className="w-full max-w-[220px] flex flex-col rounded-2xl border-2 border-black overflow-hidden shadow-[4px_4px_0px_0px_#000000] bg-[#e0f2fe]"
+                                    className="w-[148px] sm:w-[156px] max-w-full flex flex-col rounded-xl border-2 border-black overflow-hidden shadow-[3px_3px_0px_0px_#000000] bg-[#e0f2fe]"
                                 >
-                                    <div className="p-2.5 border-b-2 border-black flex flex-col justify-center items-center bg-[#38bdf8] text-[#060606]">
-                                        <div className="text-[11px] md:text-sm font-bold font-poppins uppercase tracking-wider">
+                                    <div className="p-2 border-b-2 border-black flex flex-col justify-center items-center bg-[#38bdf8] text-[#060606]">
+                                        <div className="text-[10px] font-bold font-poppins uppercase tracking-wider">
                                             {todayDate.toLocaleDateString('en-US', { weekday: 'short' })}
                                         </div>
-                                        <div className="text-xl md:text-2xl font-bold font-poppins mt-1">
+                                        <div className="text-lg md:text-xl font-bold font-poppins mt-0.5 leading-none">
                                             {todayDate.getDate()}
                                         </div>
-                                        <div className="text-[10px] md:text-xs font-bold uppercase mt-0.5">
+                                        <div className="text-[10px] font-bold uppercase mt-0.5">
                                             {todayDate.toLocaleDateString('en-US', { month: 'short' })}
                                         </div>
                                     </div>
-                                    <div className="p-3 flex flex-col gap-2">
-                                        <div className="rounded-xl border-2 border-black px-3 py-2.5 shadow-[2px_2px_0px_0px_#000000] bg-white">
-                                            <div className="font-bold font-poppins text-[#060606] text-sm md:text-base leading-tight">
+                                    <div className="p-2.5 flex flex-col gap-2">
+                                        <div className="rounded-lg border-2 border-black px-2.5 py-2 shadow-[2px_2px_0px_0px_#000000] bg-white">
+                                            <div className="font-bold font-poppins text-[#060606] text-xs md:text-sm leading-tight">
                                                 {shift.name}
                                             </div>
-                                            <div className="text-[11px] md:text-sm font-bold text-gray-600 mt-1.5">
+                                            <div className="text-[10px] md:text-xs font-bold text-gray-600 mt-1">
                                                 <i className="far fa-clock mr-1 text-[#fb7185]"></i>
                                                 {shift.schedIn} - {shift.schedOut}
                                             </div>
@@ -1698,15 +1700,11 @@
                         <h2 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">Today at a Glance</h2>
                     </div>
 
-                    <div className="flex flex-col gap-4 min-h-0 flex-1 overflow-y-auto no-scrollbar pr-1">
-                        <div className="rounded-2xl border-2 border-black bg-[#f8fafc] p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] min-h-[320px] overflow-hidden">
-                            <TodaySchedulePanel
-                                sheetData={sheetData}
-                                title="Today"
-                                subtitle="Who's working today"
-                            />
+                    <div className="flex flex-col gap-4 min-h-0 flex-1 overflow-y-auto no-scrollbar px-1 pt-1 pb-4 pr-2">
+                        <div className="rounded-2xl border-2 border-black bg-[#f8fafc] p-3 md:p-4 shadow-[4px_4px_0px_0px_#000000] min-h-[220px] overflow-visible">
+                            <TodaySchedulePanel sheetData={sheetData} />
                         </div>
-                        <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] min-h-[280px] overflow-hidden">
+                        <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] min-h-[280px] overflow-visible">
                             <InventorySnapshotPanel
                                 inventoryRows={inventoryRows}
                                 title="Inventory"
