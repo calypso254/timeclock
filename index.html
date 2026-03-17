@@ -190,6 +190,14 @@
             sourceRow: null,
         });
 
+        const buildEmptyAdminTemplateDraft = () => ({
+            schedIn: '',
+            schedInPeriod: 'AM',
+            schedOut: '',
+            schedOutPeriod: 'PM',
+            scheduleStatus: DEFAULT_ADMIN_SCHEDULE_STATUS,
+        });
+
         const hasTimeValue = (value) => {
             if (typeof value === 'string') {
                 const normalized = value.trim().toLowerCase();
@@ -738,10 +746,7 @@
         };
 
         const getVisibleAdminShiftTemplates = (templates) => {
-            return [
-                ...normalizeAdminShiftTemplates(templates),
-                ADMIN_SHIFT_UTILITY_TEMPLATE,
-            ];
+            return normalizeAdminShiftTemplates(templates);
         };
 
         const buildScheduleCellKey = (employeeName, dateValue) => {
@@ -934,7 +939,16 @@
             </div>
         );
 
-        const PersonalDashboard = ({ personalData, startEdit, isFetchingLogs }) => {
+        const PersonalDashboard = ({
+            personalData,
+            startEdit,
+            isFetchingLogs,
+            actionAlertPlan,
+            onClockAction,
+            canClockIn,
+            canClockOut,
+            isSubmittingAction,
+        }) => {
             const visibleData = filterTimesheetRowsUpToToday(personalData);
 
             return (
@@ -944,6 +958,38 @@
                         <div className="flex items-center gap-4">
                             {isFetchingLogs && <span className="text-[10px] md:text-sm font-bold text-[#38bdf8]"><i className="fas fa-sync fa-spin mr-1"></i> Syncing...</span>}
                         </div>
+                    </div>
+
+                    {actionAlertPlan && (
+                        <div className="mb-4 rounded-xl border-2 border-black bg-[#fee2e2] px-4 py-3 shadow-[4px_4px_0px_0px_#000000]">
+                            <div className="flex items-start gap-3">
+                                <i className="fas fa-shield-alt text-[#dc2626] text-lg mt-0.5"></i>
+                                <p className="text-xs md:text-sm font-bold text-[#060606] leading-relaxed">{actionAlertPlan.message}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3 mb-4 md:mb-6 shrink-0">
+                        <button
+                            onClick={() => onClockAction("CLOCK_IN")}
+                            disabled={!canClockIn}
+                            className={`brutal-btn py-3 md:py-4 text-sm md:text-base flex flex-col items-center justify-center gap-2 ${
+                                !canClockIn ? 'bg-gray-200 text-gray-500' : 'bg-[#4ade80] hover:bg-[#22c55e]'
+                            }`}
+                        >
+                            <i className={`fas ${isSubmittingAction ? 'fa-circle-notch spinner' : 'fa-sign-in-alt'} text-lg md:text-2xl`}></i>
+                            <span>{isSubmittingAction ? 'Saving...' : 'Clock In'}</span>
+                        </button>
+                        <button
+                            onClick={() => onClockAction("CLOCK_OUT")}
+                            disabled={!canClockOut}
+                            className={`brutal-btn py-3 md:py-4 text-sm md:text-base flex flex-col items-center justify-center gap-2 ${
+                                !canClockOut ? 'bg-gray-200 text-gray-500' : 'bg-[#fb7185] hover:bg-[#f43f5e]'
+                            }`}
+                        >
+                            <i className={`fas ${isSubmittingAction ? 'fa-circle-notch spinner' : 'fa-sign-out-alt'} text-lg md:text-2xl`}></i>
+                            <span>{isSubmittingAction ? 'Saving...' : 'Clock Out'}</span>
+                        </button>
                     </div>
                     
                     {/* Inner padding specifically to prevent shadow clipping */}
@@ -1181,7 +1227,6 @@
             onRefresh,
             onStart,
             onFinish,
-            onBack,
             onMessage
         }) => {
             const [drafts, setDrafts] = useState({});
@@ -1235,13 +1280,6 @@
                             >
                                 <i className={`fas ${isFetchingInventory ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#38bdf8]`}></i>
                                 <span>{isFetchingInventory ? 'Refreshing...' : 'Refresh'}</span>
-                            </button>
-                            <button
-                                onClick={onBack}
-                                className="brutal-btn bg-[#38bdf8] hover:bg-[#0ea5e9] px-4 py-2 text-sm flex items-center gap-2"
-                            >
-                                <i className="fas fa-arrow-left"></i>
-                                <span>Timesheet</span>
                             </button>
                         </div>
                     </div>
@@ -1341,6 +1379,208 @@
             );
         };
 
+        const PublishedSchedulePanel = ({
+            sheetData,
+            title = 'Published Schedule',
+            subtitle = 'Current week - published shifts only',
+            highlightName = '',
+            compact = false,
+        }) => {
+            const [currentWeekStart, setCurrentWeekStart] = useState(getWeekStartDate(new Date()));
+            const weekDays = Array.from({ length: 7 }).map((_, i) => {
+                const day = new Date(currentWeekStart);
+                day.setDate(day.getDate() + i);
+                return day;
+            });
+            const publishedRows = sheetData
+                .filter(row => (hasTimeValue(row.schedIn) || hasTimeValue(row.schedOut)) && isPublishedSchedule(row))
+                .slice()
+                .sort((a, b) => {
+                    const dateCompare = normalizeDate(a.date).localeCompare(normalizeDate(b.date));
+                    if (dateCompare !== 0) return dateCompare;
+                    const timeCompare = (parseClockTimeToMinutes(a.schedIn) || 0) - (parseClockTimeToMinutes(b.schedIn) || 0);
+                    if (timeCompare !== 0) return timeCompare;
+                    return String(a.name || '').localeCompare(String(b.name || ''));
+                });
+
+            const formatShortDate = (dateValue) => {
+                return parseLocalDate(dateValue).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            };
+
+            return (
+                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+                    <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4 shrink-0">
+                        <div>
+                            <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">{title}</h3>
+                            <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">{subtitle}</p>
+                        </div>
+                        <div className="flex items-center gap-2 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000] h-12">
+                            <button onClick={() => setCurrentWeekStart(prev => {
+                                const next = new Date(prev);
+                                next.setDate(next.getDate() - 7);
+                                return next;
+                            })} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
+                                <i className="fas fa-chevron-left"></i>
+                            </button>
+                            <span className="font-bold font-poppins text-[#060606] min-w-[170px] md:min-w-[210px] text-center text-sm md:text-base px-2">
+                                {formatShortDate(currentWeekStart)} - {formatShortDate(weekDays[6])}
+                            </span>
+                            <button onClick={() => setCurrentWeekStart(prev => {
+                                const next = new Date(prev);
+                                next.setDate(next.getDate() + 7);
+                                return next;
+                            })} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
+                                <i className="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto no-scrollbar pr-1">
+                        <div className={`grid grid-cols-1 ${compact ? '2xl:grid-cols-7 xl:grid-cols-4' : 'lg:grid-cols-7'} gap-3`}>
+                            {weekDays.map(dayObj => {
+                                const dayKey = normalizeDate(dayObj);
+                                const dayShifts = publishedRows.filter(row => normalizeDate(row.date) === dayKey);
+                                const isToday = dayKey === normalizeDate(new Date());
+
+                                return (
+                                    <div key={dayKey} className={`flex flex-row ${compact ? 'xl:flex-col' : 'lg:flex-col'} rounded-2xl border-2 border-black overflow-hidden shadow-[4px_4px_0px_0px_#000000] ${isToday ? 'bg-[#e0f2fe]' : 'bg-white'}`}>
+                                        <div className={`p-2.5 ${compact ? 'xl:w-full xl:border-b-2 xl:border-r-0' : 'lg:w-full lg:border-b-2 lg:border-r-0'} border-r-2 border-black w-24 shrink-0 flex flex-col justify-center items-center ${isToday ? 'bg-[#38bdf8] text-[#060606]' : 'bg-gray-50 text-[#060606]'}`}>
+                                            <div className="text-[11px] md:text-sm font-bold font-poppins uppercase tracking-wider">
+                                                {dayObj.toLocaleDateString('en-US', { weekday: 'short' })}
+                                            </div>
+                                            <div className="text-xl md:text-2xl font-bold font-poppins mt-1">
+                                                {dayObj.getDate()}
+                                            </div>
+                                            <div className="text-[10px] md:text-xs font-bold uppercase mt-0.5">
+                                                {dayObj.toLocaleDateString('en-US', { month: 'short' })}
+                                            </div>
+                                        </div>
+                                        <div className="p-3 flex-1 flex flex-col gap-2">
+                                            {dayShifts.length > 0 ? dayShifts.map((shift, idx) => {
+                                                const isHighlighted = highlightName && String(shift.name || '').trim() === String(highlightName || '').trim();
+                                                return (
+                                                    <div key={`${dayKey}-${shift.name}-${idx}`} className={`rounded-xl border-2 border-black px-3 py-2.5 shadow-[2px_2px_0px_0px_#000000] ${isHighlighted ? 'bg-[#dbeafe]' : 'bg-white'}`}>
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="font-bold font-poppins text-[#060606] text-sm md:text-base leading-tight">
+                                                                {shift.name}
+                                                            </div>
+                                                            {isHighlighted && (
+                                                                <span className="text-[10px] uppercase font-bold tracking-wide text-[#0284c7]">You</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-[11px] md:text-sm font-bold text-gray-600 mt-1.5">
+                                                            <i className="far fa-clock mr-1 text-[#fb7185]"></i>
+                                                            {shift.schedIn} - {shift.schedOut}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }) : (
+                                                <div className="flex items-center justify-start h-full text-sm text-gray-400 font-bold italic px-1">
+                                                    No published shifts
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const InventorySnapshotPanel = ({
+            inventoryRows,
+            title = 'Inventory Snapshot',
+            subtitle = 'Open tasks everyone can see before sign in',
+        }) => {
+            const openRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
+
+            return (
+                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 shrink-0">
+                        <div>
+                            <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">{title}</h3>
+                            <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">{subtitle}</p>
+                        </div>
+                        <div className="rounded-full border-2 border-black bg-[#fef3c7] px-3 py-1 text-xs font-bold uppercase tracking-wide self-start md:self-auto">
+                            {openRows.length} open
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto no-scrollbar pr-1 space-y-3">
+                        {openRows.length === 0 ? (
+                            <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
+                                No open inventory tasks right now.
+                            </div>
+                        ) : openRows.map(row => (
+                            <div key={row.rowNumber} className="rounded-2xl border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#0284c7] truncate">{row.sku || 'No SKU'}</div>
+                                        <div className="font-bold font-poppins text-[#060606] text-sm md:text-base truncate mt-1">
+                                            {row.product || row.sku}
+                                        </div>
+                                    </div>
+                                    <div className="shrink-0 rounded-full border-2 border-black bg-[#fef3c7] px-3 py-1 text-[10px] md:text-xs font-bold uppercase tracking-wide">
+                                        {row.status}
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 mt-3">
+                                    <div className="rounded-xl border-2 border-black bg-[#f0fdf4] px-3 py-2">
+                                        <div className="text-[10px] uppercase font-bold text-gray-500">Still Needed</div>
+                                        <div className="text-sm md:text-base font-bold font-poppins text-[#060606]">{row.stillNeeded}</div>
+                                    </div>
+                                    <div className="rounded-xl border-2 border-black bg-[#ecfccb] px-3 py-2">
+                                        <div className="text-[10px] uppercase font-bold text-gray-500">In Process</div>
+                                        <div className="text-sm md:text-base font-bold font-poppins text-[#060606]">{row.inProcess}</div>
+                                    </div>
+                                    <div className="rounded-xl border-2 border-black bg-[#fff7ed] px-3 py-2">
+                                        <div className="text-[10px] uppercase font-bold text-gray-500">Awaiting</div>
+                                        <div className="text-sm md:text-base font-bold font-poppins text-[#060606]">{row.awaitingApproval}</div>
+                                    </div>
+                                </div>
+                                <div className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wide mt-3">
+                                    Updated {formatInventoryTimestamp(row.lastUpdated)}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const PublicOverviewPanel = ({ sheetData, inventoryRows }) => {
+            return (
+                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+                    <div className="mb-4 md:mb-6 shrink-0">
+                        <h2 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">Today at a Glance</h2>
+                        <p className="text-sm md:text-base font-bold text-[#060606]/70 mt-1">
+                            Published schedule and open inventory stay visible even before anyone signs in.
+                        </p>
+                    </div>
+
+                    <div className="grid xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)] gap-4 min-h-0 flex-1">
+                        <div className="rounded-2xl border-2 border-black bg-[#f8fafc] p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] min-h-[320px] xl:min-h-0 overflow-hidden">
+                            <PublishedSchedulePanel
+                                sheetData={sheetData}
+                                title="Schedule"
+                                subtitle="This week's published shifts for the whole team"
+                                compact={true}
+                            />
+                        </div>
+                        <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] min-h-[280px] xl:min-h-0 overflow-hidden">
+                            <InventorySnapshotPanel
+                                inventoryRows={inventoryRows}
+                                title="Inventory"
+                                subtitle="New, in-process, and waiting tasks"
+                            />
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const AdminInventoryWorkspace = ({
             adminUser,
             inventoryRows,
@@ -1352,7 +1592,6 @@
             onApprove,
             onReject,
             onOpenScheduler,
-            onReturnToStaff,
             onSignOut,
             onMessage
         }) => {
@@ -1431,13 +1670,6 @@
                             >
                                 <i className={`fas ${isFetchingInventory ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#38bdf8]`}></i>
                                 <span>{isFetchingInventory ? 'Refreshing...' : 'Refresh'}</span>
-                            </button>
-                            <button
-                                onClick={onReturnToStaff}
-                                className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
-                            >
-                                <i className="fas fa-users text-[#38bdf8]"></i>
-                                <span>Staff List</span>
                             </button>
                             <button
                                 onClick={onSignOut}
@@ -1755,7 +1987,9 @@
             updateCellDraft,
             applyTemplateToCell,
             shiftTemplates,
+            templateDraft,
             templateName,
+            onTemplateDraftChange,
             onTemplateNameChange,
             onSaveCurrentTemplate,
             onDeleteTemplate,
@@ -1782,7 +2016,7 @@
             });
 
             const visibleTemplates = getVisibleAdminShiftTemplates(shiftTemplates);
-            const customTemplateCount = Math.max(visibleTemplates.length - 1, 0);
+            const customTemplateCount = visibleTemplates.length;
 
             const formatShortDate = (dateValue) => {
                 return parseLocalDate(dateValue).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -1798,15 +2032,37 @@
             const selectedPreviewMinutes = selectedDraft && !selectedDraft.clearSchedule
                 ? calculateWorkedMinutes(selectedFormattedIn, selectedFormattedOut)
                 : null;
-            const canSaveSelectedTemplate = Boolean(
-                selectedDraft &&
-                !selectedDraft.clearSchedule &&
-                selectedFormattedIn &&
-                selectedFormattedOut &&
+            const canSaveTemplateDraft = Boolean(
+                formatTimeField(templateDraft.schedIn, templateDraft.schedInPeriod) &&
+                formatTimeField(templateDraft.schedOut, templateDraft.schedOutPeriod) &&
                 String(templateName || '').trim()
             );
-            const upcomingSchedules = [];
-            const loadScheduleIntoWeek = () => {};
+            const getWeekGridCellState = (employeeName, dayKey) => {
+                const draft = getCellDraft(employeeName, dayKey);
+                const cellFormattedIn = draft.clearSchedule ? '' : formatTimeField(draft.schedIn, draft.schedInPeriod);
+                const cellFormattedOut = draft.clearSchedule ? '' : formatTimeField(draft.schedOut, draft.schedOutPeriod);
+                const cellMinutes = draft.clearSchedule ? null : calculateWorkedMinutes(cellFormattedIn, cellFormattedOut);
+                const isSelected = selectedCell && selectedCell.name === employeeName && selectedCell.date === dayKey;
+                const isDirty = !areAdminScheduleDraftsEquivalent(draft, draft.sourceRow
+                    ? buildAdminScheduleDraftFromRow(draft.sourceRow, employeeName, dayKey)
+                    : buildEmptyAdminScheduleForm(employeeName, dayKey));
+                const cellStateClass = isSelected
+                    ? 'bg-[#38bdf8] text-[#060606]'
+                    : isDirty
+                        ? 'bg-[#fef3c7] text-[#060606]'
+                        : (cellFormattedIn && cellFormattedOut)
+                            ? 'bg-white text-[#060606]'
+                            : 'bg-[#f8fafc] text-[#060606]';
+
+                return {
+                    draft,
+                    cellFormattedIn,
+                    cellFormattedOut,
+                    cellMinutes,
+                    isSelected,
+                    cellStateClass,
+                };
+            };
 
             return (
                 <div className="flex flex-col h-full min-h-0 animate-fade-in overflow-y-auto pr-1">
@@ -1814,7 +2070,7 @@
                         <div>
                             <h3 className="text-xl md:text-3xl font-bold font-poppins text-[#060606]">Weekly Schedule Studio</h3>
                             <p className="text-sm md:text-base font-bold text-[#060606]/70 mt-1">
-                                Signed in as {adminUser.name}. Build a full week here, then save templates from any shift you create.
+                                Signed in as {adminUser.name}. Build a full week here, then save reusable templates in the template builder.
                             </p>
                         </div>
                         <div className="flex flex-col gap-3 xl:items-end">
@@ -1831,7 +2087,7 @@
                                     </button>
                                 </div>
 
-                                <div className="flex items-center gap-2 rounded-xl border-2 border-black bg-white px-3 py-2 shadow-[2px_2px_0px_0px_#000000]">
+                                <div className="h-12 flex items-center gap-2 rounded-xl border-2 border-black bg-white px-3 shadow-[2px_2px_0px_0px_#000000]">
                                     <i className="fas fa-folder-open text-[#0284c7]"></i>
                                     <select
                                         value={weekJumpValue}
@@ -1843,7 +2099,7 @@
                                                 setWeekJumpValue('');
                                             }
                                         }}
-                                        className="bg-transparent outline-none font-bold text-sm md:text-base min-w-[180px]"
+                                        className="h-full bg-transparent outline-none font-bold text-sm md:text-base min-w-[180px]"
                                         disabled={savedWeekOptions.length === 0}
                                     >
                                         <option value="">
@@ -1886,12 +2142,100 @@
                                     <div>
                                         <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Shift Templates</h4>
                                         <p className="text-sm font-bold text-gray-600 mt-1">
-                                            Save any selected shift as a reusable template, then click or drag it onto the week grid.
+                                            Build reusable templates here, then click or drag them onto the week grid.
                                         </p>
                                     </div>
                                     <div className="text-xs md:text-sm font-bold text-gray-500">
                                         {customTemplateCount} custom template{customTemplateCount === 1 ? '' : 's'}
                                     </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.25fr)_minmax(170px,0.85fr)_minmax(170px,0.85fr)_minmax(150px,0.8fr)_auto] gap-3 items-end mb-4">
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Template Name</label>
+                                        <input
+                                            type="text"
+                                            value={templateName}
+                                            onChange={e => onTemplateNameChange(e.target.value)}
+                                            placeholder="Lunch Shift, Closing, etc."
+                                            className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
+                                            maxLength={40}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Scheduled In</label>
+                                        <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
+                                            <input
+                                                type="text"
+                                                inputMode="numeric"
+                                                placeholder="9:00"
+                                                value={templateDraft.schedIn}
+                                                onChange={e => {
+                                                    const next = normalizeTimeInputWithPeriod(e.target.value, templateDraft.schedInPeriod);
+                                                    onTemplateDraftChange({
+                                                        ...templateDraft,
+                                                        schedIn: next.time,
+                                                        schedInPeriod: next.period,
+                                                    });
+                                                }}
+                                                className="w-[5ch] min-w-[5ch] py-3 font-bold text-sm md:text-base bg-transparent outline-none"
+                                                maxLength={5}
+                                            />
+                                            <div className="ml-auto flex shrink-0 items-center gap-2">
+                                                <button type="button" onClick={() => onTemplateDraftChange({ ...templateDraft, schedInPeriod: 'AM' })} className={`text-xs md:text-sm font-bold ${templateDraft.schedInPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
+                                                <button type="button" onClick={() => onTemplateDraftChange({ ...templateDraft, schedInPeriod: 'PM' })} className={`text-xs md:text-sm font-bold ${templateDraft.schedInPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Scheduled Out</label>
+                                        <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
+                                            <input
+                                                type="text"
+                                                inputMode="numeric"
+                                                placeholder="5:00"
+                                                value={templateDraft.schedOut}
+                                                onChange={e => {
+                                                    const next = normalizeTimeInputWithPeriod(e.target.value, templateDraft.schedOutPeriod);
+                                                    onTemplateDraftChange({
+                                                        ...templateDraft,
+                                                        schedOut: next.time,
+                                                        schedOutPeriod: next.period,
+                                                    });
+                                                }}
+                                                className="w-[5ch] min-w-[5ch] py-3 font-bold text-sm md:text-base bg-transparent outline-none"
+                                                maxLength={5}
+                                            />
+                                            <div className="ml-auto flex shrink-0 items-center gap-2">
+                                                <button type="button" onClick={() => onTemplateDraftChange({ ...templateDraft, schedOutPeriod: 'AM' })} className={`text-xs md:text-sm font-bold ${templateDraft.schedOutPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
+                                                <button type="button" onClick={() => onTemplateDraftChange({ ...templateDraft, schedOutPeriod: 'PM' })} className={`text-xs md:text-sm font-bold ${templateDraft.schedOutPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Status</label>
+                                        <select
+                                            value={normalizeAdminScheduleStatus(templateDraft.scheduleStatus)}
+                                            onChange={e => onTemplateDraftChange({ ...templateDraft, scheduleStatus: e.target.value })}
+                                            className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
+                                        >
+                                            <option value="Draft">Draft</option>
+                                            <option value="Published">Published</option>
+                                        </select>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={onSaveCurrentTemplate}
+                                        disabled={!canSaveTemplateDraft || isSavingTemplates}
+                                        className="brutal-btn bg-[#38bdf8] hover:bg-[#0ea5e9] px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 min-w-[170px]"
+                                    >
+                                        <i className={`fas ${isSavingTemplates ? 'fa-circle-notch spinner' : 'fa-bookmark'}`}></i>
+                                        <span>{isSavingTemplates ? 'Saving...' : 'Save Template'}</span>
+                                    </button>
                                 </div>
 
                                 <div className="flex gap-2 md:gap-3 overflow-x-auto pb-1">
@@ -1913,26 +2257,24 @@
                                                 <div className="pr-8">
                                                     <div className="font-bold font-poppins text-sm md:text-base leading-tight">{template.label}</div>
                                                     <div className="text-xs md:text-sm font-bold text-[#060606]/70 mt-1.5">
-                                                        {template.clearSchedule ? 'Remove the shift from that cell' : `${template.schedIn} - ${template.schedOut}`}
+                                                        {`${template.schedIn} - ${template.schedOut}`}
                                                     </div>
                                                 </div>
                                                 <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-[#060606]/60 mt-2">
-                                                    {template.clearSchedule ? 'Utility' : normalizeAdminScheduleStatus(template.scheduleStatus)}
+                                                    {normalizeAdminScheduleStatus(template.scheduleStatus)}
                                                 </div>
                                             </button>
 
-                                            {!template.isBuiltIn && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => onDeleteTemplate(template.id)}
-                                                    className="absolute top-2 right-2 w-8 h-8 rounded-full border-2 border-black bg-white text-[#f43f5e] hover:bg-[#ffe4e6] font-bold shadow-[2px_2px_0px_0px_#000000]"
-                                                    disabled={isSavingTemplates}
-                                                    title={`Delete ${template.label}`}
-                                                    aria-label={`Delete ${template.label}`}
-                                                >
-                                                    <i className="fas fa-times text-xs"></i>
-                                                </button>
-                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => onDeleteTemplate(template.id)}
+                                                className="absolute top-2 right-2 w-8 h-8 rounded-full border-2 border-black bg-white text-[#f43f5e] hover:bg-[#ffe4e6] font-bold shadow-[2px_2px_0px_0px_#000000]"
+                                                disabled={isSavingTemplates}
+                                                title={`Delete ${template.label}`}
+                                                aria-label={`Delete ${template.label}`}
+                                            >
+                                                <i className="fas fa-times text-xs"></i>
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
@@ -1949,7 +2291,7 @@
                                     <div>
                                         <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Selected Shift</h4>
                                         <p className="text-sm font-bold text-gray-600 mt-1">
-                                            Use this row to edit the highlighted cell, then save that setup as a template if you want to reuse it.
+                                            Click any week-grid cell to adjust its schedule details directly.
                                         </p>
                                     </div>
                                     {selectedDraft && (
@@ -1964,7 +2306,7 @@
                                         Pick a cell from the week grid to start editing it.
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(220px,1.15fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(160px,0.9fr)_minmax(220px,1.1fr)_auto_auto] gap-3 items-end">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.15fr)_minmax(170px,0.85fr)_minmax(170px,0.85fr)_minmax(150px,0.8fr)_auto] gap-3 items-end">
                                         <div className="rounded-xl border-2 border-black bg-[#f8fafc] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
                                             <div className="font-bold font-poppins text-[#060606] text-base md:text-lg">{selectedDraft.name}</div>
                                             <div className="text-sm font-bold text-gray-600 mt-1">{formatFullDate(selectedDraft.date)}</div>
@@ -2043,28 +2385,6 @@
                                             </select>
                                         </div>
 
-                                        <div>
-                                            <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Template Name</label>
-                                            <input
-                                                type="text"
-                                                value={templateName}
-                                                onChange={e => onTemplateNameChange(e.target.value)}
-                                                placeholder="Build a shift, then save it"
-                                                className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
-                                                maxLength={40}
-                                            />
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            onClick={onSaveCurrentTemplate}
-                                            disabled={!canSaveSelectedTemplate || isSavingTemplates}
-                                            className="brutal-btn bg-[#38bdf8] hover:bg-[#0ea5e9] px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 min-w-[170px]"
-                                        >
-                                            <i className={`fas ${isSavingTemplates ? 'fa-circle-notch spinner' : 'fa-bookmark'}`}></i>
-                                            <span>{isSavingTemplates ? 'Saving...' : 'Save Template'}</span>
-                                        </button>
-
                                         <button
                                             type="button"
                                             onClick={() => applyTemplateToCell(selectedDraft.name, selectedDraft.date, ADMIN_SHIFT_UTILITY_TEMPLATE.id)}
@@ -2098,7 +2418,7 @@
                                             <div key={`${row.name}-${row.date}-${idx}`} className="rounded-xl border-2 border-black bg-[#f8fafc] px-4 py-3 shadow-[3px_3px_0px_0px_#000000] flex flex-col md:flex-row md:items-center justify-between gap-3">
                                                 <div>
                                                     <div className="font-bold font-poppins text-[#060606] text-base md:text-lg">{row.name}</div>
-                                                    <div className="text-sm font-bold text-gray-600">{formatFullDate(row.date)} · {row.schedIn || '--'} - {row.schedOut || '--'}</div>
+                                                    <div className="text-sm font-bold text-gray-600">{formatFullDate(row.date)} - {row.schedIn || '--'} - {row.schedOut || '--'}</div>
                                                     <div className="text-xs md:text-sm font-bold mt-1">
                                                         <span className={String(row.scheduleStatus || '').trim() === 'Published' ? 'text-[#0284c7]' : 'text-gray-500'}>
                                                             {normalizeAdminScheduleStatus(row.scheduleStatus)}
@@ -2134,82 +2454,120 @@
                                         No active employees were found for scheduling.
                                     </div>
                                 ) : (
-                                    <div className="min-w-[1135px]">
-                                        <div className="grid gap-px bg-black rounded-2xl overflow-hidden" style={{ gridTemplateColumns: '168px repeat(7, minmax(138px, 1fr))' }}>
-                                            <div className="sticky left-0 top-0 z-20 bg-[#38bdf8] px-3 py-3 font-bold font-poppins text-[#060606]">Team</div>
+                                    <div className="space-y-4">
+                                        <div className="hidden lg:block w-full">
+                                            <div className="grid gap-px bg-black rounded-2xl overflow-hidden w-full" style={{ gridTemplateColumns: '96px repeat(7, minmax(0, 1fr))' }}>
+                                                <div className="sticky left-0 top-0 z-20 bg-[#38bdf8] px-1.5 py-3 font-bold font-poppins text-[#060606] text-sm">Team</div>
+                                                {weekDays.map(dayObj => {
+                                                    const dayKey = normalizeDate(dayObj);
+                                                    const isToday = dayKey === normalizeDate(new Date());
+                                                    return (
+                                                        <div key={dayKey} className={`sticky top-0 z-10 px-2 py-3 font-bold text-center ${isToday ? 'bg-[#0ea5e9] text-white' : 'bg-[#bae6fd] text-[#060606]'}`}>
+                                                            <div className="text-xs uppercase">{dayObj.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                                                            <div className="text-sm mt-1">{formatShortDate(dayObj)}</div>
+                                                        </div>
+                                                    );
+                                                })}
+
+                                                {sortedEmployees.map(emp => (
+                                                    <React.Fragment key={emp.id}>
+                                                        <div className="sticky left-0 z-10 bg-[#fff7ed] px-1.5 py-2.5 border-t border-black">
+                                                            <div className="font-bold font-poppins text-[#060606] text-xs md:text-sm leading-tight truncate">{emp.name}</div>
+                                                            <div className="text-[10px] font-bold text-gray-500 mt-1 truncate">{emp.department}</div>
+                                                        </div>
+                                                        {weekDays.map(dayObj => {
+                                                            const dayKey = normalizeDate(dayObj);
+                                                            const { draft, cellFormattedIn, cellFormattedOut, cellMinutes, cellStateClass } = getWeekGridCellState(emp.name, dayKey);
+
+                                                            return (
+                                                                <button
+                                                                    key={`${emp.id}-${dayKey}`}
+                                                                    type="button"
+                                                                    onClick={() => onSelectCell(emp.name, dayKey)}
+                                                                    onDragOver={e => e.preventDefault()}
+                                                                    onDrop={e => {
+                                                                        e.preventDefault();
+                                                                        const templateId = e.dataTransfer.getData('text/plain');
+                                                                        if (!templateId) return;
+                                                                        onSelectCell(emp.name, dayKey);
+                                                                        applyTemplateToCell(emp.name, dayKey, templateId);
+                                                                    }}
+                                                                    className={`min-h-[88px] border-t border-black px-2 py-2.5 text-left flex flex-col justify-between gap-2 transition-colors ${cellStateClass}`}
+                                                                >
+                                                                    <div className="flex items-start justify-between gap-2">
+                                                                        <div className="text-xs font-bold leading-snug">
+                                                                            {draft.clearSchedule
+                                                                                ? 'Clear on save'
+                                                                                : (cellFormattedIn && cellFormattedOut ? `${cellFormattedIn} - ${cellFormattedOut}` : 'No shift assigned')}
+                                                                        </div>
+                                                                        {draft.sourceRow && <span className="w-2.5 h-2.5 rounded-full bg-[#0284c7] border border-black shrink-0 mt-1"></span>}
+                                                                    </div>
+                                                                    <div className="space-y-1">
+                                                                        <div className="text-[10px] font-bold uppercase tracking-wide opacity-70">
+                                                                            {draft.clearSchedule ? 'Clearing' : normalizeAdminScheduleStatus(draft.scheduleStatus)}
+                                                                        </div>
+                                                                        <div className="text-[10px] font-bold opacity-70">
+                                                                            {draft.clearSchedule
+                                                                                ? 'Schedule will be removed'
+                                                                                : (cellMinutes === null ? 'Edit or apply a template' : formatWorkedDurationForDisplay(cellMinutes))}
+                                                                        </div>
+                                                                    </div>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </React.Fragment>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="lg:hidden space-y-4">
                                             {weekDays.map(dayObj => {
                                                 const dayKey = normalizeDate(dayObj);
                                                 const isToday = dayKey === normalizeDate(new Date());
+
                                                 return (
-                                                    <div key={dayKey} className={`sticky top-0 z-10 px-3 py-3 font-bold text-center ${isToday ? 'bg-[#0ea5e9] text-white' : 'bg-[#bae6fd] text-[#060606]'}`}>
-                                                        <div className="text-xs md:text-sm uppercase">{dayObj.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                                                        <div className="text-sm md:text-base mt-1">{formatShortDate(dayObj)}</div>
+                                                    <div key={dayKey} className="rounded-2xl border-2 border-black overflow-hidden shadow-[4px_4px_0px_0px_#000000] bg-white">
+                                                        <div className={`px-4 py-3 border-b-2 border-black ${isToday ? 'bg-[#38bdf8] text-[#060606]' : 'bg-[#bae6fd] text-[#060606]'}`}>
+                                                            <div className="text-xs font-bold uppercase tracking-wide">{dayObj.toLocaleDateString('en-US', { weekday: 'long' })}</div>
+                                                            <div className="text-lg font-bold font-poppins mt-1">{formatShortDate(dayObj)}</div>
+                                                        </div>
+
+                                                        <div className="divide-y divide-black">
+                                                            {sortedEmployees.map(emp => {
+                                                                const { draft, cellFormattedIn, cellFormattedOut, cellMinutes, cellStateClass } = getWeekGridCellState(emp.name, dayKey);
+
+                                                                return (
+                                                                    <button
+                                                                        key={`${dayKey}-${emp.id}`}
+                                                                        type="button"
+                                                                        onClick={() => onSelectCell(emp.name, dayKey)}
+                                                                        className={`w-full px-4 py-3 text-left flex items-start justify-between gap-3 transition-colors ${cellStateClass}`}
+                                                                    >
+                                                                        <div className="min-w-0">
+                                                                            <div className="font-bold font-poppins text-[#060606] text-sm truncate">{emp.name}</div>
+                                                                            <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mt-1">
+                                                                                {draft.clearSchedule ? 'Clearing' : normalizeAdminScheduleStatus(draft.scheduleStatus)}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="text-right shrink-0">
+                                                                            <div className="text-xs font-bold text-[#060606]">
+                                                                                {draft.clearSchedule
+                                                                                    ? 'Clear on save'
+                                                                                    : (cellFormattedIn && cellFormattedOut ? `${cellFormattedIn} - ${cellFormattedOut}` : 'No shift assigned')}
+                                                                            </div>
+                                                                            <div className="text-[10px] font-bold text-gray-500 mt-1">
+                                                                                {draft.clearSchedule
+                                                                                    ? 'Schedule will be removed'
+                                                                                    : (cellMinutes === null ? 'Tap to edit' : formatWorkedDurationForDisplay(cellMinutes))}
+                                                                            </div>
+                                                                        </div>
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
-
-                                            {sortedEmployees.map(emp => (
-                                                <React.Fragment key={emp.id}>
-                                                    <div className="sticky left-0 z-10 bg-[#fff7ed] px-3 py-4 border-t border-black">
-                                                        <div className="font-bold font-poppins text-[#060606] text-sm md:text-base leading-tight">{emp.name}</div>
-                                                        <div className="text-[10px] md:text-xs font-bold text-gray-500 mt-1">{emp.department}</div>
-                                                    </div>
-                                                    {weekDays.map(dayObj => {
-                                                        const dayKey = normalizeDate(dayObj);
-                                                        const draft = getCellDraft(emp.name, dayKey);
-                                                        const cellFormattedIn = draft.clearSchedule ? '' : formatTimeField(draft.schedIn, draft.schedInPeriod);
-                                                        const cellFormattedOut = draft.clearSchedule ? '' : formatTimeField(draft.schedOut, draft.schedOutPeriod);
-                                                        const cellMinutes = draft.clearSchedule ? null : calculateWorkedMinutes(cellFormattedIn, cellFormattedOut);
-                                                        const isSelected = selectedCell && selectedCell.name === emp.name && selectedCell.date === dayKey;
-                                                        const isDirty = !areAdminScheduleDraftsEquivalent(draft, draft.sourceRow
-                                                            ? buildAdminScheduleDraftFromRow(draft.sourceRow, emp.name, dayKey)
-                                                            : buildEmptyAdminScheduleForm(emp.name, dayKey));
-                                                        const cellStateClass = isSelected
-                                                            ? 'bg-[#38bdf8] text-[#060606]'
-                                                            : isDirty
-                                                                ? 'bg-[#fef3c7] text-[#060606]'
-                                                                : (cellFormattedIn && cellFormattedOut)
-                                                                    ? 'bg-white text-[#060606]'
-                                                                    : 'bg-[#f8fafc] text-[#060606]';
-
-                                                        return (
-                                                            <button
-                                                                key={`${emp.id}-${dayKey}`}
-                                                                type="button"
-                                                                onClick={() => onSelectCell(emp.name, dayKey)}
-                                                                onDragOver={e => e.preventDefault()}
-                                                                onDrop={e => {
-                                                                    e.preventDefault();
-                                                                    const templateId = e.dataTransfer.getData('text/plain');
-                                                                    if (!templateId) return;
-                                                                    onSelectCell(emp.name, dayKey);
-                                                                    applyTemplateToCell(emp.name, dayKey, templateId);
-                                                                }}
-                                                                className={`min-h-[118px] border-t border-black px-3 py-3 text-left flex flex-col justify-between gap-3 transition-colors ${cellStateClass}`}
-                                                            >
-                                                                <div className="flex items-start justify-between gap-2">
-                                                                    <div className="text-xs md:text-sm font-bold leading-snug">
-                                                                        {draft.clearSchedule
-                                                                            ? 'Clear on save'
-                                                                            : (cellFormattedIn && cellFormattedOut ? `${cellFormattedIn} - ${cellFormattedOut}` : 'No shift assigned')}
-                                                                    </div>
-                                                                    {draft.sourceRow && <span className="w-2.5 h-2.5 rounded-full bg-[#0284c7] border border-black shrink-0 mt-1"></span>}
-                                                                </div>
-                                                                <div className="space-y-1">
-                                                                    <div className="text-[10px] md:text-xs font-bold uppercase tracking-wide opacity-70">
-                                                                        {draft.clearSchedule ? 'Clearing' : normalizeAdminScheduleStatus(draft.scheduleStatus)}
-                                                                    </div>
-                                                                    <div className="text-[10px] md:text-xs font-bold opacity-70">
-                                                                        {draft.clearSchedule
-                                                                            ? 'Schedule will be removed'
-                                                                            : (cellMinutes === null ? 'Type or drag a shift' : formatWorkedDurationForDisplay(cellMinutes))}
-                                                                    </div>
-                                                                </div>
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </React.Fragment>
-                                            ))}
                                         </div>
                                     </div>
                                 )}
@@ -2241,13 +2599,13 @@
                 oldReason: '',
                 newReason: ''
             });
-            const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
             const [directoryMode, setDirectoryMode] = useState('employee');
             const [adminUser, setAdminUser] = useState(null);
             const [adminWeekStart, setAdminWeekStart] = useState(getWeekStartDate(new Date()));
             const [adminScheduleDrafts, setAdminScheduleDrafts] = useState({});
             const [selectedAdminCell, setSelectedAdminCell] = useState(null);
             const [adminTemplateName, setAdminTemplateName] = useState('');
+            const [adminTemplateDraft, setAdminTemplateDraft] = useState(buildEmptyAdminTemplateDraft());
             
             // Timeout Logic States
             const lastActivityRef = useRef(Date.now());
@@ -2522,25 +2880,14 @@
             };
 
             const saveSelectedShiftAsTemplate = async () => {
-                if (!selectedAdminCell) {
-                    setNotification({ type: 'error', message: "Select a shift cell before saving a template." });
-                    return;
-                }
-
                 const label = String(adminTemplateName || '').trim();
                 if (!label) {
                     setNotification({ type: 'error', message: "Enter a template name first." });
                     return;
                 }
 
-                const selectedDraft = getAdminScheduleDraft(selectedAdminCell.name, selectedAdminCell.date);
-                if (!selectedDraft || selectedDraft.clearSchedule) {
-                    setNotification({ type: 'error', message: "Clear cells cannot be saved as templates." });
-                    return;
-                }
-
-                const schedIn = formatTimeField(selectedDraft.schedIn, selectedDraft.schedInPeriod);
-                const schedOut = formatTimeField(selectedDraft.schedOut, selectedDraft.schedOutPeriod);
+                const schedIn = formatTimeField(adminTemplateDraft.schedIn, adminTemplateDraft.schedInPeriod);
+                const schedOut = formatTimeField(adminTemplateDraft.schedOut, adminTemplateDraft.schedOutPeriod);
                 if (!schedIn || !schedOut) {
                     setNotification({ type: 'error', message: "Enter valid scheduled in and out times before saving a template." });
                     return;
@@ -2555,7 +2902,7 @@
                     label,
                     schedIn,
                     schedOut,
-                    scheduleStatus: normalizeAdminScheduleStatus(selectedDraft.scheduleStatus),
+                    scheduleStatus: normalizeAdminScheduleStatus(adminTemplateDraft.scheduleStatus),
                 };
                 const nextTemplates = existingIndex >= 0
                     ? normalizedTemplates.map((template, index) => index === existingIndex ? nextTemplate : template)
@@ -2567,6 +2914,7 @@
 
                 if (didSave) {
                     setAdminTemplateName('');
+                    setAdminTemplateDraft(buildEmptyAdminTemplateDraft());
                 }
             };
 
@@ -2621,12 +2969,14 @@
                 setAdminScheduleDrafts({});
                 setSelectedAdminCell(null);
                 setAdminTemplateName('');
+                setAdminTemplateDraft(buildEmptyAdminTemplateDraft());
             };
 
             const openAdminDirectory = async () => {
                 handleSelectionCancel();
                 setDirectoryMode('admin');
                 setAdminTemplateName('');
+                setAdminTemplateDraft(buildEmptyAdminTemplateDraft());
                 await refreshSheetData(false, { showSpinner: false });
             };
 
@@ -2637,6 +2987,7 @@
                 setAdminScheduleDrafts({});
                 setSelectedAdminCell(null);
                 setAdminTemplateName('');
+                setAdminTemplateDraft(buildEmptyAdminTemplateDraft());
             };
 
             // Activity Tracker
@@ -2804,6 +3155,16 @@
             const handleOpenEmployeeInventory = async () => {
                 setViewMode('INVENTORY');
                 await refreshInventory({ showSpinner: false });
+            };
+
+            const handleOpenEmployeeSchedule = async () => {
+                setViewMode('SCHEDULE');
+                await refreshLogs({ showSpinner: false });
+            };
+
+            const handleOpenEmployeeTimesheet = async () => {
+                setViewMode('TIMESHEET');
+                await refreshLogs({ showSpinner: false });
             };
 
             const handleOpenAdminInventory = async () => {
@@ -3036,7 +3397,7 @@
                     const isAdminAccount = isAdminRole(emp.role);
                     setIsAuthenticated(true);
                     setPinInput("");
-                    setViewMode(isAdminAccount ? 'ADMIN' : 'DASHBOARD');
+                    setViewMode(isAdminAccount ? 'ADMIN' : 'SCHEDULE');
                     setAdminUser(isAdminAccount ? emp : null);
                     setDirectoryMode(isAdminAccount ? 'admin' : 'employee');
                     setNotification({
@@ -3219,7 +3580,7 @@
                 if (isSubmittingAction) return;
                 if (isEntryLocked(editTarget)) {
                     setNotification({ type: 'error', message: "This entry is locked and cannot be edited." });
-                    setViewMode('DASHBOARD');
+                    setViewMode('TIMESHEET');
                     return;
                 }
 
@@ -3290,7 +3651,7 @@
                     } else {
                         setNotification({ type: 'info', message: "Timesheet updated, but the latest rows could not be reloaded automatically." });
                     }
-                    setViewMode('DASHBOARD');
+                    setViewMode('TIMESHEET');
                 } finally {
                     setIsSubmittingAction(false);
                 }
@@ -3343,8 +3704,6 @@
 
             return (
                 <div className="min-h-screen p-2 md:p-8 flex flex-col items-center">
-                    <TeamScheduleModal isOpen={isScheduleModalOpen} onClose={() => setScheduleModalOpen(false)} sheetData={sheetData} onRefresh={refreshSheetData} />
-                    
                     {/* Header */}
                     <div className="w-full max-w-[1680px] flex justify-between items-center mb-4 md:mb-8 brutal-card p-3 md:p-6">
                         <div className="flex items-center gap-2 md:gap-4 overflow-hidden">
@@ -3450,54 +3809,44 @@
                             {/* Employee Actions */}
                             {isAuthenticated && !adminUser && (
                                 <div className="brutal-card p-4 md:p-6 animate-fade-in bg-white">
-                                    <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-4 md:mb-6 truncate">Hello, {selectedEmployee?.name}!</h2>
-                                    {actionAlertPlan && (
-                                        <div className="mb-4 md:mb-6 rounded-xl border-2 border-black bg-[#fee2e2] px-4 py-3 shadow-[4px_4px_0px_0px_#000000]">
-                                            <div className="flex items-start gap-3">
-                                                <i className="fas fa-shield-alt text-[#dc2626] text-lg mt-0.5"></i>
-                                                <p className="text-xs md:text-sm font-bold text-[#060606] leading-relaxed">{actionAlertPlan.message}</p>
-                                            </div>
-                                        </div>
-                                    )}
+                                    <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-2 truncate">Hello, {selectedEmployee?.name}!</h2>
+                                    <p className="text-sm font-bold text-gray-600 mb-5">
+                                        Open your timesheet, the published schedule, or the live inventory board from here.
+                                    </p>
                                     <div className="grid grid-cols-2 gap-3 lg:gap-4">
-                                        <button 
-                                            onClick={() => handleClockAction("CLOCK_IN")}
-                                            disabled={!canClockIn}
-                                            className={`brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3
-                                                ${!canClockIn ? 'bg-gray-200 text-gray-500' : 'bg-[#4ade80] hover:bg-[#22c55e]'}`}
+                                        <button
+                                            onClick={handleOpenEmployeeTimesheet}
+                                            className={`brutal-btn py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
+                                                ['TIMESHEET', 'EDIT'].includes(viewMode) ? 'bg-[#38bdf8] hover:bg-[#0ea5e9]' : 'bg-white hover:bg-gray-50'
+                                            }`}
                                         >
-                                            <i className={`fas ${isSubmittingAction ? 'fa-circle-notch spinner' : 'fa-sign-in-alt'} text-xl md:text-3xl lg:text-2xl`}></i> 
-                                            <span>{isSubmittingAction ? 'Saving...' : 'Clock In'}</span>
+                                            <i className="fas fa-clock text-[#060606]"></i>
+                                            <span>Timesheet</span>
                                         </button>
-                                        <button 
-                                            onClick={() => handleClockAction("CLOCK_OUT")}
-                                            disabled={!canClockOut}
-                                            className={`brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3
-                                                ${!canClockOut ? 'bg-gray-200 text-gray-500' : 'bg-[#fb7185] hover:bg-[#f43f5e]'}`}
+                                        <button
+                                            onClick={handleOpenEmployeeSchedule}
+                                            className={`brutal-btn py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
+                                                viewMode === 'SCHEDULE' ? 'bg-[#38bdf8] hover:bg-[#0ea5e9]' : 'bg-white hover:bg-gray-50'
+                                            }`}
                                         >
-                                            <i className={`fas ${isSubmittingAction ? 'fa-circle-notch spinner' : 'fa-sign-out-alt'} text-xl md:text-3xl lg:text-2xl`}></i> 
-                                            <span>{isSubmittingAction ? 'Saving...' : 'Clock Out'}</span>
-                                        </button>
-                                        <button 
-                                            onClick={() => setScheduleModalOpen(true)} 
-                                            className="brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3 bg-white hover:bg-gray-50 text-[#060606]"
-                                        >
-                                            <i className="fas fa-calendar-day text-xl md:text-3xl lg:text-2xl text-[#38bdf8]"></i> 
+                                            <i className="fas fa-calendar-day text-[#060606]"></i>
                                             <span>Schedule</span>
                                         </button>
                                         <button
                                             onClick={handleOpenEmployeeInventory}
-                                            className="brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3 bg-[#fef3c7] hover:bg-[#fde68a] text-[#060606]"
+                                            className={`brutal-btn py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
+                                                viewMode === 'INVENTORY' ? 'bg-[#fef3c7] hover:bg-[#fde68a]' : 'bg-white hover:bg-gray-50'
+                                            }`}
                                         >
-                                            <i className="fas fa-boxes-stacked text-xl md:text-3xl lg:text-2xl text-[#f97316]"></i>
+                                            <i className="fas fa-boxes-stacked text-[#f97316]"></i>
                                             <span>Inventory</span>
                                         </button>
-                                        <button 
-                                            onClick={handleLogout} 
-                                            className="brutal-btn py-3 md:py-4 lg:py-5 text-sm md:text-lg lg:text-base flex flex-col items-center justify-center gap-1 md:gap-2 lg:gap-3 bg-white hover:bg-gray-50 text-[#060606]"
+                                        <button
+                                            onClick={handleLogout}
+                                            className="brutal-btn py-3 md:py-4 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
                                         >
-                                            <i className="fas fa-check text-xl md:text-3xl lg:text-2xl text-[#10b981]"></i> 
-                                            <span>Done</span>
+                                            <i className="fas fa-user-lock text-[#f43f5e]"></i>
+                                            <span>Sign Out</span>
                                         </button>
                                     </div>
                                 </div>
@@ -3512,7 +3861,7 @@
                                             ? `${inventoryAwaitingRows.length} inventory row${inventoryAwaitingRows.length === 1 ? '' : 's'} currently need approval.`
                                             : 'The weekly scheduler is open on the right.'}
                                     </p>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <button
                                             onClick={() => setViewMode('ADMIN')}
                                             className="brutal-btn py-3 text-sm md:text-base bg-[#38bdf8] hover:bg-[#0ea5e9] text-[#060606] flex items-center justify-center gap-2"
@@ -3528,23 +3877,6 @@
                                             <span>Inventory Review</span>
                                         </button>
                                         <button
-                                            onClick={() => {
-                                                handleSelectionCancel();
-                                                setDirectoryMode('admin');
-                                            }}
-                                            className="brutal-btn py-3 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
-                                        >
-                                            <i className="fas fa-user-pen text-[#f59e0b]"></i>
-                                            <span>Switch Admin</span>
-                                        </button>
-                                        <button
-                                            onClick={returnToEmployeeDirectory}
-                                            className="brutal-btn py-3 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
-                                        >
-                                            <i className="fas fa-users text-[#38bdf8]"></i>
-                                            <span>Staff List</span>
-                                        </button>
-                                        <button
                                             onClick={handleLogout}
                                             className="brutal-btn py-3 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
                                         >
@@ -3557,7 +3889,7 @@
                         </div>
 
                         {/* RIGHT: Dynamic Panel */}
-                        <div className={`${isAdminWorkspaceOpen ? 'lg:col-span-12' : 'lg:col-span-7'} transition-all duration-300 ${!selectedId && !isAdminWorkspaceOpen ? 'hidden lg:block' : 'block'}`}>
+                        <div className={`${isAdminWorkspaceOpen ? 'lg:col-span-12' : 'lg:col-span-7'} transition-all duration-300 ${!selectedId && directoryMode === 'admin' && !isAdminWorkspaceOpen ? 'hidden lg:block' : 'block'}`}>
                             
                             {/* Adding relative positioning so absolute children (toast) anchor exactly here */}
                             <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-170px)]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : ['ADMIN', 'ADMIN_INVENTORY'].includes(viewMode) ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
@@ -3585,16 +3917,39 @@
                                 )}
 
                                 {!selectedId ? (
-                                    <div className="h-full flex flex-col items-center justify-center text-gray-400 animate-fade-in">
-                                        <i className={`fas ${directoryMode === 'admin' ? 'fa-user-shield' : 'fa-hand-pointer'} text-4xl md:text-6xl mb-4 md:mb-6 opacity-30 text-[#060606]`}></i>
-                                        <p className="font-bold font-poppins text-lg md:text-2xl text-[#060606] opacity-30">
-                                            {directoryMode === 'admin' ? 'Select an admin account to continue' : 'Select a name to begin'}
-                                        </p>
-                                    </div>
+                                    directoryMode === 'admin' ? (
+                                        <div className="h-full flex flex-col items-center justify-center text-gray-400 animate-fade-in">
+                                            <i className="fas fa-user-shield text-4xl md:text-6xl mb-4 md:mb-6 opacity-30 text-[#060606]"></i>
+                                            <p className="font-bold font-poppins text-lg md:text-2xl text-[#060606] opacity-30">
+                                                Select an admin account to continue
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <PublicOverviewPanel sheetData={sheetData} inventoryRows={inventoryRows} />
+                                    )
                                 ) : (
                                     <div className="flex-1 min-h-0 overflow-hidden">
                                         {viewMode === 'PINPAD' && <PinPad pinInput={pinInput} handlePinPress={handlePinPress} handlePinBackspace={handlePinBackspace} handlePinClear={handlePinClear} selectedEmployee={selectedUser} onCancel={handleSelectionCancel} />}
-                                        {viewMode === 'DASHBOARD' && <PersonalDashboard personalData={personalData} startEdit={startEdit} isFetchingLogs={isFetchingLogs} />}
+                                        {viewMode === 'TIMESHEET' && (
+                                            <PersonalDashboard
+                                                personalData={personalData}
+                                                startEdit={startEdit}
+                                                isFetchingLogs={isFetchingLogs}
+                                                actionAlertPlan={actionAlertPlan}
+                                                onClockAction={handleClockAction}
+                                                canClockIn={canClockIn}
+                                                canClockOut={canClockOut}
+                                                isSubmittingAction={isSubmittingAction}
+                                            />
+                                        )}
+                                        {viewMode === 'SCHEDULE' && (
+                                            <PublishedSchedulePanel
+                                                sheetData={sheetData}
+                                                title="Schedule"
+                                                subtitle="Published shifts for the whole team"
+                                                highlightName={selectedEmployee?.name || ''}
+                                            />
+                                        )}
                                         {viewMode === 'INVENTORY' && (
                                             <EmployeeInventoryPanel
                                                 inventoryRows={inventoryRows}
@@ -3603,11 +3958,10 @@
                                                 onRefresh={() => refreshInventory({ showSpinner: true })}
                                                 onStart={handleInventoryStart}
                                                 onFinish={handleInventoryFinish}
-                                                onBack={() => setViewMode('DASHBOARD')}
                                                 onMessage={setNotification}
                                             />
                                         )}
-                                        {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} reasonValidationTriggered={reasonValidationTriggered} onPrev={handleEditPrev} onNext={handleEditNext} canPrev={canEditPrev} canNext={canEditNext} onClose={() => { setReasonValidationTriggered(false); setViewMode('DASHBOARD'); }} isSubmitting={isSubmittingAction} />}
+                                        {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} reasonValidationTriggered={reasonValidationTriggered} onPrev={handleEditPrev} onNext={handleEditNext} canPrev={canEditPrev} canNext={canEditNext} onClose={() => { setReasonValidationTriggered(false); setViewMode('TIMESHEET'); }} isSubmitting={isSubmittingAction} />}
                                         {viewMode === 'ADMIN' && (
                                             <AdminScheduleWorkspace
                                                 adminUser={adminUser}
@@ -3630,7 +3984,9 @@
                                                 updateCellDraft={updateAdminScheduleDraft}
                                                 applyTemplateToCell={applyTemplateToAdminSchedule}
                                                 shiftTemplates={settings.shiftTemplates}
+                                                templateDraft={adminTemplateDraft}
                                                 templateName={adminTemplateName}
+                                                onTemplateDraftChange={setAdminTemplateDraft}
                                                 onTemplateNameChange={setAdminTemplateName}
                                                 onSaveCurrentTemplate={saveSelectedShiftAsTemplate}
                                                 onDeleteTemplate={deleteAdminShiftTemplate}
@@ -3655,7 +4011,6 @@
                                                 onApprove={handleInventoryApprove}
                                                 onReject={handleInventoryRejectAwaiting}
                                                 onOpenScheduler={() => setViewMode('ADMIN')}
-                                                onReturnToStaff={returnToEmployeeDirectory}
                                                 onSignOut={handleLogout}
                                                 onMessage={setNotification}
                                             />
