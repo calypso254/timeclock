@@ -168,6 +168,45 @@
 
         const ADMIN_ROLES = ['admin', 'manager', 'owner'];
         const DEFAULT_ADMIN_SCHEDULE_STATUS = 'Draft';
+        const PAYROLL_PERIOD_ANCHOR = '2026-03-16';
+        const PAYROLL_PERIOD_LENGTH_DAYS = 14;
+        const PAYROLL_PAYDAY_OFFSET_DAYS = 5;
+
+        const addDaysToLocalDate = (dateValue, dayCount) => {
+            const dateObj = parseLocalDate(dateValue);
+            const nextDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+            nextDate.setDate(nextDate.getDate() + dayCount);
+            return nextDate;
+        };
+
+        const getLocalDateDayStamp = (dateValue) => {
+            const dateObj = parseLocalDate(dateValue);
+            return Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+        };
+
+        const getPayrollPeriodStart = (dateValue = new Date()) => {
+            const anchorStamp = getLocalDateDayStamp(PAYROLL_PERIOD_ANCHOR);
+            const targetStamp = getLocalDateDayStamp(dateValue);
+            const diffDays = Math.floor((targetStamp - anchorStamp) / 86400000);
+            const periodIndex = Math.floor(diffDays / PAYROLL_PERIOD_LENGTH_DAYS);
+            return addDaysToLocalDate(PAYROLL_PERIOD_ANCHOR, periodIndex * PAYROLL_PERIOD_LENGTH_DAYS);
+        };
+
+        const buildPayrollPeriodFromStart = (startDateValue) => {
+            const startDate = parseLocalDate(startDateValue);
+            const endDate = addDaysToLocalDate(startDate, PAYROLL_PERIOD_LENGTH_DAYS - 1);
+            const payDate = addDaysToLocalDate(endDate, PAYROLL_PAYDAY_OFFSET_DAYS);
+            return {
+                key: normalizeDate(startDate),
+                startDate,
+                endDate,
+                payDate,
+                startKey: normalizeDate(startDate),
+                endKey: normalizeDate(endDate),
+                label: `${formatMonthDayDate(startDate)} - ${formatMonthDayDate(endDate)}`,
+                fullLabel: `${formatFullDate(startDate)} - ${formatFullDate(endDate)}`,
+            };
+        };
 
         const isAdminRole = (role) => {
             return ADMIN_ROLES.includes(String(role || '').trim().toLowerCase());
@@ -321,6 +360,28 @@
             return String(row?.payrollStatus || '').trim().toLowerCase() === 'locked';
         };
 
+        const isPayrollRelevantRow = (row) => {
+            if (!row) return false;
+            if (hasTimeValue(row.decimalHours) || hasTimeValue(row.totalHours)) return true;
+            return hasTimeValue(row.timeIn) || hasTimeValue(row.timeOut);
+        };
+
+        const getPayrollRowMinutes = (row) => {
+            if (!row) return 0;
+            const decimalValue = Number.parseFloat(String(row.decimalHours || '').trim());
+            if (Number.isFinite(decimalValue) && decimalValue > 0) {
+                return Math.round(decimalValue * 60);
+            }
+
+            const workedMinutes = calculateWorkedMinutes(row.timeIn, row.timeOut);
+            return workedMinutes === null ? 0 : workedMinutes;
+        };
+
+        const formatPayrollHours = (minutes) => {
+            if (!minutes) return '0.00';
+            return (minutes / 60).toFixed(2);
+        };
+
         const getEmployeeRows = (rows, employeeName) => {
             if (!employeeName) return [];
             return rows.filter(row => row.name === employeeName);
@@ -434,6 +495,14 @@
 
         const formatInventoryTimestamp = (value) => {
             return value ? String(value) : 'Not yet updated';
+        };
+
+        const getInventorySkuText = (row) => {
+            return String(row?.sku || '').trim() || 'No SKU';
+        };
+
+        const getInventoryNameText = (row) => {
+            return String(row?.product || '').trim() || 'No name entered';
         };
 
         const applySuccessfulPunchLocally = (rows, actionType, employeeName, timestamp, plan, reason = '') => {
@@ -1293,8 +1362,10 @@
                             <div key={row.rowNumber} className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000]">
                                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                                     <div>
-                                        <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">{row.sku || 'No SKU'}</div>
-                                        <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1">{row.product || row.sku}</h4>
+                                        <div className="text-[10px] uppercase font-bold text-gray-500">SKU</div>
+                                        <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7] mt-1">{getInventorySkuText(row)}</div>
+                                        <div className="text-[10px] uppercase font-bold text-gray-500 mt-3">Name</div>
+                                        <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1">{getInventoryNameText(row)}</h4>
                                     </div>
                                     <div className="inline-flex items-center rounded-full border-2 border-black bg-[#fef3c7] px-3 py-1 text-xs font-bold uppercase tracking-wide">
                                         {row.status}
@@ -1489,6 +1560,70 @@
             );
         };
 
+        const TodaySchedulePanel = ({
+            sheetData,
+            title = "Who's Working Today",
+            subtitle = 'Published shifts for today',
+        }) => {
+            const todayKey = normalizeDate(new Date());
+            const todayDate = parseLocalDate(todayKey);
+            const todayShifts = (Array.isArray(sheetData) ? sheetData : [])
+                .filter(row =>
+                    normalizeDate(row?.date) === todayKey &&
+                    (hasTimeValue(row?.schedIn) || hasTimeValue(row?.schedOut)) &&
+                    isPublishedSchedule(row)
+                )
+                .slice()
+                .sort((a, b) => {
+                    const timeCompare = (parseClockTimeToMinutes(a.schedIn) || 0) - (parseClockTimeToMinutes(b.schedIn) || 0);
+                    if (timeCompare !== 0) return timeCompare;
+                    return String(a.name || '').localeCompare(String(b.name || ''));
+                });
+
+            return (
+                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+                    <div className="mb-4 shrink-0">
+                        <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">{title}</h3>
+                        <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">{subtitle}</p>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto no-scrollbar px-1 pt-1 pb-4">
+                        <div className="rounded-[28px] border-2 border-black overflow-hidden bg-white shadow-[4px_4px_0px_0px_#000000]">
+                            <div className="border-b-2 border-black bg-[#38bdf8] px-4 py-3 text-center text-[#060606]">
+                                <div className="text-xs md:text-sm font-bold font-poppins uppercase tracking-[0.25em]">
+                                    {todayDate.toLocaleDateString('en-US', { weekday: 'short' })}
+                                </div>
+                                <div className="text-4xl md:text-5xl font-bold font-poppins leading-none mt-2">
+                                    {todayDate.getDate()}
+                                </div>
+                                <div className="text-xs md:text-sm font-bold font-poppins uppercase tracking-[0.2em] mt-2">
+                                    {todayDate.toLocaleDateString('en-US', { month: 'short' })}
+                                </div>
+                            </div>
+
+                            <div className="bg-[#e0f2fe] p-3 md:p-4 space-y-3">
+                                {todayShifts.length === 0 ? (
+                                    <div className="rounded-2xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
+                                        No published shifts today.
+                                    </div>
+                                ) : todayShifts.map((shift, idx) => (
+                                    <div key={`${todayKey}-${shift.name}-${idx}`} className="rounded-2xl border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                                        <div className="font-bold font-poppins text-[#060606] text-lg md:text-xl leading-tight">
+                                            {shift.name}
+                                        </div>
+                                        <div className="text-sm md:text-base font-bold text-gray-600 mt-2 flex items-center gap-2">
+                                            <i className="far fa-clock text-[#fb7185]"></i>
+                                            <span>{shift.schedIn} - {shift.schedOut}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const InventorySnapshotPanel = ({
             inventoryRows,
             title = 'Inventory Snapshot',
@@ -1517,9 +1652,11 @@
                             <div key={row.rowNumber} className="rounded-2xl border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#0284c7] truncate">{row.sku || 'No SKU'}</div>
+                                        <div className="text-[10px] uppercase font-bold text-gray-500">SKU</div>
+                                        <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#0284c7] truncate mt-1">{getInventorySkuText(row)}</div>
+                                        <div className="text-[10px] uppercase font-bold text-gray-500 mt-2">Name</div>
                                         <div className="font-bold font-poppins text-[#060606] text-sm md:text-base truncate mt-1">
-                                            {row.product || row.sku}
+                                            {getInventoryNameText(row)}
                                         </div>
                                     </div>
                                     <div className="shrink-0 rounded-full border-2 border-black bg-[#fef3c7] px-3 py-1 text-[10px] md:text-xs font-bold uppercase tracking-wide">
@@ -1559,11 +1696,10 @@
 
                     <div className="flex flex-col gap-4 min-h-0 flex-1 overflow-y-auto no-scrollbar pr-1">
                         <div className="rounded-2xl border-2 border-black bg-[#f8fafc] p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] min-h-[320px] overflow-hidden">
-                            <PublishedSchedulePanel
+                            <TodaySchedulePanel
                                 sheetData={sheetData}
-                                title="Schedule"
-                                subtitle="This week's published shifts for the whole team"
-                                compact={true}
+                                title="Today"
+                                subtitle="Who's working today"
                             />
                         </div>
                         <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] min-h-[280px] overflow-hidden">
@@ -1592,7 +1728,7 @@
             onSignOut,
             onMessage
         }) => {
-            const [createForm, setCreateForm] = useState({ sku: '', quantity: '' });
+            const [createForm, setCreateForm] = useState({ sku: '', product: '', quantity: '' });
             const [drafts, setDrafts] = useState({});
             const openRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
             const awaitingCount = openRows.filter(row => Number(row.awaitingApproval || 0) > 0).length;
@@ -1632,15 +1768,16 @@
 
             const submitCreate = async () => {
                 const sku = String(createForm.sku || '').trim().toUpperCase();
+                const product = String(createForm.product || '').trim();
                 const quantity = parseWholeNumber(createForm.quantity);
-                if (!sku || !quantity) {
-                    onMessage?.({ type: 'error', message: "Enter both a SKU and a whole-number Need Qty." });
+                if (!sku || !product || !quantity) {
+                    onMessage?.({ type: 'error', message: "Enter a SKU, Name, and whole-number Need Qty." });
                     return;
                 }
 
-                const didSucceed = await onAddNeed(sku, quantity);
+                const didSucceed = await onAddNeed(sku, product, quantity);
                 if (didSucceed) {
-                    setCreateForm({ sku: '', quantity: '' });
+                    setCreateForm({ sku: '', product: '', quantity: '' });
                 }
             };
 
@@ -1650,7 +1787,7 @@
                         <div>
                             <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Inventory</div>
                             <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606] mt-1">Inventory Management</h3>
-                            <p className="text-sm font-bold text-gray-600 mt-1">Signed in as {adminUser?.name}. Finished quantities stay non-sellable until you approve them.</p>
+                            <p className="text-sm font-bold text-gray-600 mt-1">Hi, {adminUser?.name}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <button
@@ -1684,7 +1821,7 @@
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
                                         <h4 className="text-lg font-bold font-poppins text-[#060606]">Add Inventory Need</h4>
-                                        <p className="text-xs font-bold text-gray-500 mt-1">Add a new SKU or increase an open row.</p>
+                                        <p className="text-xs font-bold text-gray-500 mt-1">Add a new SKU and product name, or increase an open row.</p>
                                     </div>
                                     <div className="rounded-full border-2 border-black bg-[#fef3c7] px-3 py-1 text-xs font-bold uppercase">
                                         {awaitingCount} awaiting
@@ -1699,6 +1836,16 @@
                                             onChange={e => setCreateForm(prev => ({ ...prev, sku: e.target.value.toUpperCase() }))}
                                             className="brutal-input w-full px-3 py-2 text-sm"
                                             placeholder="Enter SKU"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Name</label>
+                                        <input
+                                            type="text"
+                                            value={createForm.product}
+                                            onChange={e => setCreateForm(prev => ({ ...prev, product: e.target.value }))}
+                                            className="brutal-input w-full px-3 py-2 text-sm"
+                                            placeholder="Enter product name"
                                         />
                                     </div>
                                     <div>
@@ -1743,8 +1890,10 @@
                                 <div key={row.rowNumber} className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000]">
                                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
                                         <div>
-                                            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">{row.sku || 'No SKU'}</div>
-                                            <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1">{row.product || row.sku}</h4>
+                                            <div className="text-[10px] uppercase font-bold text-gray-500">SKU</div>
+                                            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7] mt-1">{getInventorySkuText(row)}</div>
+                                            <div className="text-[10px] uppercase font-bold text-gray-500 mt-3">Name</div>
+                                            <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1">{getInventoryNameText(row)}</h4>
                                             <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 mt-2">Updated {formatInventoryTimestamp(row.lastUpdated)}</div>
                                         </div>
                                         <div className="inline-flex items-center rounded-full border-2 border-black bg-[#fef3c7] px-3 py-1 text-xs font-bold uppercase tracking-wide">
@@ -1844,6 +1993,226 @@
                                 </div>
                             ))}
                         </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminPayrollWorkspace = ({
+            adminUser,
+            employees,
+            sheetData,
+            isRefreshing,
+            isSubmittingPayroll,
+            onRefresh,
+            onToggleCompletion,
+        }) => {
+            const currentPeriodKey = normalizeDate(getPayrollPeriodStart(new Date()));
+            const [selectedPeriodKey, setSelectedPeriodKey] = useState(currentPeriodKey);
+
+            if (!adminUser) return null;
+
+            const payrollRows = (Array.isArray(sheetData) ? sheetData : []).filter(row =>
+                hasValue(row?.name) &&
+                hasValue(row?.date) &&
+                isPayrollRelevantRow(row)
+            );
+
+            const periodStartKeys = payrollRows.map(row => normalizeDate(getPayrollPeriodStart(row.date)));
+            const availablePeriodKeys = [...new Set([...periodStartKeys, currentPeriodKey])].sort((a, b) => a.localeCompare(b));
+            const activePeriodKey = availablePeriodKeys.includes(selectedPeriodKey) ? selectedPeriodKey : currentPeriodKey;
+            const currentPeriodIndex = availablePeriodKeys.indexOf(activePeriodKey);
+            const selectedPeriod = buildPayrollPeriodFromStart(activePeriodKey);
+            const selectedPeriodRows = payrollRows.filter(row => {
+                const rowDateKey = normalizeDate(row.date);
+                return rowDateKey >= selectedPeriod.startKey && rowDateKey <= selectedPeriod.endKey;
+            });
+
+            const allEmployeeNames = [...new Set([
+                ...employees.map(emp => String(emp?.name || '').trim()).filter(Boolean),
+                ...selectedPeriodRows.map(row => String(row?.name || '').trim()).filter(Boolean),
+            ])].sort((a, b) => a.localeCompare(b));
+
+            const employeeSummaries = allEmployeeNames.map(name => {
+                const rows = selectedPeriodRows.filter(row => String(row.name || '').trim() === name);
+                const totalMinutes = rows.reduce((sum, row) => sum + getPayrollRowMinutes(row), 0);
+                const isComplete = rows.length > 0 && rows.every(isEntryLocked);
+                return {
+                    name,
+                    rowCount: rows.length,
+                    totalMinutes,
+                    isComplete,
+                };
+            });
+
+            const employeesWithHoursCount = employeeSummaries.filter(summary => summary.totalMinutes > 0).length;
+            const periodLockedCount = selectedPeriodRows.filter(isEntryLocked).length;
+            const periodTotalMinutes = employeeSummaries.reduce((sum, summary) => sum + summary.totalMinutes, 0);
+            const completionState = selectedPeriodRows.length === 0
+                ? 'empty'
+                : periodLockedCount === 0
+                    ? 'open'
+                    : periodLockedCount === selectedPeriodRows.length
+                        ? 'completed'
+                        : 'mixed';
+            const completionLabel = completionState === 'completed'
+                ? 'Completed'
+                : completionState === 'mixed'
+                    ? 'Partially Complete'
+                    : completionState === 'empty'
+                        ? 'No Hours Yet'
+                        : 'Open';
+            const completionBadgeClass = completionState === 'completed'
+                ? 'bg-[#bbf7d0]'
+                : completionState === 'mixed'
+                    ? 'bg-[#fde68a]'
+                    : completionState === 'empty'
+                        ? 'bg-[#e5e7eb]'
+                        : 'bg-[#bae6fd]';
+
+            return (
+                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
+                        <div>
+                            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Payroll</div>
+                            <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606] mt-1">Payroll Hours</h3>
+                            <p className="text-sm font-bold text-gray-600 mt-1">Hi, {adminUser.name}</p>
+                            <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">
+                                Each payroll period is anchored to Monday, March 16, 2026 and runs for two weeks.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                onClick={onRefresh}
+                                disabled={isRefreshing || isSubmittingPayroll}
+                                className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
+                            >
+                                <i className={`fas ${isRefreshing ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#38bdf8]`}></i>
+                                <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                            </button>
+                            <button
+                                onClick={() => onToggleCompletion(selectedPeriod, completionState !== 'completed')}
+                                disabled={isSubmittingPayroll || selectedPeriodRows.length === 0}
+                                className={`brutal-btn px-4 py-2 text-sm flex items-center gap-2 ${
+                                    completionState === 'completed'
+                                        ? 'bg-white hover:bg-gray-50'
+                                        : 'bg-[#4ade80] hover:bg-[#22c55e]'
+                                }`}
+                            >
+                                <i className={`fas ${isSubmittingPayroll ? 'fa-circle-notch spinner' : (completionState === 'completed' ? 'fa-lock-open' : 'fa-lock')}`}></i>
+                                <span>
+                                    {isSubmittingPayroll
+                                        ? 'Saving...'
+                                        : (completionState === 'completed' ? 'Mark Incomplete' : 'Mark Complete')}
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col xl:flex-row xl:items-center gap-3 mb-4 shrink-0">
+                        <div className="flex items-center gap-2 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
+                            <button
+                                onClick={() => currentPeriodIndex > 0 && setSelectedPeriodKey(availablePeriodKeys[currentPeriodIndex - 1])}
+                                disabled={currentPeriodIndex <= 0}
+                                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg disabled:opacity-40"
+                            >
+                                <i className="fas fa-chevron-left"></i>
+                            </button>
+                            <span className="font-bold font-poppins text-[#060606] min-w-[190px] md:min-w-[250px] text-center text-sm md:text-base px-2">
+                                {selectedPeriod.label}
+                            </span>
+                            <button
+                                onClick={() => currentPeriodIndex < availablePeriodKeys.length - 1 && setSelectedPeriodKey(availablePeriodKeys[currentPeriodIndex + 1])}
+                                disabled={currentPeriodIndex >= availablePeriodKeys.length - 1}
+                                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg disabled:opacity-40"
+                            >
+                                <i className="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+
+                        <div className="h-12 flex items-center gap-2 rounded-xl border-2 border-black bg-white px-3 shadow-[2px_2px_0px_0px_#000000]">
+                            <i className="fas fa-calendar-days text-[#0284c7]"></i>
+                            <select
+                                value={activePeriodKey}
+                                onChange={e => setSelectedPeriodKey(e.target.value)}
+                                className="h-full bg-transparent outline-none font-bold text-sm md:text-base min-w-[210px]"
+                            >
+                                {availablePeriodKeys.slice().reverse().map(periodKey => {
+                                    const period = buildPayrollPeriodFromStart(periodKey);
+                                    return (
+                                        <option key={period.key} value={period.key}>
+                                            {period.fullLabel}
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
+
+                        <div className="text-xs md:text-sm font-bold text-gray-500">
+                            Pay date {formatFullDate(selectedPeriod.payDate)}
+                        </div>
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-4 shrink-0">
+                        <div className="rounded-2xl border-2 border-black bg-[#f8fafc] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                            <div className="text-[10px] uppercase font-bold text-gray-500">Period Status</div>
+                            <div className={`inline-flex items-center mt-3 rounded-full border-2 border-black px-3 py-1 text-xs font-bold uppercase tracking-wide ${completionBadgeClass}`}>
+                                {completionLabel}
+                            </div>
+                        </div>
+                        <div className="rounded-2xl border-2 border-black bg-[#ecfccb] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                            <div className="text-[10px] uppercase font-bold text-gray-500">Total Hours</div>
+                            <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{formatPayrollHours(periodTotalMinutes)}</div>
+                        </div>
+                        <div className="rounded-2xl border-2 border-black bg-[#fff7ed] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                            <div className="text-[10px] uppercase font-bold text-gray-500">Employees With Hours</div>
+                            <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{employeesWithHoursCount}</div>
+                        </div>
+                        <div className="rounded-2xl border-2 border-black bg-[#dbeafe] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                            <div className="text-[10px] uppercase font-bold text-gray-500">Worked Entries</div>
+                            <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{selectedPeriodRows.length}</div>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto no-scrollbar pr-1 space-y-3 pb-4">
+                        {employeeSummaries.length === 0 ? (
+                            <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
+                                No employee records were found for this payroll period.
+                            </div>
+                        ) : employeeSummaries.map(summary => {
+                            const rowStatusLabel = summary.rowCount === 0
+                                ? 'No hours'
+                                : summary.isComplete
+                                    ? 'Locked'
+                                    : 'Open';
+                            const rowStatusClass = summary.rowCount === 0
+                                ? 'bg-[#e5e7eb]'
+                                : summary.isComplete
+                                    ? 'bg-[#bbf7d0]'
+                                    : 'bg-[#bae6fd]';
+
+                            return (
+                                <div key={`${selectedPeriod.key}-${summary.name}`} className="rounded-2xl border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                                    <div className="grid md:grid-cols-[minmax(0,1.4fr)_150px_120px] gap-3 items-center">
+                                        <div className="min-w-0">
+                                            <div className="font-bold font-poppins text-[#060606] text-base md:text-lg truncate">{summary.name}</div>
+                                            <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 mt-1">
+                                                {summary.rowCount === 0
+                                                    ? 'No worked shifts yet in this pay period'
+                                                    : `${summary.rowCount} worked entr${summary.rowCount === 1 ? 'y' : 'ies'}`}
+                                            </div>
+                                        </div>
+                                        <div className="rounded-xl border-2 border-black bg-[#f8fafc] px-3 py-2">
+                                            <div className="text-[10px] uppercase font-bold text-gray-500">Hours</div>
+                                            <div className="text-lg font-bold font-poppins text-[#060606] mt-1">{formatPayrollHours(summary.totalMinutes)}</div>
+                                        </div>
+                                        <div className={`inline-flex items-center justify-center rounded-full border-2 border-black px-3 py-2 text-xs font-bold uppercase tracking-wide ${rowStatusClass}`}>
+                                            {rowStatusLabel}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             );
@@ -2039,6 +2408,7 @@
                 const cellFormattedIn = draft.clearSchedule ? '' : formatTimeField(draft.schedIn, draft.schedInPeriod);
                 const cellFormattedOut = draft.clearSchedule ? '' : formatTimeField(draft.schedOut, draft.schedOutPeriod);
                 const cellMinutes = draft.clearSchedule ? null : calculateWorkedMinutes(cellFormattedIn, cellFormattedOut);
+                const hasAssignedShift = Boolean(cellFormattedIn && cellFormattedOut);
                 const isSelected = selectedCell && selectedCell.name === employeeName && selectedCell.date === dayKey;
                 const isDirty = !areAdminScheduleDraftsEquivalent(draft, draft.sourceRow
                     ? buildAdminScheduleDraftFromRow(draft.sourceRow, employeeName, dayKey)
@@ -2047,7 +2417,7 @@
                     ? 'bg-[#38bdf8] text-[#060606]'
                     : isDirty
                         ? 'bg-[#fef3c7] text-[#060606]'
-                        : (cellFormattedIn && cellFormattedOut)
+                        : hasAssignedShift
                             ? 'bg-white text-[#060606]'
                             : 'bg-[#f8fafc] text-[#060606]';
 
@@ -2056,6 +2426,7 @@
                     cellFormattedIn,
                     cellFormattedOut,
                     cellMinutes,
+                    hasAssignedShift,
                     isSelected,
                     cellStateClass,
                 };
@@ -2066,8 +2437,9 @@
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 md:mb-6 shrink-0">
                         <div>
                             <h3 className="text-xl md:text-3xl font-bold font-poppins text-[#060606]">Weekly Schedule Studio</h3>
-                            <p className="text-sm md:text-base font-bold text-[#060606]/70 mt-1">
-                                Signed in as {adminUser.name}. Build a full week here, then save reusable templates in the template builder.
+                            <p className="text-sm md:text-base font-bold text-[#060606]/70 mt-1">Hi, {adminUser.name}</p>
+                            <p className="text-xs md:text-sm font-bold text-[#060606]/60 mt-1">
+                                Build a full week here, then save reusable templates in the template builder.
                             </p>
                         </div>
                         <div className="flex flex-col gap-3 xl:items-end">
@@ -2438,7 +2810,7 @@
                                                         </div>
                                                         {weekDays.map(dayObj => {
                                                             const dayKey = normalizeDate(dayObj);
-                                                            const { draft, cellFormattedIn, cellFormattedOut, cellMinutes, cellStateClass } = getWeekGridCellState(emp.name, dayKey);
+                                                            const { draft, cellFormattedIn, cellFormattedOut, cellMinutes, hasAssignedShift, cellStateClass } = getWeekGridCellState(emp.name, dayKey);
 
                                                             return (
                                                                 <button
@@ -2455,24 +2827,27 @@
                                                                     }}
                                                                     className={`min-h-[88px] border-t border-black px-2 py-2.5 text-left flex flex-col justify-between gap-2 transition-colors ${cellStateClass}`}
                                                                 >
-                                                                    <div className="flex items-start justify-between gap-2">
-                                                                        <div className="text-xs font-bold leading-snug">
-                                                                            {draft.clearSchedule
-                                                                                ? 'Clear on save'
-                                                                                : (cellFormattedIn && cellFormattedOut ? `${cellFormattedIn} - ${cellFormattedOut}` : 'No shift assigned')}
-                                                                        </div>
-                                                                        {draft.sourceRow && <span className="w-2.5 h-2.5 rounded-full bg-[#0284c7] border border-black shrink-0 mt-1"></span>}
+                                                                    <div className="text-xs font-bold leading-snug min-h-[2.5rem]">
+                                                                        {draft.clearSchedule
+                                                                            ? 'Clear on save'
+                                                                            : (hasAssignedShift ? `${cellFormattedIn} - ${cellFormattedOut}` : '')}
                                                                     </div>
-                                                                    <div className="space-y-1">
-                                                                        <div className="text-[10px] font-bold uppercase tracking-wide opacity-70">
-                                                                            {draft.clearSchedule ? 'Clearing' : normalizeAdminScheduleStatus(draft.scheduleStatus)}
+                                                                    {(draft.clearSchedule || hasAssignedShift) && (
+                                                                        <div className="space-y-1">
+                                                                            <div className="text-[10px] font-bold uppercase tracking-wide opacity-70">
+                                                                                {draft.clearSchedule ? 'Clearing' : normalizeAdminScheduleStatus(draft.scheduleStatus)}
+                                                                            </div>
+                                                                            {draft.clearSchedule ? (
+                                                                                <div className="text-[10px] font-bold opacity-70">
+                                                                                    Schedule will be removed
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div className="text-[10px] font-bold opacity-70">
+                                                                                    {formatWorkedDurationForDisplay(cellMinutes)}
+                                                                                </div>
+                                                                            )}
                                                                         </div>
-                                                                        <div className="text-[10px] font-bold opacity-70">
-                                                                            {draft.clearSchedule
-                                                                                ? 'Schedule will be removed'
-                                                                                : (cellMinutes === null ? 'Edit or apply a template' : formatWorkedDurationForDisplay(cellMinutes))}
-                                                                        </div>
-                                                                    </div>
+                                                                    )}
                                                                 </button>
                                                             );
                                                         })}
@@ -2495,7 +2870,7 @@
 
                                                         <div className="divide-y divide-black">
                                                             {sortedEmployees.map(emp => {
-                                                                const { draft, cellFormattedIn, cellFormattedOut, cellMinutes, cellStateClass } = getWeekGridCellState(emp.name, dayKey);
+                                                                const { draft, cellFormattedIn, cellFormattedOut, cellMinutes, hasAssignedShift, cellStateClass } = getWeekGridCellState(emp.name, dayKey);
 
                                                                 return (
                                                                     <button
@@ -2506,21 +2881,25 @@
                                                                     >
                                                                         <div className="min-w-0">
                                                                             <div className="font-bold font-poppins text-[#060606] text-sm truncate">{emp.name}</div>
-                                                                            <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mt-1">
-                                                                                {draft.clearSchedule ? 'Clearing' : normalizeAdminScheduleStatus(draft.scheduleStatus)}
-                                                                            </div>
+                                                                            {(draft.clearSchedule || hasAssignedShift) && (
+                                                                                <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mt-1">
+                                                                                    {draft.clearSchedule ? 'Clearing' : normalizeAdminScheduleStatus(draft.scheduleStatus)}
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                         <div className="text-right shrink-0">
                                                                             <div className="text-xs font-bold text-[#060606]">
                                                                                 {draft.clearSchedule
                                                                                     ? 'Clear on save'
-                                                                                    : (cellFormattedIn && cellFormattedOut ? `${cellFormattedIn} - ${cellFormattedOut}` : 'No shift assigned')}
+                                                                                    : (hasAssignedShift ? `${cellFormattedIn} - ${cellFormattedOut}` : '')}
                                                                             </div>
-                                                                            <div className="text-[10px] font-bold text-gray-500 mt-1">
-                                                                                {draft.clearSchedule
-                                                                                    ? 'Schedule will be removed'
-                                                                                    : (cellMinutes === null ? 'Tap to edit' : formatWorkedDurationForDisplay(cellMinutes))}
-                                                                            </div>
+                                                                            {(draft.clearSchedule || hasAssignedShift) && (
+                                                                                <div className="text-[10px] font-bold text-gray-500 mt-1">
+                                                                                    {draft.clearSchedule
+                                                                                        ? 'Schedule will be removed'
+                                                                                        : formatWorkedDurationForDisplay(cellMinutes)}
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     </button>
                                                                 );
@@ -2582,6 +2961,7 @@
             const [isSubmittingInventory, setIsSubmittingInventory] = useState(false);
             const [isSubmittingAdminSchedule, setIsSubmittingAdminSchedule] = useState(false);
             const [isSavingShiftTemplates, setIsSavingShiftTemplates] = useState(false);
+            const [isSubmittingPayroll, setIsSubmittingPayroll] = useState(false);
             const [fetchError, setFetchError] = useState(null);
 
             // Dynamic Data State
@@ -3027,7 +3407,7 @@
             const stagedScheduleChangeCount = Object.keys(adminScheduleDrafts).length;
             const inventoryOpenRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
             const inventoryAwaitingRows = inventoryOpenRows.filter(row => Number(row.awaitingApproval || 0) > 0);
-            const isAdminWorkspaceOpen = Boolean(isAuthenticated && adminUser && ['ADMIN', 'ADMIN_INVENTORY'].includes(viewMode));
+            const isAdminWorkspaceOpen = Boolean(isAuthenticated && adminUser && ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PAYROLL'].includes(viewMode));
             const editableRows = filterTimesheetRowsUpToToday(personalData)
                 .filter(row => !isEntryLocked(row))
                 .slice()
@@ -3116,6 +3496,11 @@
                 await refreshInventory({ showSpinner: false });
             };
 
+            const handleOpenAdminPayroll = async () => {
+                setViewMode('ADMIN_PAYROLL');
+                await refreshLogs({ showSpinner: false });
+            };
+
             const handleInventoryStart = async (row, quantity) => {
                 return submitInventoryAction(
                     {
@@ -3138,17 +3523,19 @@
                 );
             };
 
-            const handleInventoryAddNeed = async (sku, quantity) => {
+            const handleInventoryAddNeed = async (sku, product, quantity) => {
                 if (!adminUser) return false;
+                const itemLabel = product ? `${product} (${sku})` : sku;
                 return submitInventoryAction(
                     {
                         action: "INVENTORY_ADD_NEED",
                         sku,
+                        product,
                         quantity,
                         editorName: adminUser.name,
                         editorRole: adminUser.role || 'admin',
                     },
-                    `${sku} now has ${quantity} more item${quantity === 1 ? '' : 's'} needed.`
+                    `${itemLabel} now has ${quantity} more item${quantity === 1 ? '' : 's'} needed.`
                 );
             };
 
@@ -3193,6 +3580,44 @@
                     },
                     `${quantity} ${quantity === 1 ? 'item was' : 'items were'} sent back from Awaiting Approval for ${row.sku}.`
                 );
+            };
+
+            const handleSetPayrollPeriodCompletion = async (period, shouldComplete) => {
+                if (!adminUser || !period?.startKey || !period?.endKey || isSubmittingPayroll) return false;
+
+                lastActivityRef.current = Date.now();
+                setIsSubmittingPayroll(true);
+
+                try {
+                    const result = await sendToSheet({
+                        action: "ADMIN_SET_PAYROLL_PERIOD_STATUS",
+                        periodStart: period.startKey,
+                        periodEnd: period.endKey,
+                        completed: shouldComplete,
+                        editorName: adminUser.name,
+                        editorRole: adminUser.role || 'admin',
+                    });
+
+                    if (!result.ok) {
+                        setNotification({ type: 'error', message: result.error || "Could not update payroll for that pay period." });
+                        return false;
+                    }
+
+                    const refreshedRows = await refreshLogs({ showSpinner: false });
+                    const nextLabel = shouldComplete ? 'completed' : 'reopened';
+                    if (refreshedRows) {
+                        setNotification({ type: 'success', message: `Payroll for ${period.label} was marked ${nextLabel}.` });
+                    } else {
+                        setNotification({ type: 'info', message: `Payroll for ${period.label} was marked ${nextLabel}, but the latest timesheet rows could not be reloaded automatically.` });
+                    }
+                    return true;
+                } catch (err) {
+                    console.error("Payroll update failed:", err);
+                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted the payroll update." });
+                    return false;
+                } finally {
+                    setIsSubmittingPayroll(false);
+                }
             };
 
             useEffect(() => {
@@ -3799,11 +4224,13 @@
                             {/* Admin Actions */}
                             {isAuthenticated && adminUser && (
                                 <div className="brutal-card p-4 md:p-6 animate-fade-in bg-white">
-                                    <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-2">Admin Session</h2>
+                                    <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-2 truncate">Hi, {adminUser.name}</h2>
                                     <p className="text-sm font-bold text-gray-600 mb-5">
-                                        Signed in as {adminUser.name}. {viewMode === 'ADMIN_INVENTORY'
+                                        {viewMode === 'ADMIN_INVENTORY'
                                             ? `${inventoryAwaitingRows.length} inventory row${inventoryAwaitingRows.length === 1 ? '' : 's'} currently need approval.`
-                                            : 'Open the schedule studio or the inventory request board from here.'}
+                                            : viewMode === 'ADMIN_PAYROLL'
+                                                ? 'Review biweekly payroll totals and mark the period complete from here.'
+                                                : 'Open the schedule studio, payroll, or the inventory request board from here.'}
                                     </p>
                                     <div className="grid grid-cols-1 gap-3">
                                         <button
@@ -3825,6 +4252,15 @@
                                             <span>Inventory</span>
                                         </button>
                                         <button
+                                            onClick={handleOpenAdminPayroll}
+                                            className={`brutal-btn py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
+                                                viewMode === 'ADMIN_PAYROLL' ? 'bg-[#bbf7d0] hover:bg-[#86efac]' : 'bg-white hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <i className="fas fa-file-invoice-dollar text-[#16a34a]"></i>
+                                            <span>Payroll</span>
+                                        </button>
+                                        <button
                                             onClick={handleLogout}
                                             className="brutal-btn py-3 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
                                         >
@@ -3840,7 +4276,7 @@
                         <div className={`lg:col-span-8 transition-all duration-300 ${!selectedId && directoryMode === 'admin' && !isAdminWorkspaceOpen ? 'hidden lg:block' : 'block'}`}>
                             
                             {/* Adding relative positioning so absolute children (toast) anchor exactly here */}
-                            <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-220px)] lg:max-h-[860px]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : ['ADMIN', 'ADMIN_INVENTORY'].includes(viewMode) ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
+                            <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-220px)] lg:max-h-[860px]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PAYROLL'].includes(viewMode) ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
                                 
                                 {/* TIMEOUT WARNING OVERLAY */}
                                 {showTimeoutWarning && (
@@ -3961,6 +4397,17 @@
                                                 onOpenScheduler={() => setViewMode('ADMIN')}
                                                 onSignOut={handleLogout}
                                                 onMessage={setNotification}
+                                            />
+                                        )}
+                                        {viewMode === 'ADMIN_PAYROLL' && (
+                                            <AdminPayrollWorkspace
+                                                adminUser={adminUser}
+                                                employees={employees}
+                                                sheetData={sheetData}
+                                                isRefreshing={isFetchingLogs}
+                                                isSubmittingPayroll={isSubmittingPayroll}
+                                                onRefresh={() => refreshLogs({ showSpinner: true })}
+                                                onToggleCompletion={handleSetPayrollPeriodCompletion}
                                             />
                                         )}
                                     </div>

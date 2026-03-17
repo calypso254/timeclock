@@ -130,6 +130,10 @@ function doPost(e) {
       return handleSaveShiftTemplates_(data);
     }
 
+    if (data.action === "ADMIN_SET_PAYROLL_PERIOD_STATUS") {
+      return handleAdminSetPayrollPeriodStatus_(sheet, data);
+    }
+
     if (data.action === "INVENTORY_ADD_NEED") {
       return handleInventoryAddNeed_(data);
     }
@@ -205,6 +209,53 @@ function handleSaveShiftTemplates_(data) {
     status: "success",
     action: "SAVE_SHIFT_TEMPLATES",
     shiftTemplates: nextTemplates
+  });
+}
+
+function handleAdminSetPayrollPeriodStatus_(sheet, data) {
+  validateRequiredFields_(data, ["editorName", "editorRole", "periodStart", "periodEnd"]);
+
+  if (data.completed === undefined || data.completed === null || String(data.completed).trim() === "") {
+    throw new Error("Missing required field: completed");
+  }
+
+  if (!isAdminRole_(data.editorRole)) {
+    throw new Error("Unauthorized. Only admin-capable accounts can update payroll periods.");
+  }
+
+  var periodStart = normalizeDateKey_(data.periodStart);
+  var periodEnd = normalizeDateKey_(data.periodEnd);
+  if (!periodStart || !periodEnd) {
+    throw new Error("A valid payroll period start and end date are required.");
+  }
+  if (periodStart > periodEnd) {
+    throw new Error("Payroll period start cannot be after the end date.");
+  }
+
+  var shouldComplete = data.completed === true || String(data.completed).toLowerCase() === "true";
+  var nextStatus = shouldComplete ? "Locked" : "Open";
+  var records = getLogRecords_(sheet);
+  var updatedCount = 0;
+
+  for (var i = 0; i < records.length; i++) {
+    var record = records[i];
+    if (!isPayrollRelevantRecord_(record)) {
+      continue;
+    }
+    if (record.dateKey < periodStart || record.dateKey > periodEnd) {
+      continue;
+    }
+    sheet.getRange(record.rowNumber, LOG_COL.PAYROLL_STATUS).setValue(nextStatus);
+    updatedCount += 1;
+  }
+
+  return jsonResponse_({
+    status: "success",
+    action: "ADMIN_SET_PAYROLL_PERIOD_STATUS",
+    periodStart: periodStart,
+    periodEnd: periodEnd,
+    completed: shouldComplete,
+    updatedCount: updatedCount
   });
 }
 
@@ -1548,6 +1599,17 @@ function isLocked_(record) {
   return String(record && record.payrollStatus ? record.payrollStatus : "")
     .trim()
     .toLowerCase() === "locked";
+}
+
+function isPayrollRelevantRecord_(record) {
+  if (!record) {
+    return false;
+  }
+
+  return hasValue_(record.timeIn) ||
+    hasValue_(record.timeOut) ||
+    hasValue_(record.totalHours) ||
+    hasValue_(record.decimalHours);
 }
 
 function isAdminRole_(role) {
