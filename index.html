@@ -1588,36 +1588,40 @@
                     </div>
 
                     <div className="flex-1 overflow-y-auto no-scrollbar px-1 pt-1 pb-4">
-                        <div className="rounded-[28px] border-2 border-black overflow-hidden bg-white shadow-[4px_4px_0px_0px_#000000]">
-                            <div className="border-b-2 border-black bg-[#38bdf8] px-4 py-3 text-center text-[#060606]">
-                                <div className="text-xs md:text-sm font-bold font-poppins uppercase tracking-[0.25em]">
-                                    {todayDate.toLocaleDateString('en-US', { weekday: 'short' })}
+                        <div className="flex flex-wrap gap-3">
+                            {todayShifts.length === 0 ? (
+                                <div className="w-full rounded-2xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
+                                    No published shifts today.
                                 </div>
-                                <div className="text-4xl md:text-5xl font-bold font-poppins leading-none mt-2">
-                                    {todayDate.getDate()}
-                                </div>
-                                <div className="text-xs md:text-sm font-bold font-poppins uppercase tracking-[0.2em] mt-2">
-                                    {todayDate.toLocaleDateString('en-US', { month: 'short' })}
-                                </div>
-                            </div>
-
-                            <div className="bg-[#e0f2fe] p-3 md:p-4 space-y-3">
-                                {todayShifts.length === 0 ? (
-                                    <div className="rounded-2xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
-                                        No published shifts today.
-                                    </div>
-                                ) : todayShifts.map((shift, idx) => (
-                                    <div key={`${todayKey}-${shift.name}-${idx}`} className="rounded-2xl border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
-                                        <div className="font-bold font-poppins text-[#060606] text-lg md:text-xl leading-tight">
-                                            {shift.name}
+                            ) : todayShifts.map((shift, idx) => (
+                                <div
+                                    key={`${todayKey}-${shift.name}-${idx}`}
+                                    className="w-full max-w-[220px] flex flex-col rounded-2xl border-2 border-black overflow-hidden shadow-[4px_4px_0px_0px_#000000] bg-[#e0f2fe]"
+                                >
+                                    <div className="p-2.5 border-b-2 border-black flex flex-col justify-center items-center bg-[#38bdf8] text-[#060606]">
+                                        <div className="text-[11px] md:text-sm font-bold font-poppins uppercase tracking-wider">
+                                            {todayDate.toLocaleDateString('en-US', { weekday: 'short' })}
                                         </div>
-                                        <div className="text-sm md:text-base font-bold text-gray-600 mt-2 flex items-center gap-2">
-                                            <i className="far fa-clock text-[#fb7185]"></i>
-                                            <span>{shift.schedIn} - {shift.schedOut}</span>
+                                        <div className="text-xl md:text-2xl font-bold font-poppins mt-1">
+                                            {todayDate.getDate()}
+                                        </div>
+                                        <div className="text-[10px] md:text-xs font-bold uppercase mt-0.5">
+                                            {todayDate.toLocaleDateString('en-US', { month: 'short' })}
                                         </div>
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="p-3 flex flex-col gap-2">
+                                        <div className="rounded-xl border-2 border-black px-3 py-2.5 shadow-[2px_2px_0px_0px_#000000] bg-white">
+                                            <div className="font-bold font-poppins text-[#060606] text-sm md:text-base leading-tight">
+                                                {shift.name}
+                                            </div>
+                                            <div className="text-[11px] md:text-sm font-bold text-gray-600 mt-1.5">
+                                                <i className="far fa-clock mr-1 text-[#fb7185]"></i>
+                                                {shift.schedIn} - {shift.schedOut}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
