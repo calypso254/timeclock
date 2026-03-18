@@ -71,6 +71,13 @@ var INVENTORY_LOG_COL = {
   MESSAGE: 9
 };
 
+var INVENTORY_STATUS = {
+  OPEN: "Open",
+  IN_PROCESS: "In Process",
+  AWAITING_APPROVAL: "Awaiting Approval",
+  COMPLETED: "Completed"
+};
+
 function doGet(e) {
   var type = (e && e.parameter && e.parameter.type) || "employees";
 
@@ -465,8 +472,8 @@ function handleInventoryStart_(data) {
   if (!record) {
     throw new Error("That inventory row could not be found.");
   }
-  if (record.status === "Complete") {
-    throw new Error("This inventory row is already complete.");
+  if (record.status === INVENTORY_STATUS.COMPLETED) {
+    throw new Error("This inventory row is already completed.");
   }
   if (quantity > record.stillNeeded) {
     throw new Error("Only " + record.stillNeeded + " item(s) are still needed for this row.");
@@ -641,6 +648,41 @@ function ensureInventorySheetStructure_(sheet) {
 
   sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
   sheet.setFrozenRows(1);
+  ensureInventoryStatusValidation_(sheet);
+}
+
+function ensureInventoryStatusValidation_(sheet) {
+  var validStatuses = [
+    INVENTORY_STATUS.OPEN,
+    INVENTORY_STATUS.IN_PROCESS,
+    INVENTORY_STATUS.AWAITING_APPROVAL,
+    INVENTORY_STATUS.COMPLETED
+  ];
+  var rowCount = Math.max(sheet.getMaxRows() - 1, 1);
+  var statusRange = sheet.getRange(2, INVENTORY_COL.STATUS, rowCount, 1);
+  var validationRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(validStatuses, true)
+    .setAllowInvalid(false)
+    .build();
+  statusRange.setDataValidation(validationRule);
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return;
+  }
+
+  var existingStatuses = sheet.getRange(2, INVENTORY_COL.STATUS, lastRow - 1, 1).getDisplayValues();
+  var shouldRewriteStatuses = false;
+  for (var i = 0; i < existingStatuses.length; i++) {
+    if (String(existingStatuses[i][0] || "").trim() === "Complete") {
+      existingStatuses[i][0] = INVENTORY_STATUS.COMPLETED;
+      shouldRewriteStatuses = true;
+    }
+  }
+
+  if (shouldRewriteStatuses) {
+    sheet.getRange(2, INVENTORY_COL.STATUS, existingStatuses.length, 1).setValues(existingStatuses);
+  }
 }
 
 function ensureInventoryLogSheetStructure_(sheet) {
@@ -715,13 +757,13 @@ function computeInventoryDerivedFields_(needed, inProcess, awaitingApproval, add
     stillNeeded = 0;
   }
 
-  var status = "Open";
+  var status = INVENTORY_STATUS.OPEN;
   if (needed > 0 && addedToStore >= needed && inProcess === 0 && awaitingApproval === 0) {
-    status = "Complete";
+    status = INVENTORY_STATUS.COMPLETED;
   } else if (awaitingApproval > 0) {
-    status = "Awaiting Approval";
+    status = INVENTORY_STATUS.AWAITING_APPROVAL;
   } else if (inProcess > 0) {
-    status = "In Process";
+    status = INVENTORY_STATUS.IN_PROCESS;
   }
 
   return {
@@ -784,7 +826,7 @@ function getInventoryRecordByRowNumber_(sheet, rowNumberValue) {
 function findOpenInventoryRecordBySku_(records, sku) {
   var normalizedSku = normalizeSku_(sku);
   var matches = records.filter(function(record) {
-    return normalizeSku_(record.sku) === normalizedSku && record.status !== "Complete";
+    return normalizeSku_(record.sku) === normalizedSku && record.status !== INVENTORY_STATUS.COMPLETED;
   });
 
   if (matches.length === 0) {
