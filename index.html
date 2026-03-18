@@ -153,6 +153,7 @@
         }
         .card-size-1x1 { grid-column: span 1; grid-row: span 1; }
         .card-size-1x2 { grid-column: span 1; grid-row: span 2; }
+        .card-size-1x3 { grid-column: span 1; grid-row: span 3; }
         .card-size-2x1 { grid-column: span 2; grid-row: span 1; }
         .card-size-2x2 { grid-column: span 2; grid-row: span 2; }
         .card-size-2x3 { grid-column: span 2; grid-row: span 3; }
@@ -243,7 +244,7 @@
             --active-card-row-height: 124px;
         }
         .inventory-summary-card {
-            min-height: calc(var(--active-card-row-height) * 2 + var(--card-grid-gap));
+            min-height: calc(var(--active-card-row-height) * 3 + (var(--card-grid-gap) * 2));
         }
         .schedule-week-grid {
             display: grid;
@@ -293,6 +294,12 @@
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
+        @media (min-width: 768px) {
+            .today-schedule-card-grid {
+                grid-template-columns: repeat(auto-fit, minmax(var(--active-card-column-width), var(--active-card-column-width)));
+                justify-content: start;
+            }
+        }
         @media (max-width: 767px) {
             .card-grid,
             .schedule-week-grid {
@@ -300,6 +307,7 @@
             }
             .card-size-1x1,
             .card-size-1x2,
+            .card-size-1x3,
             .card-size-2x1,
             .card-size-2x2,
             .card-size-2x3,
@@ -309,7 +317,7 @@
                 grid-row: span 1;
             }
             .inventory-summary-card {
-                grid-row: span 2;
+                grid-row: span 3;
             }
             .schedule-day-card {
                 min-height: auto;
@@ -1915,7 +1923,7 @@
                         ) : (
                             <div className="card-grid inventory-snapshot-card-grid">
                                 {openRows.map(row => (
-                                    <div key={row.rowNumber} className="card-frame card-size-1x2 inventory-summary-card rounded-xl border-2 border-black bg-white p-2.5 shadow-[3px_3px_0px_0px_#000000] flex flex-col">
+                                    <div key={row.rowNumber} className="card-frame card-size-1x3 inventory-summary-card rounded-xl border-2 border-black bg-white p-3 shadow-[3px_3px_0px_0px_#000000] flex flex-col">
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0 flex-1">
                                                 <div className="text-[9px] uppercase font-bold text-gray-500">SKU</div>
@@ -1935,16 +1943,16 @@
                                             </div>
                                         </div>
 
-                                        <div className="mt-3 flex flex-col gap-2">
-                                            <div className="rounded-lg border-2 border-black bg-[#f0fdf4] px-2.5 py-1.5">
+                                        <div className="mt-3.5 flex flex-col gap-2.5">
+                                            <div className="rounded-lg border-2 border-black bg-[#f0fdf4] px-2.5 py-2">
                                                 <div className="text-[9px] uppercase font-bold text-gray-500">Still Needed</div>
                                                 <div className="text-sm font-bold font-poppins text-[#060606]">{row.stillNeeded}</div>
                                             </div>
-                                            <div className="rounded-lg border-2 border-black bg-[#ecfccb] px-2.5 py-1.5">
+                                            <div className="rounded-lg border-2 border-black bg-[#ecfccb] px-2.5 py-2">
                                                 <div className="text-[9px] uppercase font-bold text-gray-500">In Process</div>
                                                 <div className="text-sm font-bold font-poppins text-[#060606]">{row.inProcess}</div>
                                             </div>
-                                            <div className="rounded-lg border-2 border-black bg-[#fff7ed] px-2.5 py-1.5">
+                                            <div className="rounded-lg border-2 border-black bg-[#fff7ed] px-2.5 py-2">
                                                 <div className="text-[9px] uppercase font-bold text-gray-500">Awaiting</div>
                                                 <div className="text-sm font-bold font-poppins text-[#060606]">{row.awaitingApproval}</div>
                                             </div>
@@ -1974,7 +1982,7 @@
                         <div className="rounded-2xl border-2 border-black bg-[#f8fafc] p-3 md:p-4 shadow-[4px_4px_0px_0px_#000000] min-h-[190px] overflow-visible">
                             <TodaySchedulePanel sheetData={sheetData} />
                         </div>
-                        <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-3 md:p-4 shadow-[4px_4px_0px_0px_#000000] min-h-[360px] overflow-visible">
+                        <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-3 md:p-4 shadow-[4px_4px_0px_0px_#000000] min-h-[460px] overflow-visible">
                             <InventorySnapshotPanel
                                 inventoryRows={inventoryRows}
                                 title="Inventory"
