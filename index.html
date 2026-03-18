@@ -112,6 +112,10 @@
         .shadow-safe-3 { padding: 3px; }
         .shadow-safe-4 { padding: 4px; }
         .shadow-safe-6 { padding: 6px; }
+        .content-safe-padding {
+            padding-left: 0.25rem;
+            padding-right: 0.75rem;
+        }
         .page-width {
             width: 100%;
             max-width: var(--page-max-width);
@@ -328,6 +332,9 @@
             }
         }
         @media (min-width: 768px) {
+            .content-safe-padding {
+                padding-right: 1rem;
+            }
             .today-schedule-card-grid {
                 grid-template-columns: repeat(auto-fit, minmax(var(--active-card-column-width), var(--active-card-column-width)));
                 justify-content: start;
@@ -1290,7 +1297,7 @@
 
             return (
                 <div className="section-width flex flex-col h-full animate-fade-in relative overflow-hidden">
-                    <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
+                    <div className="content-safe-padding flex justify-between items-center mb-4 md:mb-6 shrink-0 pt-1">
                         <div>
                             <div className="card-eyebrow text-[#0284c7]">Employee View</div>
                             <h3 className="section-title mt-1">My Timesheet</h3>
@@ -1301,15 +1308,17 @@
                     </div>
 
                     {actionAlertPlan && (
-                        <div className="mb-4 rounded-xl border-2 border-black bg-[#fee2e2] px-4 py-3 shadow-[4px_4px_0px_0px_#000000]">
-                            <div className="flex items-start gap-3">
-                                <i className="fas fa-shield-alt text-[#dc2626] text-lg mt-0.5"></i>
-                                <p className="text-xs md:text-sm font-bold text-[#060606] leading-relaxed">{actionAlertPlan.message}</p>
+                        <div className="content-safe-padding mb-4">
+                            <div className="rounded-xl border-2 border-black bg-[#fee2e2] px-4 py-3 shadow-[4px_4px_0px_0px_#000000]">
+                                <div className="flex items-start gap-3">
+                                    <i className="fas fa-shield-alt text-[#dc2626] text-lg mt-0.5"></i>
+                                    <p className="text-xs md:text-sm font-bold text-[#060606] leading-relaxed">{actionAlertPlan.message}</p>
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-3 mb-4 md:mb-6 shrink-0">
+                    <div className="content-safe-padding grid grid-cols-2 gap-3 mb-4 md:mb-6 shrink-0">
                         <button
                             onClick={() => onClockAction("CLOCK_IN")}
                             disabled={!canClockIn}
@@ -1332,8 +1341,7 @@
                         </button>
                     </div>
                     
-                    {/* Inner padding specifically to prevent shadow clipping */}
-                    <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pb-4 pt-1 pl-1 pr-3 md:pr-4">
+                    <div className="content-safe-padding flex-1 overflow-y-auto no-scrollbar space-y-4 pb-4 pt-1">
                         {visibleData.length === 0 ? (
                             <div className="p-8 text-center text-gray-400 font-bold text-sm md:text-lg border-2 border-dashed border-gray-300 rounded-xl">No records found</div>
                         ) : (
@@ -2706,6 +2714,7 @@
             const selectedPreviewMinutes = selectedDraft && !selectedDraft.clearSchedule
                 ? calculateWorkedMinutes(selectedFormattedIn, selectedFormattedOut)
                 : null;
+            const isSelectingDayEmployee = Boolean(selectedDraft && !String(selectedDraft.name || '').trim());
             const getWeekGridCellState = (employeeName, dayKey) => {
                 const draft = getCellDraft(employeeName, dayKey);
                 const cellFormattedIn = draft.clearSchedule ? '' : formatTimeField(draft.schedIn, draft.schedInPeriod);
@@ -2741,7 +2750,6 @@
                         <div>
                             <div className="card-eyebrow text-[#0284c7]">Admin Schedule Builder</div>
                             <h3 className="page-title">Weekly Schedule Studio</h3>
-                            <p className="page-subtitle mt-1">Hi, {adminUser.name}. Build the week with day cards, then edit individual shifts in the modal.</p>
                         </div>
                         <div className="flex flex-col gap-3 xl:items-end">
                             <div className="flex flex-wrap items-center gap-3">
@@ -2811,16 +2819,18 @@
                                 <div className="card-eyebrow text-[#0284c7]">Weekly Schedule</div>
                                 <h4 className="section-title mt-1">Week Board</h4>
                                 <p className="section-subtitle mt-1">
-                                    This board is the schedule. Click any shift card to open the editor modal.
+                                    Click a date to add shifts or a scheduled card to edit.
                                 </p>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 {selectedDraft ? (
                                     <div className={`status-chip ${selectedDraft.sourceRow ? 'bg-[#bae6fd]' : 'bg-[#fde68a]'}`}>
-                                        {selectedDraft.name} - {formatMonthDayDate(selectedDraft.date)}
+                                        {isSelectingDayEmployee
+                                            ? `Choose employee - ${formatMonthDayDate(selectedDraft.date)}`
+                                            : `${selectedDraft.name} - ${formatMonthDayDate(selectedDraft.date)}`}
                                     </div>
                                 ) : (
-                                    <div className="status-chip bg-[#fff7ed]">Open any shift card to edit</div>
+                                    <div className="status-chip bg-[#fff7ed]">Click a date to add shifts</div>
                                 )}
                                 <div className="status-chip bg-[#f8fafc]">
                                     {isRefreshing ? 'Syncing latest schedule rows...' : `${sortedEmployees.length} active team member${sortedEmployees.length === 1 ? '' : 's'} in view`}
@@ -2838,25 +2848,23 @@
                                     {weekDays.map(dayObj => {
                                         const dayKey = normalizeDate(dayObj);
                                         const isToday = dayKey === normalizeDate(new Date());
-                                        const dayEntries = sortedEmployees.map(emp => ({
-                                            employee: emp,
-                                            ...getWeekGridCellState(emp.name, dayKey),
-                                        }));
-                                        const assignedCount = dayEntries.filter(entry => entry.hasAssignedShift || entry.draft.clearSchedule).length;
+                                        const dayEntries = sortedEmployees
+                                            .map(emp => ({
+                                                employee: emp,
+                                                ...getWeekGridCellState(emp.name, dayKey),
+                                            }))
+                                            .filter(entry => entry.hasAssignedShift || entry.draft.clearSchedule || entry.isSelected);
 
                                         return (
                                             <div key={dayKey} className={`section-card card-frame card-size-1x2 schedule-day-card overflow-hidden bg-white ${isToday ? 'ring-4 ring-[#bae6fd]' : ''}`}>
-                                                <div className={`px-4 py-3 border-b-2 border-black ${isToday ? 'bg-[#38bdf8] text-[#060606]' : 'bg-[#bae6fd] text-[#060606]'}`}>
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div>
-                                                            <div className="card-eyebrow text-[#060606]">{dayObj.toLocaleDateString('en-US', { weekday: 'long' })}</div>
-                                                            <div className="card-title mt-1">{formatShortDate(dayObj)}</div>
-                                                        </div>
-                                                        <div className="card-meta text-[#060606]/70">
-                                                            {assignedCount} scheduled
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onSelectCell('', dayKey)}
+                                                    className={`w-full px-4 py-3 border-b-2 border-black text-left ${isToday ? 'bg-[#38bdf8] text-[#060606]' : 'bg-[#bae6fd] text-[#060606]'}`}
+                                                >
+                                                    <div className="card-eyebrow text-[#060606]">{dayObj.toLocaleDateString('en-US', { weekday: 'long' })}</div>
+                                                    <div className="card-title mt-1">{formatShortDate(dayObj)}</div>
+                                                </button>
 
                                                 <div className="schedule-day-scroll no-scrollbar p-3 space-y-2">
                                                     {dayEntries.map(({ employee, draft, cellFormattedIn, cellFormattedOut, cellMinutes, hasAssignedShift, cellStateClass, isSelected }, index) => {
@@ -2874,18 +2882,18 @@
                                                                         <div className="card-title text-sm truncate">{employee.name}</div>
                                                                         <div className="card-meta mt-1 truncate">{employee.department || 'Team'}</div>
                                                                     </div>
-                                                                    {(draft.clearSchedule || hasAssignedShift || isSelected) && (
+                                                                    {(draft.clearSchedule || isSelected) && (
                                                                         <div className="card-eyebrow text-gray-500">
-                                                                            {draft.clearSchedule ? 'Clearing' : isSelected ? 'Editing' : normalizeAdminScheduleStatus(draft.scheduleStatus)}
+                                                                            {draft.clearSchedule ? 'Clearing' : 'Editing'}
                                                                         </div>
                                                                     )}
                                                                 </div>
 
-                                                                <div className="card-meta text-[#060606] mt-3">
-                                                                    {draft.clearSchedule
-                                                                        ? 'Schedule will be removed'
-                                                                        : (hasAssignedShift ? `${cellFormattedIn} - ${cellFormattedOut}` : 'Click to assign a shift')}
-                                                                </div>
+                                                                {draft.clearSchedule ? (
+                                                                    <div className="card-meta text-[#060606] mt-3">Schedule will be removed</div>
+                                                                ) : hasAssignedShift ? (
+                                                                    <div className="card-meta text-[#060606] mt-3">{cellFormattedIn} - {cellFormattedOut}</div>
+                                                                ) : null}
 
                                                                 {(draft.clearSchedule || hasAssignedShift) && (
                                                                     <div className="card-meta mt-1">
@@ -2909,9 +2917,11 @@
                             <div className="brutal-card editor-modal bg-white p-4 md:p-6" onClick={e => e.stopPropagation()}>
                                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                                     <div>
-                                        <div className="card-eyebrow text-[#0284c7]">Schedule Editor</div>
-                                        <h4 className="section-title mt-1">{selectedDraft.name}</h4>
-                                        <p className="section-subtitle mt-1">{formatFullDate(selectedDraft.date)}</p>
+                                        <div className="card-eyebrow text-[#0284c7]">{isSelectingDayEmployee ? 'Choose Employee' : 'Schedule Editor'}</div>
+                                        <h4 className="section-title mt-1">{isSelectingDayEmployee ? formatFullDate(selectedDraft.date) : selectedDraft.name}</h4>
+                                        <p className="section-subtitle mt-1">
+                                            {isSelectingDayEmployee ? 'Choose who you want to schedule for this day.' : formatFullDate(selectedDraft.date)}
+                                        </p>
                                     </div>
                                     <button
                                         type="button"
@@ -2923,139 +2933,178 @@
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
-                                    <div className="section-card bg-[#f8fafc] px-4 py-3">
-                                        <div className="card-eyebrow">Shift</div>
-                                        <div className="card-title mt-2">
-                                            {selectedDraft.clearSchedule
-                                                ? 'Clearing on save'
-                                                : ((selectedFormattedIn && selectedFormattedOut) ? `${selectedFormattedIn} - ${selectedFormattedOut}` : 'No shift assigned')}
+                                {isSelectingDayEmployee ? (
+                                    <div className="section-card bg-[#f8fafc] p-4 mt-4">
+                                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                            <div>
+                                                <h5 className="card-title">Choose Employee</h5>
+                                                <p className="section-subtitle mt-1">Select a team member to create or edit a shift for this day.</p>
+                                            </div>
+                                            <div className="card-meta">{sortedEmployees.length} available employee{sortedEmployees.length === 1 ? '' : 's'}</div>
                                         </div>
-                                    </div>
-                                    <div className="section-card bg-[#f8fafc] px-4 py-3">
-                                        <div className="card-eyebrow">Duration</div>
-                                        <div className="card-title mt-2">
-                                            {selectedDraft.clearSchedule
-                                                ? 'Removed'
-                                                : (selectedPreviewMinutes === null ? '--' : formatWorkedDurationForDisplay(selectedPreviewMinutes))}
-                                        </div>
-                                    </div>
-                                    <div className="section-card bg-[#f8fafc] px-4 py-3">
-                                        <div className="card-eyebrow">Row State</div>
-                                        <div className="card-title mt-2">
-                                            {selectedDraft.sourceRow ? 'Loaded Row' : 'New Row'}
-                                        </div>
-                                    </div>
-                                </div>
 
-                                <div className="section-card bg-[#eff6ff] p-4 mt-4">
-                                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                                        <div>
-                                            <h5 className="card-title">Quick Templates</h5>
-                                            <p className="section-subtitle mt-1">Apply a saved shift or clear this schedule instantly.</p>
+                                        <div className="card-grid mt-4">
+                                            {sortedEmployees.map(employee => {
+                                                const employeeState = getWeekGridCellState(employee.name, selectedDraft.date);
+                                                const alreadyScheduled = employeeState.hasAssignedShift || employeeState.draft.clearSchedule;
+                                                return (
+                                                    <button
+                                                        key={`${selectedDraft.date}-${employee.id}`}
+                                                        type="button"
+                                                        onClick={() => onSelectCell(employee.name, selectedDraft.date)}
+                                                        className={`brutal-btn card-frame card-size-1x1 p-3 text-left flex flex-col justify-between ${alreadyScheduled ? 'bg-[#dbeafe]' : 'bg-white hover:bg-[#f8fafc]'}`}
+                                                    >
+                                                        <div>
+                                                            <div className="card-title text-sm">{employee.name}</div>
+                                                            <div className="card-meta mt-1">{employee.department || 'Team'}</div>
+                                                        </div>
+                                                        <div className="card-meta mt-3 text-[#060606]">
+                                                            {employeeState.hasAssignedShift
+                                                                ? `${employeeState.cellFormattedIn} - ${employeeState.cellFormattedOut}`
+                                                                : (employeeState.draft.clearSchedule ? 'Clearing on save' : 'Add shift')}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
-                                        <div className="card-meta">{quickActionCount} quick action{quickActionCount === 1 ? '' : 's'}</div>
                                     </div>
+                                ) : (
+                                    <>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                                            <div className="section-card bg-[#f8fafc] px-4 py-3">
+                                                <div className="card-eyebrow">Shift</div>
+                                                <div className="card-title mt-2">
+                                                    {selectedDraft.clearSchedule
+                                                        ? 'Clearing on save'
+                                                        : ((selectedFormattedIn && selectedFormattedOut) ? `${selectedFormattedIn} - ${selectedFormattedOut}` : 'No shift assigned')}
+                                                </div>
+                                            </div>
+                                            <div className="section-card bg-[#f8fafc] px-4 py-3">
+                                                <div className="card-eyebrow">Duration</div>
+                                                <div className="card-title mt-2">
+                                                    {selectedDraft.clearSchedule
+                                                        ? 'Removed'
+                                                        : (selectedPreviewMinutes === null ? '--' : formatWorkedDurationForDisplay(selectedPreviewMinutes))}
+                                                </div>
+                                            </div>
+                                            <div className="section-card bg-[#f8fafc] px-4 py-3">
+                                                <div className="card-eyebrow">Row State</div>
+                                                <div className="card-title mt-2">
+                                                    {selectedDraft.sourceRow ? 'Loaded Row' : 'New Row'}
+                                                </div>
+                                            </div>
+                                        </div>
 
-                                    <div className="card-grid mt-4">
-                                        {[ADMIN_SHIFT_UTILITY_TEMPLATE, ...visibleTemplates].map(template => (
-                                            <button
-                                                key={template.id}
-                                                type="button"
-                                                onClick={() => applyTemplateToCell(selectedDraft.name, selectedDraft.date, template.id)}
-                                                disabled={isSavingTemplates}
-                                                className={`brutal-btn card-frame card-size-1x1 ${template.accent || 'bg-white'} p-3 text-left flex flex-col justify-between`}
-                                            >
+                                        <div className="section-card bg-[#eff6ff] p-4 mt-4">
+                                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                                                 <div>
-                                                    <div className="card-title text-sm">{template.label}</div>
-                                                    <div className="card-meta mt-2">
-                                                        {template.clearSchedule ? 'Remove this schedule' : `${template.schedIn} - ${template.schedOut}`}
+                                                    <h5 className="card-title">Quick Templates</h5>
+                                                    <p className="section-subtitle mt-1">Apply a saved shift or clear this schedule instantly.</p>
+                                                </div>
+                                                <div className="card-meta">{quickActionCount} quick action{quickActionCount === 1 ? '' : 's'}</div>
+                                            </div>
+
+                                            <div className="card-grid mt-4">
+                                                {[ADMIN_SHIFT_UTILITY_TEMPLATE, ...visibleTemplates].map(template => (
+                                                    <button
+                                                        key={template.id}
+                                                        type="button"
+                                                        onClick={() => applyTemplateToCell(selectedDraft.name, selectedDraft.date, template.id)}
+                                                        disabled={isSavingTemplates}
+                                                        className={`brutal-btn card-frame card-size-1x1 ${template.accent || 'bg-white'} p-3 text-left flex flex-col justify-between`}
+                                                    >
+                                                        <div>
+                                                            <div className="card-title text-sm">{template.label}</div>
+                                                            <div className="card-meta mt-2">
+                                                                {template.clearSchedule ? 'Remove this schedule' : `${template.schedIn} - ${template.schedOut}`}
+                                                            </div>
+                                                        </div>
+                                                        <div className="card-eyebrow text-[#060606]/70">
+                                                            {template.clearSchedule ? 'Utility' : normalizeAdminScheduleStatus(template.scheduleStatus)}
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="section-card bg-white p-4 mt-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(160px,0.9fr)_minmax(160px,0.9fr)_minmax(150px,0.8fr)_auto] gap-3 items-end">
+                                                <div>
+                                                    <label className="field-label block mb-2">Scheduled In</label>
+                                                    <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
+                                                        <input
+                                                            type="text"
+                                                            inputMode="numeric"
+                                                            placeholder="9:00"
+                                                            value={selectedDraft.clearSchedule ? '' : selectedDraft.schedIn}
+                                                            onChange={e => {
+                                                                const next = normalizeTimeInputWithPeriod(e.target.value, selectedDraft.schedInPeriod);
+                                                                updateCellDraft(selectedDraft.name, selectedDraft.date, {
+                                                                    schedIn: next.time,
+                                                                    schedInPeriod: next.period,
+                                                                    clearSchedule: false,
+                                                                });
+                                                            }}
+                                                            className="w-[5ch] min-w-[5ch] py-3 font-bold text-sm md:text-base bg-transparent outline-none"
+                                                            maxLength={5}
+                                                        />
+                                                        <div className="ml-auto flex shrink-0 items-center gap-2">
+                                                            <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedInPeriod: 'AM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedInPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
+                                                            <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedInPeriod: 'PM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedInPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div className="card-eyebrow text-[#060606]/70">
-                                                    {template.clearSchedule ? 'Utility' : normalizeAdminScheduleStatus(template.scheduleStatus)}
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
 
-                                <div className="section-card bg-white p-4 mt-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(160px,0.9fr)_minmax(160px,0.9fr)_minmax(150px,0.8fr)_auto] gap-3 items-end">
-                                        <div>
-                                            <label className="field-label block mb-2">Scheduled In</label>
-                                            <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
-                                                <input
-                                                    type="text"
-                                                    inputMode="numeric"
-                                                    placeholder="9:00"
-                                                    value={selectedDraft.clearSchedule ? '' : selectedDraft.schedIn}
-                                                    onChange={e => {
-                                                        const next = normalizeTimeInputWithPeriod(e.target.value, selectedDraft.schedInPeriod);
-                                                        updateCellDraft(selectedDraft.name, selectedDraft.date, {
-                                                            schedIn: next.time,
-                                                            schedInPeriod: next.period,
-                                                            clearSchedule: false,
-                                                        });
-                                                    }}
-                                                    className="w-[5ch] min-w-[5ch] py-3 font-bold text-sm md:text-base bg-transparent outline-none"
-                                                    maxLength={5}
-                                                />
-                                                <div className="ml-auto flex shrink-0 items-center gap-2">
-                                                    <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedInPeriod: 'AM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedInPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
-                                                    <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedInPeriod: 'PM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedInPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
+                                                <div>
+                                                    <label className="field-label block mb-2">Scheduled Out</label>
+                                                    <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
+                                                        <input
+                                                            type="text"
+                                                            inputMode="numeric"
+                                                            placeholder="5:00"
+                                                            value={selectedDraft.clearSchedule ? '' : selectedDraft.schedOut}
+                                                            onChange={e => {
+                                                                const next = normalizeTimeInputWithPeriod(e.target.value, selectedDraft.schedOutPeriod);
+                                                                updateCellDraft(selectedDraft.name, selectedDraft.date, {
+                                                                    schedOut: next.time,
+                                                                    schedOutPeriod: next.period,
+                                                                    clearSchedule: false,
+                                                                });
+                                                            }}
+                                                            className="w-[5ch] min-w-[5ch] py-3 font-bold text-sm md:text-base bg-transparent outline-none"
+                                                            maxLength={5}
+                                                        />
+                                                        <div className="ml-auto flex shrink-0 items-center gap-2">
+                                                            <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedOutPeriod: 'AM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedOutPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
+                                                            <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedOutPeriod: 'PM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedOutPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
+                                                        </div>
+                                                    </div>
                                                 </div>
+
+                                                <div>
+                                                    <label className="field-label block mb-2">Status</label>
+                                                    <select
+                                                        value={selectedDraft.clearSchedule ? DEFAULT_ADMIN_SCHEDULE_STATUS : normalizeAdminScheduleStatus(selectedDraft.scheduleStatus)}
+                                                        onChange={e => updateCellDraft(selectedDraft.name, selectedDraft.date, { scheduleStatus: e.target.value, clearSchedule: false })}
+                                                        className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
+                                                    >
+                                                        <option value="Draft">Draft</option>
+                                                        <option value="Published">Published</option>
+                                                    </select>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => applyTemplateToCell(selectedDraft.name, selectedDraft.date, ADMIN_SHIFT_UTILITY_TEMPLATE.id)}
+                                                    className="brutal-btn bg-white px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2"
+                                                >
+                                                    <i className="fas fa-eraser text-[#f43f5e]"></i>
+                                                    <span>Clear Shift</span>
+                                                </button>
                                             </div>
                                         </div>
-
-                                        <div>
-                                            <label className="field-label block mb-2">Scheduled Out</label>
-                                            <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
-                                                <input
-                                                    type="text"
-                                                    inputMode="numeric"
-                                                    placeholder="5:00"
-                                                    value={selectedDraft.clearSchedule ? '' : selectedDraft.schedOut}
-                                                    onChange={e => {
-                                                        const next = normalizeTimeInputWithPeriod(e.target.value, selectedDraft.schedOutPeriod);
-                                                        updateCellDraft(selectedDraft.name, selectedDraft.date, {
-                                                            schedOut: next.time,
-                                                            schedOutPeriod: next.period,
-                                                            clearSchedule: false,
-                                                        });
-                                                    }}
-                                                    className="w-[5ch] min-w-[5ch] py-3 font-bold text-sm md:text-base bg-transparent outline-none"
-                                                    maxLength={5}
-                                                />
-                                                <div className="ml-auto flex shrink-0 items-center gap-2">
-                                                    <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedOutPeriod: 'AM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedOutPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
-                                                    <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedOutPeriod: 'PM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedOutPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label className="field-label block mb-2">Status</label>
-                                            <select
-                                                value={selectedDraft.clearSchedule ? DEFAULT_ADMIN_SCHEDULE_STATUS : normalizeAdminScheduleStatus(selectedDraft.scheduleStatus)}
-                                                onChange={e => updateCellDraft(selectedDraft.name, selectedDraft.date, { scheduleStatus: e.target.value, clearSchedule: false })}
-                                                className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
-                                            >
-                                                <option value="Draft">Draft</option>
-                                                <option value="Published">Published</option>
-                                            </select>
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => applyTemplateToCell(selectedDraft.name, selectedDraft.date, ADMIN_SHIFT_UTILITY_TEMPLATE.id)}
-                                            className="brutal-btn bg-white px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2"
-                                        >
-                                            <i className="fas fa-eraser text-[#f43f5e]"></i>
-                                            <span>Clear Shift</span>
-                                        </button>
-                                    </div>
-                                </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}
