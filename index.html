@@ -235,22 +235,55 @@
             background: #ffffff;
         }
         .today-schedule-card-grid {
-            --active-card-row-height: 118px;
+            --active-card-row-height: 128px;
         }
         .today-schedule-card {
             min-height: var(--active-card-row-height);
         }
         .inventory-snapshot-card-grid {
-            --active-card-row-height: 124px;
+            grid-auto-rows: auto;
+            align-items: stretch;
         }
         .inventory-summary-card {
-            min-height: calc(var(--active-card-row-height) * 3 + (var(--card-grid-gap) * 2));
+            min-height: 0;
+        }
+        .inventory-card-sku {
+            font-size: 0.68rem;
+            font-weight: 700;
+            line-height: 1.25;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #0284c7;
+            word-break: break-word;
+        }
+        .inventory-status-chip {
+            font-size: 0.5rem;
+            letter-spacing: 0.04em;
+            padding: 0.2rem 0.5rem;
+            line-height: 1.1;
+            white-space: nowrap;
         }
         .schedule-week-grid {
             display: grid;
             grid-template-columns: repeat(7, minmax(0, 1fr));
             gap: var(--card-grid-gap);
             align-items: stretch;
+        }
+        .employee-schedule-grid {
+            align-items: start;
+        }
+        .employee-schedule-day-card {
+            align-self: start;
+            min-height: auto;
+        }
+        .employee-schedule-shifts {
+            max-height: none;
+            overflow: visible;
+        }
+        .employee-shift-time {
+            font-size: 0.7rem;
+            line-height: 1.25;
+            white-space: nowrap;
         }
         .schedule-day-card {
             min-width: 0;
@@ -315,9 +348,6 @@
             .card-size-3x2 {
                 grid-column: span 1;
                 grid-row: span 1;
-            }
-            .inventory-summary-card {
-                grid-row: span 3;
             }
             .schedule-day-card {
                 min-height: auto;
@@ -1770,7 +1800,7 @@
                                         </div>
                                     </div>
 
-                                    <div className="schedule-week-grid">
+                                    <div className="schedule-week-grid employee-schedule-grid">
                                         {week.days.map(dayObj => {
                                             const dayKey = normalizeDate(dayObj);
                                             const dayShifts = publishedRows.filter(row => normalizeDate(row.date) === dayKey);
@@ -1779,7 +1809,7 @@
                                             return (
                                                 <div
                                                     key={dayKey}
-                                                    className={`section-card card-frame card-size-1x2 schedule-day-card overflow-hidden ${isToday ? 'bg-[#e0f2fe]' : 'bg-white'}`}
+                                                    className={`section-card employee-schedule-day-card overflow-hidden ${isToday ? 'bg-[#e0f2fe]' : 'bg-white'}`}
                                                 >
                                                     <div className={`px-4 py-3 border-b-2 border-black ${isToday ? 'bg-[#38bdf8]' : 'bg-[#f8fafc]'}`}>
                                                         <div className="card-eyebrow text-[#060606]">
@@ -1787,7 +1817,7 @@
                                                         </div>
                                                         <div className="card-title mt-1">{formatShortDateLabel(dayObj)}</div>
                                                     </div>
-                                                    <div className="schedule-day-scroll no-scrollbar p-3 space-y-2">
+                                                    <div className="employee-schedule-shifts no-scrollbar p-3 space-y-2">
                                                         {dayShifts.length > 0 ? dayShifts.map((shift, index) => {
                                                             const isHighlighted = normalizedHighlightName && String(shift.name || '').trim() === normalizedHighlightName;
                                                             return (
@@ -1801,14 +1831,13 @@
                                                                             <span className="status-chip bg-[#e0f2fe] px-2 py-1 text-[10px]">You</span>
                                                                         )}
                                                                     </div>
-                                                                    <div className="card-meta mt-2">
-                                                                        <i className="far fa-clock mr-1 text-[#fb7185]"></i>
+                                                                    <div className="card-meta employee-shift-time mt-1.5">
                                                                         {shift.schedIn} - {shift.schedOut}
                                                                     </div>
                                                                 </div>
                                                             );
                                                         }) : (
-                                                            <div className="h-full flex items-center text-sm font-bold italic text-gray-400">
+                                                            <div className="text-sm font-bold italic text-gray-400">
                                                                 No published shifts
                                                             </div>
                                                         )}
@@ -1865,23 +1894,18 @@
                                     key={`${todayKey}-${shift.name}-${idx}`}
                                     className="card-frame card-size-1x1 today-schedule-card flex flex-col rounded-xl border-2 border-black overflow-hidden shadow-[3px_3px_0px_0px_#000000] bg-[#e0f2fe]"
                                 >
-                                    <div className="p-2 border-b-2 border-black flex flex-col justify-center items-center bg-[#38bdf8] text-[#060606]">
-                                        <div className="text-[10px] font-bold font-poppins uppercase tracking-wider">
+                                    <div className="px-3 py-2 border-b-2 border-black flex items-center justify-between gap-2 bg-[#38bdf8] text-[#060606]">
+                                        <div className="card-eyebrow text-[#060606]">
                                             {todayDate.toLocaleDateString('en-US', { weekday: 'short' })}
                                         </div>
-                                        <div className="text-lg md:text-xl font-bold font-poppins mt-0.5 leading-none">
-                                            {todayDate.getDate()}
-                                        </div>
-                                        <div className="text-[10px] font-bold uppercase mt-0.5">
-                                            {todayDate.toLocaleDateString('en-US', { month: 'short' })}
-                                        </div>
+                                        <div className="card-title text-sm md:text-base leading-none">{formatShortDateLabel(todayDate)}</div>
                                     </div>
-                                    <div className="p-2.5 flex flex-col gap-2">
-                                        <div className="rounded-lg border-2 border-black px-2.5 py-2 shadow-[2px_2px_0px_0px_#000000] bg-white">
-                                            <div className="font-bold font-poppins text-[#060606] text-xs md:text-sm leading-tight">
+                                    <div className="p-2.5 flex-1 flex items-start">
+                                        <div className="rounded-lg border-2 border-black px-2.5 py-2 shadow-[2px_2px_0px_0px_#000000] bg-white w-full h-full flex flex-col justify-center">
+                                            <div className="card-title text-sm leading-tight truncate" title={shift.name}>
                                                 {shift.name}
                                             </div>
-                                            <div className="text-[10px] md:text-xs font-bold text-gray-600 mt-1">
+                                            <div className="card-meta mt-1 leading-tight">
                                                 <i className="far fa-clock mr-1 text-[#fb7185]"></i>
                                                 {shift.schedIn} - {shift.schedOut}
                                             </div>
@@ -1923,16 +1947,16 @@
                         ) : (
                             <div className="card-grid inventory-snapshot-card-grid">
                                 {openRows.map(row => (
-                                    <div key={row.rowNumber} className="card-frame card-size-1x3 inventory-summary-card rounded-xl border-2 border-black bg-white p-3 shadow-[3px_3px_0px_0px_#000000] flex flex-col">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="min-w-0 flex-1">
+                                    <div key={row.rowNumber} className="card-frame card-size-1x1 inventory-summary-card rounded-xl border-2 border-black bg-white p-3 shadow-[3px_3px_0px_0px_#000000] flex flex-col">
+                                        <div>
+                                            <div className="flex items-start justify-between gap-2">
                                                 <div className="text-[9px] uppercase font-bold text-gray-500">SKU</div>
-                                                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#0284c7] mt-1 break-words">
-                                                    {getInventorySkuText(row)}
+                                                <div className="inventory-status-chip shrink-0 rounded-full border-2 border-black bg-[#fef3c7] font-bold uppercase text-center text-[#060606]">
+                                                    {row.status}
                                                 </div>
                                             </div>
-                                            <div className="shrink-0 rounded-full border-2 border-black bg-[#fef3c7] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide leading-tight">
-                                                {row.status}
+                                            <div className="inventory-card-sku mt-1" title={getInventorySkuText(row)}>
+                                                {getInventorySkuText(row)}
                                             </div>
                                         </div>
 
