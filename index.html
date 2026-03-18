@@ -30,8 +30,6 @@
             :root {
                 --page-max-width: 1450px;
                 --left-panel-width: 340px;
-                --right-panel-width: 1040px;
-                --section-max-width: 972px;
                 --card-grid-column-width: 180px;
                 --card-grid-row-height: 148px;
                 --card-grid-gap: 16px;
@@ -130,12 +128,10 @@
         }
         .right-panel {
             min-width: 0;
+            width: 100%;
         }
         .section-width {
             width: 100%;
-            max-width: var(--section-max-width);
-            margin-left: auto;
-            margin-right: auto;
         }
         .card-grid {
             --active-card-column-width: var(--card-grid-column-width);
@@ -270,20 +266,24 @@
             align-items: stretch;
         }
         .employee-schedule-grid {
-            align-items: start;
+            align-items: stretch;
         }
         .employee-schedule-day-card {
-            align-self: start;
-            min-height: auto;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
         }
         .employee-schedule-shifts {
+            flex: 1;
             max-height: none;
             overflow: visible;
         }
         .employee-shift-time {
-            font-size: 0.7rem;
+            font-size: 0.62rem;
             line-height: 1.25;
-            white-space: nowrap;
+            white-space: normal;
+            overflow-wrap: anywhere;
         }
         .schedule-day-card {
             min-width: 0;
@@ -317,7 +317,7 @@
         @media (min-width: 1024px) {
             .app-shell {
                 display: grid;
-                grid-template-columns: minmax(280px, var(--left-panel-width)) minmax(0, var(--right-panel-width));
+                grid-template-columns: minmax(280px, var(--left-panel-width)) minmax(0, 1fr);
                 gap: 1.5rem;
                 align-items: start;
             }
@@ -1727,7 +1727,7 @@
         const PublishedSchedulePanel = ({
             sheetData,
             title = 'Published Schedule',
-            subtitle = 'Published shifts across the next few weeks',
+            subtitle = '',
             highlightName = '',
             compact = false,
             weekCount = 3,
@@ -1764,14 +1764,12 @@
 
             return (
                 <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
-                    <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4 shrink-0">
+                    <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4 shrink-0 px-1 pt-1">
                         <div>
-                            <div className="card-eyebrow text-[#0284c7]">Employee Schedule</div>
-                            <h3 className="section-title mt-1">{title}</h3>
-                            <p className="section-subtitle mt-1">{subtitle}</p>
+                            <h3 className="section-title">{title}</h3>
+                            {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
-                            <div className="status-chip bg-[#fff7ed]">{weeksToShow} week{weeksToShow === 1 ? '' : 's'} in view</div>
                             <div className="flex items-center gap-2 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000] h-12">
                                 <button onClick={() => setCurrentWeekStart(prev => addDaysToLocalDate(prev, -7))} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
                                     <i className="fas fa-chevron-left"></i>
@@ -1786,7 +1784,7 @@
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto no-scrollbar px-1 pt-1 pb-4">
+                    <div className="flex-1 overflow-y-auto no-scrollbar px-1 pb-4">
                         <div className="space-y-4">
                             {visibleWeeks.map((week, weekIndex) => (
                                 <div key={normalizeDate(week.startDate)} className="section-card bg-[#fffdf5] p-4 md:p-5">
@@ -1823,7 +1821,7 @@
                                                             return (
                                                                 <div
                                                                     key={`${dayKey}-${shift.name}-${index}`}
-                                                                    className={`schedule-shift-card px-3 py-3 ${isHighlighted ? 'bg-[#dbeafe]' : 'bg-white'}`}
+                                                                    className={`schedule-shift-card px-2.5 py-2.5 ${isHighlighted ? 'bg-[#dbeafe]' : 'bg-white'}`}
                                                                 >
                                                                     <div className="flex items-start justify-between gap-2">
                                                                         <div className="card-title text-sm leading-tight">{shift.name}</div>
@@ -1836,11 +1834,7 @@
                                                                     </div>
                                                                 </div>
                                                             );
-                                                        }) : (
-                                                            <div className="text-sm font-bold italic text-gray-400">
-                                                                No published shifts
-                                                            </div>
-                                                        )}
+                                                        }) : null}
                                                     </div>
                                                 </div>
                                             );
@@ -4329,10 +4323,7 @@
                             {/* Employee Actions */}
                             {isAuthenticated && !adminUser && (
                                 <div className="brutal-card p-4 md:p-6 animate-fade-in bg-white">
-                                    <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-2 truncate">Hello, {selectedEmployee?.name}!</h2>
-                                    <p className="text-sm font-bold text-gray-600 mb-5">
-                                        Open your timesheet, the published schedule, or the live inventory board from here.
-                                    </p>
+                                    <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-5 truncate">Hello, {selectedEmployee?.name}!</h2>
                                     <div className="grid grid-cols-2 gap-3 lg:gap-4 shadow-safe-4">
                                         <button
                                             onClick={handleOpenEmployeeTimesheet}
@@ -4481,7 +4472,6 @@
                                             <PublishedSchedulePanel
                                                 sheetData={sheetData}
                                                 title="Schedule"
-                                                subtitle="Published shifts for the whole team"
                                                 highlightName={selectedEmployee?.name || ''}
                                             />
                                         )}
