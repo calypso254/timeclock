@@ -26,12 +26,18 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <!-- Clean, professional dual-font pairing -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --panel-card-width: 180px;
-            --panel-card-gap: 16px;
-            --panel-five-col-max: 972px;
-        }
+        <style>
+            :root {
+                --page-max-width: 1450px;
+                --left-panel-width: 340px;
+                --right-panel-width: 1040px;
+                --section-max-width: 972px;
+                --card-grid-column-width: 180px;
+                --card-grid-row-height: 148px;
+                --card-grid-gap: 16px;
+                --surface-shadow: 4px 4px 0px 0px #000000;
+                --surface-border: 2px solid #000000;
+            }
         body {
             /* Creamy pastel yellow background */
             background-color: #fef3c7; 
@@ -108,22 +114,189 @@
         .shadow-safe-3 { padding: 3px; }
         .shadow-safe-4 { padding: 4px; }
         .shadow-safe-6 { padding: 6px; }
-        .panel-content-5 {
+        .page-width {
             width: 100%;
-            max-width: var(--panel-five-col-max);
+            max-width: var(--page-max-width);
             margin-left: auto;
             margin-right: auto;
         }
-        .panel-card-grid {
+        .app-shell {
+            width: 100%;
+        }
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .right-panel {
+            min-width: 0;
+        }
+        .section-width {
+            width: 100%;
+            max-width: var(--section-max-width);
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .card-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(var(--panel-card-width), var(--panel-card-width)));
-            gap: var(--panel-card-gap);
-            justify-content: start;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--card-grid-column-width)), 1fr));
+            grid-auto-rows: var(--card-grid-row-height);
+            gap: var(--card-grid-gap);
+            grid-auto-flow: dense;
             align-content: start;
         }
-        .panel-card-width {
-            width: min(100%, var(--panel-card-width));
-            max-width: 100%;
+        .card-frame {
+            min-width: 0;
+            height: 100%;
+        }
+        .card-size-1x1 { grid-column: span 1; grid-row: span 1; }
+        .card-size-1x2 { grid-column: span 1; grid-row: span 2; }
+        .card-size-2x1 { grid-column: span 2; grid-row: span 1; }
+        .card-size-2x2 { grid-column: span 2; grid-row: span 2; }
+        .card-size-2x3 { grid-column: span 2; grid-row: span 3; }
+        .card-size-3x1 { grid-column: span 3; grid-row: span 1; }
+        .card-size-3x2 { grid-column: span 3; grid-row: span 2; }
+        .page-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: clamp(1.5rem, 2vw, 2rem);
+            font-weight: 700;
+            line-height: 1.1;
+            color: #060606;
+        }
+        .page-subtitle {
+            font-size: clamp(0.95rem, 1.2vw, 1.05rem);
+            font-weight: 700;
+            line-height: 1.4;
+            color: rgba(6, 6, 6, 0.68);
+        }
+        .section-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: clamp(1.25rem, 1.7vw, 1.65rem);
+            font-weight: 700;
+            line-height: 1.15;
+            color: #060606;
+        }
+        .section-subtitle {
+            font-size: clamp(0.78rem, 1vw, 0.92rem);
+            font-weight: 700;
+            line-height: 1.45;
+            color: #6b7280;
+        }
+        .card-eyebrow {
+            font-size: 0.68rem;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #6b7280;
+        }
+        .card-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1.2;
+            color: #060606;
+        }
+        .card-meta {
+            font-size: 0.76rem;
+            font-weight: 700;
+            line-height: 1.35;
+            color: #6b7280;
+        }
+        .field-label {
+            font-size: 0.74rem;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #060606;
+        }
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            border: var(--surface-border);
+            border-radius: 999px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            background: #ffffff;
+            color: #060606;
+        }
+        .section-card {
+            border: var(--surface-border);
+            border-radius: 1.5rem;
+            box-shadow: var(--surface-shadow);
+            background: #ffffff;
+        }
+        .schedule-week-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: var(--card-grid-gap);
+            align-items: stretch;
+        }
+        .schedule-day-card {
+            min-width: 0;
+            min-height: calc(var(--card-grid-row-height) * 2 + var(--card-grid-gap));
+        }
+        .schedule-day-scroll {
+            max-height: 290px;
+            overflow-y: auto;
+        }
+        .schedule-shift-card {
+            border: var(--surface-border);
+            border-radius: 1rem;
+            box-shadow: 2px 2px 0px 0px #000000;
+        }
+        .editor-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            z-index: 80;
+        }
+        .editor-modal {
+            width: min(100%, 880px);
+            max-height: min(92vh, 900px);
+            overflow: auto;
+        }
+        @media (min-width: 1024px) {
+            .app-shell {
+                display: grid;
+                grid-template-columns: minmax(280px, var(--left-panel-width)) minmax(0, var(--right-panel-width));
+                gap: 1.5rem;
+                align-items: start;
+            }
+        }
+        @media (max-width: 1023px) {
+            .schedule-week-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+        @media (max-width: 767px) {
+            .card-grid,
+            .schedule-week-grid {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .card-size-1x1,
+            .card-size-1x2,
+            .card-size-2x1,
+            .card-size-2x2,
+            .card-size-2x3,
+            .card-size-3x1,
+            .card-size-3x2 {
+                grid-column: span 1;
+                grid-row: span 1;
+            }
+            .schedule-day-card {
+                min-height: auto;
+            }
         }
     </style>
 </head>
@@ -203,6 +376,19 @@
             const nextDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
             nextDate.setDate(nextDate.getDate() + dayCount);
             return nextDate;
+        };
+
+        const buildWeekDays = (weekStart) => {
+            return Array.from({ length: 7 }).map((_, index) => addDaysToLocalDate(weekStart, index));
+        };
+
+        const formatShortDateLabel = (dateValue) => {
+            return parseLocalDate(dateValue).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        };
+
+        const formatWeekRangeLabel = (weekStart) => {
+            const weekDays = buildWeekDays(weekStart);
+            return `${formatShortDateLabel(weekStart)} - ${formatShortDateLabel(weekDays[6])}`;
         };
 
         const getLocalDateDayStamp = (dateValue) => {
@@ -1048,11 +1234,14 @@
             const visibleData = filterTimesheetRowsUpToToday(personalData);
 
             return (
-                <div className="panel-content-5 flex flex-col h-full animate-fade-in relative overflow-hidden">
+                <div className="section-width flex flex-col h-full animate-fade-in relative overflow-hidden">
                     <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
-                        <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">My Timesheet</h3>
+                        <div>
+                            <div className="card-eyebrow text-[#0284c7]">Employee View</div>
+                            <h3 className="section-title mt-1">My Timesheet</h3>
+                        </div>
                         <div className="flex items-center gap-4">
-                            {isFetchingLogs && <span className="text-[10px] md:text-sm font-bold text-[#38bdf8]"><i className="fas fa-sync fa-spin mr-1"></i> Syncing...</span>}
+                            {isFetchingLogs && <span className="card-meta text-[#38bdf8]"><i className="fas fa-sync fa-spin mr-1"></i>Syncing...</span>}
                         </div>
                     </div>
 
@@ -1151,6 +1340,7 @@
                             })
                         )}
                     </div>
+
                 </div>
             );
         };
@@ -1362,11 +1552,12 @@
             };
 
             return (
-                <div className="panel-content-5 flex flex-col h-full animate-fade-in overflow-hidden">
+                <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 md:mb-6 shrink-0">
                         <div>
-                            <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">Inventory Board</h3>
-                            <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">Start work here, then move finished pieces into Awaiting Approval.</p>
+                            <div className="card-eyebrow text-[#f97316]">Inventory Section</div>
+                            <h3 className="section-title mt-1">Inventory Board</h3>
+                            <p className="section-subtitle mt-1">Start work here, then move finished pieces into Awaiting Approval.</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <button
@@ -1473,6 +1664,7 @@
                             </div>
                         ))}
                     </div>
+
                 </div>
             );
         };
@@ -1480,16 +1672,12 @@
         const PublishedSchedulePanel = ({
             sheetData,
             title = 'Published Schedule',
-            subtitle = 'Current week - published shifts only',
+            subtitle = 'Published shifts across the next few weeks',
             highlightName = '',
             compact = false,
+            weekCount = 3,
         }) => {
             const [currentWeekStart, setCurrentWeekStart] = useState(getWeekStartDate(new Date()));
-            const weekDays = Array.from({ length: 7 }).map((_, i) => {
-                const day = new Date(currentWeekStart);
-                day.setDate(day.getDate() + i);
-                return day;
-            });
             const publishedRows = sheetData
                 .filter(row => (hasTimeValue(row.schedIn) || hasTimeValue(row.schedOut)) && isPublishedSchedule(row))
                 .slice()
@@ -1500,87 +1688,112 @@
                     if (timeCompare !== 0) return timeCompare;
                     return String(a.name || '').localeCompare(String(b.name || ''));
                 });
+            const normalizedHighlightName = String(highlightName || '').trim();
+            const weeksToShow = compact ? Math.min(2, weekCount) : weekCount;
+            const visibleWeeks = Array.from({ length: weeksToShow }).map((_, weekIndex) => {
+                const startDate = addDaysToLocalDate(currentWeekStart, weekIndex * 7);
+                const days = buildWeekDays(startDate);
+                const weekStartKey = normalizeDate(startDate);
+                const weekEndKey = normalizeDate(days[6]);
+                const shiftCount = publishedRows.filter(row => {
+                    const rowKey = normalizeDate(row.date);
+                    return rowKey >= weekStartKey && rowKey <= weekEndKey;
+                }).length;
 
-            const formatShortDate = (dateValue) => {
-                return parseLocalDate(dateValue).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            };
+                return {
+                    startDate,
+                    days,
+                    shiftCount,
+                };
+            });
 
             return (
-                <div className="flex flex-col h-full animate-fade-in overflow-hidden">
+                <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4 shrink-0">
                         <div>
-                            <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">{title}</h3>
-                            <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">{subtitle}</p>
+                            <div className="card-eyebrow text-[#0284c7]">Employee Schedule</div>
+                            <h3 className="section-title mt-1">{title}</h3>
+                            <p className="section-subtitle mt-1">{subtitle}</p>
                         </div>
-                        <div className="flex items-center gap-2 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000] h-12">
-                            <button onClick={() => setCurrentWeekStart(prev => {
-                                const next = new Date(prev);
-                                next.setDate(next.getDate() - 7);
-                                return next;
-                            })} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
-                                <i className="fas fa-chevron-left"></i>
-                            </button>
-                            <span className="font-bold font-poppins text-[#060606] min-w-[170px] md:min-w-[210px] text-center text-sm md:text-base px-2">
-                                {formatShortDate(currentWeekStart)} - {formatShortDate(weekDays[6])}
-                            </span>
-                            <button onClick={() => setCurrentWeekStart(prev => {
-                                const next = new Date(prev);
-                                next.setDate(next.getDate() + 7);
-                                return next;
-                            })} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
-                                <i className="fas fa-chevron-right"></i>
-                            </button>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <div className="status-chip bg-[#fff7ed]">{weeksToShow} week{weeksToShow === 1 ? '' : 's'} in view</div>
+                            <div className="flex items-center gap-2 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000] h-12">
+                                <button onClick={() => setCurrentWeekStart(prev => addDaysToLocalDate(prev, -7))} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
+                                    <i className="fas fa-chevron-left"></i>
+                                </button>
+                                <span className="font-bold font-poppins text-[#060606] min-w-[170px] md:min-w-[210px] text-center text-sm md:text-base px-2">
+                                    {formatWeekRangeLabel(currentWeekStart)}
+                                </span>
+                                <button onClick={() => setCurrentWeekStart(prev => addDaysToLocalDate(prev, 7))} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
+                                    <i className="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto no-scrollbar px-1 pt-1 pb-4">
-                        <div className={`grid grid-cols-1 ${compact ? '2xl:grid-cols-7 xl:grid-cols-4' : 'lg:grid-cols-7'} gap-3`}>
-                            {weekDays.map(dayObj => {
-                                const dayKey = normalizeDate(dayObj);
-                                const dayShifts = publishedRows.filter(row => normalizeDate(row.date) === dayKey);
-                                const isToday = dayKey === normalizeDate(new Date());
-
-                                return (
-                                    <div key={dayKey} className={`flex flex-row ${compact ? 'xl:flex-col' : 'lg:flex-col'} rounded-2xl border-2 border-black overflow-hidden shadow-[4px_4px_0px_0px_#000000] ${isToday ? 'bg-[#e0f2fe]' : 'bg-white'}`}>
-                                        <div className={`p-2.5 ${compact ? 'xl:w-full xl:border-b-2 xl:border-r-0' : 'lg:w-full lg:border-b-2 lg:border-r-0'} border-r-2 border-black w-24 shrink-0 flex flex-col justify-center items-center ${isToday ? 'bg-[#38bdf8] text-[#060606]' : 'bg-gray-50 text-[#060606]'}`}>
-                                            <div className="text-[11px] md:text-sm font-bold font-poppins uppercase tracking-wider">
-                                                {dayObj.toLocaleDateString('en-US', { weekday: 'short' })}
-                                            </div>
-                                            <div className="text-xl md:text-2xl font-bold font-poppins mt-1">
-                                                {dayObj.getDate()}
-                                            </div>
-                                            <div className="text-[10px] md:text-xs font-bold uppercase mt-0.5">
-                                                {dayObj.toLocaleDateString('en-US', { month: 'short' })}
-                                            </div>
+                        <div className="space-y-4">
+                            {visibleWeeks.map((week, weekIndex) => (
+                                <div key={normalizeDate(week.startDate)} className="section-card bg-[#fffdf5] p-4 md:p-5">
+                                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                                        <div>
+                                            <div className="card-eyebrow text-[#0284c7]">Week {weekIndex + 1}</div>
+                                            <h4 className="card-title mt-1">{formatWeekRangeLabel(week.startDate)}</h4>
                                         </div>
-                                        <div className="p-3 flex-1 flex flex-col gap-2">
-                                            {dayShifts.length > 0 ? dayShifts.map((shift, idx) => {
-                                                const isHighlighted = highlightName && String(shift.name || '').trim() === String(highlightName || '').trim();
-                                                return (
-                                                    <div key={`${dayKey}-${shift.name}-${idx}`} className={`rounded-xl border-2 border-black px-3 py-2.5 shadow-[2px_2px_0px_0px_#000000] ${isHighlighted ? 'bg-[#dbeafe]' : 'bg-white'}`}>
-                                                        <div className="flex items-start justify-between gap-3">
-                                                            <div className="font-bold font-poppins text-[#060606] text-sm md:text-base leading-tight">
-                                                                {shift.name}
-                                                            </div>
-                                                            {isHighlighted && (
-                                                                <span className="text-[10px] uppercase font-bold tracking-wide text-[#0284c7]">You</span>
-                                                            )}
-                                                        </div>
-                                                        <div className="text-[11px] md:text-sm font-bold text-gray-600 mt-1.5">
-                                                            <i className="far fa-clock mr-1 text-[#fb7185]"></i>
-                                                            {shift.schedIn} - {shift.schedOut}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            }) : (
-                                                <div className="flex items-center justify-start h-full text-sm text-gray-400 font-bold italic px-1">
-                                                    No published shifts
-                                                </div>
-                                            )}
+                                        <div className="card-meta">
+                                            {week.shiftCount} published shift{week.shiftCount === 1 ? '' : 's'}
                                         </div>
                                     </div>
-                                );
-                            })}
+
+                                    <div className="schedule-week-grid">
+                                        {week.days.map(dayObj => {
+                                            const dayKey = normalizeDate(dayObj);
+                                            const dayShifts = publishedRows.filter(row => normalizeDate(row.date) === dayKey);
+                                            const isToday = dayKey === normalizeDate(new Date());
+
+                                            return (
+                                                <div
+                                                    key={dayKey}
+                                                    className={`section-card card-frame card-size-1x2 schedule-day-card overflow-hidden ${isToday ? 'bg-[#e0f2fe]' : 'bg-white'}`}
+                                                >
+                                                    <div className={`px-4 py-3 border-b-2 border-black ${isToday ? 'bg-[#38bdf8]' : 'bg-[#f8fafc]'}`}>
+                                                        <div className="card-eyebrow text-[#060606]">
+                                                            {dayObj.toLocaleDateString('en-US', { weekday: 'short' })}
+                                                        </div>
+                                                        <div className="card-title mt-1">{formatShortDateLabel(dayObj)}</div>
+                                                    </div>
+                                                    <div className="schedule-day-scroll no-scrollbar p-3 space-y-2">
+                                                        {dayShifts.length > 0 ? dayShifts.map((shift, index) => {
+                                                            const isHighlighted = normalizedHighlightName && String(shift.name || '').trim() === normalizedHighlightName;
+                                                            return (
+                                                                <div
+                                                                    key={`${dayKey}-${shift.name}-${index}`}
+                                                                    className={`schedule-shift-card px-3 py-3 ${isHighlighted ? 'bg-[#dbeafe]' : 'bg-white'}`}
+                                                                >
+                                                                    <div className="flex items-start justify-between gap-2">
+                                                                        <div className="card-title text-sm leading-tight">{shift.name}</div>
+                                                                        {isHighlighted && (
+                                                                            <span className="status-chip bg-[#e0f2fe] px-2 py-1 text-[10px]">You</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="card-meta mt-2">
+                                                                        <i className="far fa-clock mr-1 text-[#fb7185]"></i>
+                                                                        {shift.schedIn} - {shift.schedOut}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }) : (
+                                                            <div className="h-full flex items-center text-sm font-bold italic text-gray-400">
+                                                                No published shifts
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -1608,16 +1821,16 @@
                 });
 
             return (
-                <div className="flex flex-col h-full min-h-0 animate-fade-in">
+                <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
                     {(title || subtitle) && (
                         <div className="mb-4 shrink-0">
-                            {title && <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">{title}</h3>}
-                            {subtitle && <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">{subtitle}</p>}
+                            {title && <h3 className="section-title">{title}</h3>}
+                            {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
                     )}
 
                     <div className="flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pb-4">
-                        <div className="panel-card-grid">
+                        <div className="card-grid">
                             {todayShifts.length === 0 ? (
                                 <div className="w-full rounded-2xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
                                     No published shifts today.
@@ -1625,7 +1838,7 @@
                             ) : todayShifts.map((shift, idx) => (
                                 <div
                                     key={`${todayKey}-${shift.name}-${idx}`}
-                                    className="panel-card-width flex flex-col rounded-xl border-2 border-black overflow-hidden shadow-[3px_3px_0px_0px_#000000] bg-[#e0f2fe]"
+                                    className="card-frame card-size-1x1 flex flex-col rounded-xl border-2 border-black overflow-hidden shadow-[3px_3px_0px_0px_#000000] bg-[#e0f2fe]"
                                 >
                                     <div className="p-2 border-b-2 border-black flex flex-col justify-center items-center bg-[#38bdf8] text-[#060606]">
                                         <div className="text-[10px] font-bold font-poppins uppercase tracking-wider">
@@ -1665,13 +1878,14 @@
             const openRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
 
             return (
-                <div className="panel-content-5 flex flex-col h-full min-h-0 animate-fade-in">
+                <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 shrink-0">
                         <div>
-                            <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">{title}</h3>
-                            {subtitle && <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">{subtitle}</p>}
+                            <div className="card-eyebrow text-[#f97316]">Inventory Snapshot</div>
+                            <h3 className="section-title mt-1">{title}</h3>
+                            {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
-                        <div className="rounded-full border-2 border-black bg-[#fef3c7] px-3 py-1 text-xs font-bold uppercase tracking-wide self-start md:self-auto">
+                        <div className="status-chip bg-[#fef3c7] self-start md:self-auto">
                             {openRows.length} open
                         </div>
                     </div>
@@ -1682,9 +1896,9 @@
                                 No open inventory tasks right now.
                             </div>
                         ) : (
-                            <div className="panel-card-grid">
+                            <div className="card-grid">
                                 {openRows.map(row => (
-                                    <div key={row.rowNumber} className="panel-card-width rounded-xl border-2 border-black bg-white p-2.5 shadow-[3px_3px_0px_0px_#000000]">
+                                    <div key={row.rowNumber} className="card-frame card-size-1x1 rounded-xl border-2 border-black bg-white p-2.5 shadow-[3px_3px_0px_0px_#000000]">
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0 flex-1">
                                                 <div className="text-[9px] uppercase font-bold text-gray-500">SKU</div>
@@ -1735,7 +1949,8 @@
             return (
                 <div className="flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="mb-4 md:mb-6 shrink-0">
-                        <h2 className="text-xl md:text-2xl font-bold font-poppins text-[#060606]">Today at a Glance</h2>
+                        <div className="card-eyebrow text-[#0284c7]">Overview</div>
+                        <h2 className="page-title mt-1">Today at a Glance</h2>
                     </div>
 
                     <div className="flex flex-col gap-4 min-h-0 flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pt-1 pb-4 pr-2">
@@ -1821,7 +2036,7 @@
             };
 
             return (
-                <div className="panel-content-5 flex flex-col h-full animate-fade-in overflow-hidden">
+                <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
                         <div>
                             <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Inventory</div>
@@ -2111,7 +2326,7 @@
                             : 'bg-[#bae6fd]';
 
                 return (
-                    <div className="panel-content-5 flex flex-col h-full min-h-0 animate-fade-in overflow-hidden">
+                    <div className="section-width flex flex-col h-full min-h-0 animate-fade-in overflow-hidden">
                         <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
                             <div>
                                 <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Payroll</div>
@@ -2263,7 +2478,7 @@
             } catch (error) {
                 console.error("Admin payroll workspace render failed:", error);
                 return (
-                    <div className="panel-content-5 flex flex-col h-full min-h-0 animate-fade-in">
+                    <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
                         <div className="rounded-2xl border-2 border-black bg-white px-5 py-6 shadow-[4px_4px_0px_0px_#000000]">
                             <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Payroll</div>
                             <h3 className="text-2xl font-bold font-poppins text-[#060606] mt-1">Payroll Hours</h3>
@@ -2408,6 +2623,7 @@
             onJumpToWeek,
             selectedCell,
             onSelectCell,
+            onCloseEditor,
             getCellDraft,
             updateCellDraft,
             applyTemplateToCell,
@@ -2434,14 +2650,11 @@
                 .slice()
                 .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 
-            const weekDays = Array.from({ length: 7 }).map((_, i) => {
-                const nextDay = new Date(weekStart);
-                nextDay.setDate(nextDay.getDate() + i);
-                return nextDay;
-            });
+            const weekDays = buildWeekDays(weekStart);
 
             const visibleTemplates = getVisibleAdminShiftTemplates(shiftTemplates);
             const customTemplateCount = visibleTemplates.length;
+            const quickActionCount = visibleTemplates.length + 1;
 
             const formatShortDate = (dateValue) => {
                 return parseLocalDate(dateValue).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -2492,14 +2705,12 @@
             };
 
             return (
-                <div className="flex flex-col h-full min-h-0 animate-fade-in overflow-y-auto pr-1">
+                <div className="section-width flex flex-col h-full min-h-0 animate-fade-in overflow-y-auto pr-1">
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 md:mb-6 shrink-0">
                         <div>
-                            <h3 className="text-xl md:text-3xl font-bold font-poppins text-[#060606]">Weekly Schedule Studio</h3>
-                            <p className="text-sm md:text-base font-bold text-[#060606]/70 mt-1">Hi, {adminUser.name}</p>
-                            <p className="text-xs md:text-sm font-bold text-[#060606]/60 mt-1">
-                                Build a full week here, then save reusable templates in the template builder.
-                            </p>
+                            <div className="card-eyebrow text-[#0284c7]">Admin Schedule Builder</div>
+                            <h3 className="page-title">Weekly Schedule Studio</h3>
+                            <p className="page-subtitle mt-1">Hi, {adminUser.name}. Build the week with day cards, then edit individual shifts in the modal.</p>
                         </div>
                         <div className="flex flex-col gap-3 xl:items-end">
                             <div className="flex flex-wrap items-center gap-3">
@@ -2508,7 +2719,7 @@
                                         <i className="fas fa-chevron-left"></i>
                                     </button>
                                     <span className="font-bold font-poppins text-[#060606] min-w-[170px] md:min-w-[210px] text-center text-sm md:text-base px-2">
-                                        {formatShortDate(weekStart)} - {formatShortDate(weekDays[6])}
+                                        {formatWeekRangeLabel(weekStart)}
                                     </span>
                                     <button onClick={onNextWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
                                         <i className="fas fa-chevron-right"></i>
@@ -2565,22 +2776,23 @@
 
                     <div className="flex flex-col gap-3 md:gap-4 flex-1 min-h-0">
                         <div className="flex flex-col gap-3 shrink-0 order-2">
-                            <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-3 md:p-4 shadow-[4px_4px_0px_0px_#000000]">
+                            <div className="section-card bg-[#fff7ed] p-3 md:p-4">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
                                     <div>
-                                        <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Shift Templates</h4>
-                                        <p className="text-sm font-bold text-gray-600 mt-1">
-                                            Build reusable templates here, then click or drag them onto the week grid.
+                                        <div className="card-eyebrow text-[#f97316]">Template Library</div>
+                                        <h4 className="section-title mt-1">Shift Templates</h4>
+                                        <p className="section-subtitle mt-1">
+                                            Build reusable templates here, then open any shift card to apply them from the editor.
                                         </p>
                                     </div>
-                                    <div className="text-xs md:text-sm font-bold text-gray-500">
+                                    <div className="status-chip bg-white">
                                         {customTemplateCount} custom template{customTemplateCount === 1 ? '' : 's'}
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.25fr)_minmax(170px,0.85fr)_minmax(170px,0.85fr)_minmax(150px,0.8fr)_auto] gap-3 items-end mb-4">
                                     <div>
-                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Template Name</label>
+                                        <label className="field-label block mb-2">Template Name</label>
                                         <input
                                             type="text"
                                             value={templateName}
@@ -2592,7 +2804,7 @@
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Scheduled In</label>
+                                        <label className="field-label block mb-2">Scheduled In</label>
                                         <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
                                             <input
                                                 type="text"
@@ -2618,7 +2830,7 @@
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Scheduled Out</label>
+                                        <label className="field-label block mb-2">Scheduled Out</label>
                                         <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
                                             <input
                                                 type="text"
@@ -2644,7 +2856,7 @@
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Status</label>
+                                        <label className="field-label block mb-2">Status</label>
                                         <select
                                             value={normalizeAdminScheduleStatus(templateDraft.scheduleStatus)}
                                             onChange={e => onTemplateDraftChange({ ...templateDraft, scheduleStatus: e.target.value })}
@@ -2666,29 +2878,25 @@
                                     </button>
                                 </div>
 
-                                <div className="flex gap-2 md:gap-3 overflow-x-auto pb-1">
+                                <div className="card-grid">
                                     {visibleTemplates.map(template => (
-                                        <div key={template.id} className="relative min-w-[160px] md:min-w-[170px] max-w-[210px] shrink-0">
+                                        <div key={template.id} className="card-frame card-size-1x1 relative">
                                             <button
                                                 type="button"
-                                                draggable
-                                                onDragStart={e => {
-                                                    e.dataTransfer.effectAllowed = 'copy';
-                                                    e.dataTransfer.setData('text/plain', template.id);
-                                                }}
                                                 onClick={() => {
                                                     if (!selectedCell) return;
                                                     applyTemplateToCell(selectedCell.name, selectedCell.date, template.id);
                                                 }}
-                                                className={`brutal-btn ${template.accent} w-full min-h-[86px] md:min-h-[96px] p-3 text-left flex flex-col justify-between`}
+                                                disabled={!selectedCell || isSavingTemplates}
+                                                className={`brutal-btn ${template.accent} w-full h-full p-3 text-left flex flex-col justify-between`}
                                             >
                                                 <div className="pr-8">
-                                                    <div className="font-bold font-poppins text-sm md:text-base leading-tight">{template.label}</div>
-                                                    <div className="text-xs md:text-sm font-bold text-[#060606]/70 mt-1.5">
+                                                    <div className="card-title text-sm leading-tight">{template.label}</div>
+                                                    <div className="card-meta mt-1.5">
                                                         {`${template.schedIn} - ${template.schedOut}`}
                                                     </div>
                                                 </div>
-                                                <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-[#060606]/60 mt-2">
+                                                <div className="card-eyebrow text-[#060606]/70 mt-2">
                                                     {normalizeAdminScheduleStatus(template.scheduleStatus)}
                                                 </div>
                                             </button>
@@ -2708,49 +2916,208 @@
                                 </div>
 
                                 {!selectedCell && (
-                                    <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-2.5 text-xs md:text-sm font-bold text-gray-500 mt-3">
-                                        Select a day cell first if you want a template click to apply instantly.
+                                    <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-2.5 section-subtitle mt-3">
+                                        Open a shift card first if you want template clicks to apply instantly.
                                     </div>
                                 )}
                             </div>
 
-                            <div className="rounded-2xl border-2 border-black bg-white p-3 md:p-4 shadow-[4px_4px_0px_0px_#000000]">
+                            <div className="section-card bg-white p-3 md:p-4">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
                                     <div>
-                                        <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Selected Shift</h4>
-                                        <p className="text-sm font-bold text-gray-600 mt-1">
-                                            Click any week-grid cell to adjust its schedule details directly.
+                                        <div className="card-eyebrow text-[#0284c7]">Edit Flow</div>
+                                        <h4 className="section-title mt-1">Shift Editor</h4>
+                                        <p className="section-subtitle mt-1">
+                                            Click any day card below to open the schedule editor modal.
                                         </p>
                                     </div>
                                     {selectedDraft && (
-                                        <div className={`text-xs md:text-sm font-bold px-3 py-1 rounded-full border-2 border-black ${selectedDraft.sourceRow ? 'bg-[#bae6fd]' : 'bg-[#fde68a]'}`}>
-                                            {selectedDraft.sourceRow ? 'Loaded Row' : 'New Row'}
+                                        <div className={`status-chip ${selectedDraft.sourceRow ? 'bg-[#bae6fd]' : 'bg-[#fde68a]'}`}>
+                                            {selectedDraft.name} - {formatMonthDayDate(selectedDraft.date)}
                                         </div>
                                     )}
                                 </div>
 
-                                {!selectedDraft ? (
-                                    <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-6 text-center text-sm md:text-base font-bold text-gray-400">
-                                        Pick a cell from the week grid to start editing it.
+                                <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-4 section-subtitle">
+                                    {selectedDraft
+                                        ? 'The editor is open for this shift. Use the modal to set times, choose a status, or apply a template.'
+                                        : 'Pick an employee card from the schedule board to start editing.'}
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div className="section-card p-4 md:p-5 overflow-hidden flex flex-col flex-1 min-h-[360px] lg:min-h-[440px] order-1">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 shrink-0">
+                                <div>
+                                    <div className="card-eyebrow text-[#0284c7]">Day Card Board</div>
+                                    <h4 className="section-title mt-1">Week Board</h4>
+                                    <p className="section-subtitle mt-1">
+                                        The full week is grouped by day so it mirrors the employee schedule view.
+                                    </p>
+                                </div>
+                                <div className="status-chip bg-[#f8fafc]">
+                                    {isRefreshing ? 'Syncing latest schedule rows...' : `${sortedEmployees.length} active team member${sortedEmployees.length === 1 ? '' : 's'} in view`}
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-auto rounded-2xl border-2 border-black bg-[#f8fafc] p-3">
+                                {sortedEmployees.length === 0 ? (
+                                    <div className="h-full flex items-center justify-center text-center text-sm md:text-base font-bold text-gray-400 border-2 border-dashed border-gray-300 rounded-xl">
+                                        No active employees were found for scheduling.
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.15fr)_minmax(170px,0.85fr)_minmax(170px,0.85fr)_minmax(150px,0.8fr)_auto] gap-3 items-end">
-                                        <div className="rounded-xl border-2 border-black bg-[#f8fafc] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
-                                            <div className="font-bold font-poppins text-[#060606] text-base md:text-lg">{selectedDraft.name}</div>
-                                            <div className="text-sm font-bold text-gray-600 mt-1">{formatFullDate(selectedDraft.date)}</div>
-                                            <div className="text-xs md:text-sm font-bold text-gray-500 mt-3 uppercase">Scheduled Total</div>
-                                            <div className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1">
-                                                {selectedDraft.clearSchedule ? 'Cleared' : (selectedPreviewMinutes === null ? '--' : formatWorkedDurationForDisplay(selectedPreviewMinutes))}
-                                            </div>
-                                            {selectedDraft.clearSchedule && (
-                                                <div className="mt-3 text-xs md:text-sm font-bold text-[#e11d48]">
-                                                    This cell will be cleared when you save.
-                                                </div>
-                                            )}
-                                        </div>
+                                    <div className="schedule-week-grid">
+                                        {weekDays.map(dayObj => {
+                                            const dayKey = normalizeDate(dayObj);
+                                            const isToday = dayKey === normalizeDate(new Date());
+                                            const dayEntries = sortedEmployees.map(emp => ({
+                                                employee: emp,
+                                                ...getWeekGridCellState(emp.name, dayKey),
+                                            }));
+                                            const assignedCount = dayEntries.filter(entry => entry.hasAssignedShift || entry.draft.clearSchedule).length;
 
+                                            return (
+                                                <div key={dayKey} className={`section-card card-frame card-size-1x2 schedule-day-card overflow-hidden bg-white ${isToday ? 'ring-4 ring-[#bae6fd]' : ''}`}>
+                                                    <div className={`px-4 py-3 border-b-2 border-black ${isToday ? 'bg-[#38bdf8] text-[#060606]' : 'bg-[#bae6fd] text-[#060606]'}`}>
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div>
+                                                                <div className="card-eyebrow text-[#060606]">{dayObj.toLocaleDateString('en-US', { weekday: 'long' })}</div>
+                                                                <div className="card-title mt-1">{formatShortDate(dayObj)}</div>
+                                                            </div>
+                                                            <div className="card-meta text-[#060606]/70">
+                                                                {assignedCount} scheduled
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="schedule-day-scroll no-scrollbar p-3 space-y-2">
+                                                        {dayEntries.map(({ employee, draft, cellFormattedIn, cellFormattedOut, cellMinutes, hasAssignedShift, cellStateClass, isSelected }, index) => {
+                                                            const surfaceClass = draft.clearSchedule ? 'bg-[#fee2e2]' : isSelected ? 'bg-[#dbeafe]' : cellStateClass;
+
+                                                            return (
+                                                                <button
+                                                                    key={`${dayKey}-${employee.id}-${index}`}
+                                                                    type="button"
+                                                                    onClick={() => onSelectCell(employee.name, dayKey)}
+                                                                    className={`schedule-shift-card w-full px-3 py-3 text-left transition-colors ${surfaceClass}`}
+                                                                >
+                                                                    <div className="flex items-start justify-between gap-3">
+                                                                        <div className="min-w-0">
+                                                                            <div className="card-title text-sm truncate">{employee.name}</div>
+                                                                            <div className="card-meta mt-1 truncate">{employee.department || 'Team'}</div>
+                                                                        </div>
+                                                                        {(draft.clearSchedule || hasAssignedShift || isSelected) && (
+                                                                            <div className="card-eyebrow text-gray-500">
+                                                                                {draft.clearSchedule ? 'Clearing' : isSelected ? 'Editing' : normalizeAdminScheduleStatus(draft.scheduleStatus)}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div className="card-meta text-[#060606] mt-3">
+                                                                        {draft.clearSchedule
+                                                                            ? 'Schedule will be removed'
+                                                                            : (hasAssignedShift ? `${cellFormattedIn} - ${cellFormattedOut}` : 'Click to assign a shift')}
+                                                                    </div>
+
+                                                                    {(draft.clearSchedule || hasAssignedShift) && (
+                                                                        <div className="card-meta mt-1">
+                                                                            {draft.clearSchedule ? 'Removal staged' : formatWorkedDurationForDisplay(cellMinutes)}
+                                                                        </div>
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {selectedDraft && (
+                        <div className="editor-modal-backdrop" onClick={onCloseEditor}>
+                            <div className="brutal-card editor-modal bg-white p-4 md:p-6" onClick={e => e.stopPropagation()}>
+                                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                                    <div>
+                                        <div className="card-eyebrow text-[#0284c7]">Schedule Editor</div>
+                                        <h4 className="section-title mt-1">{selectedDraft.name}</h4>
+                                        <p className="section-subtitle mt-1">{formatFullDate(selectedDraft.date)}</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={onCloseEditor}
+                                        className="brutal-btn bg-white px-4 py-2 text-sm md:text-base flex items-center gap-2 self-start"
+                                    >
+                                        <i className="fas fa-xmark"></i>
+                                        <span>Close</span>
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                                    <div className="section-card bg-[#f8fafc] px-4 py-3">
+                                        <div className="card-eyebrow">Shift</div>
+                                        <div className="card-title mt-2">
+                                            {selectedDraft.clearSchedule
+                                                ? 'Clearing on save'
+                                                : ((selectedFormattedIn && selectedFormattedOut) ? `${selectedFormattedIn} - ${selectedFormattedOut}` : 'No shift assigned')}
+                                        </div>
+                                    </div>
+                                    <div className="section-card bg-[#f8fafc] px-4 py-3">
+                                        <div className="card-eyebrow">Duration</div>
+                                        <div className="card-title mt-2">
+                                            {selectedDraft.clearSchedule
+                                                ? 'Removed'
+                                                : (selectedPreviewMinutes === null ? '--' : formatWorkedDurationForDisplay(selectedPreviewMinutes))}
+                                        </div>
+                                    </div>
+                                    <div className="section-card bg-[#f8fafc] px-4 py-3">
+                                        <div className="card-eyebrow">Row State</div>
+                                        <div className="card-title mt-2">
+                                            {selectedDraft.sourceRow ? 'Loaded Row' : 'New Row'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="section-card bg-[#eff6ff] p-4 mt-4">
+                                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                                         <div>
-                                            <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Scheduled In</label>
+                                            <h5 className="card-title">Quick Templates</h5>
+                                            <p className="section-subtitle mt-1">Apply a saved shift or clear this schedule instantly.</p>
+                                        </div>
+                                        <div className="card-meta">{quickActionCount} quick action{quickActionCount === 1 ? '' : 's'}</div>
+                                    </div>
+
+                                    <div className="card-grid mt-4">
+                                        {[ADMIN_SHIFT_UTILITY_TEMPLATE, ...visibleTemplates].map(template => (
+                                            <button
+                                                key={template.id}
+                                                type="button"
+                                                onClick={() => applyTemplateToCell(selectedDraft.name, selectedDraft.date, template.id)}
+                                                disabled={isSavingTemplates}
+                                                className={`brutal-btn card-frame card-size-1x1 ${template.accent || 'bg-white'} p-3 text-left flex flex-col justify-between`}
+                                            >
+                                                <div>
+                                                    <div className="card-title text-sm">{template.label}</div>
+                                                    <div className="card-meta mt-2">
+                                                        {template.clearSchedule ? 'Remove this schedule' : `${template.schedIn} - ${template.schedOut}`}
+                                                    </div>
+                                                </div>
+                                                <div className="card-eyebrow text-[#060606]/70">
+                                                    {template.clearSchedule ? 'Utility' : normalizeAdminScheduleStatus(template.scheduleStatus)}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="section-card bg-white p-4 mt-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(160px,0.9fr)_minmax(160px,0.9fr)_minmax(150px,0.8fr)_auto] gap-3 items-end">
+                                        <div>
+                                            <label className="field-label block mb-2">Scheduled In</label>
                                             <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
                                                 <input
                                                     type="text"
@@ -2776,7 +3143,7 @@
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Scheduled Out</label>
+                                            <label className="field-label block mb-2">Scheduled Out</label>
                                             <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
                                                 <input
                                                     type="text"
@@ -2802,7 +3169,7 @@
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Status</label>
+                                            <label className="field-label block mb-2">Status</label>
                                             <select
                                                 value={selectedDraft.clearSchedule ? DEFAULT_ADMIN_SCHEDULE_STATUS : normalizeAdminScheduleStatus(selectedDraft.scheduleStatus)}
                                                 onChange={e => updateCellDraft(selectedDraft.name, selectedDraft.date, { scheduleStatus: e.target.value, clearSchedule: false })}
@@ -2816,163 +3183,16 @@
                                         <button
                                             type="button"
                                             onClick={() => applyTemplateToCell(selectedDraft.name, selectedDraft.date, ADMIN_SHIFT_UTILITY_TEMPLATE.id)}
-                                            className="brutal-btn bg-white py-3 px-4 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 min-w-[160px]"
+                                            className="brutal-btn bg-white px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2"
                                         >
                                             <i className="fas fa-eraser text-[#f43f5e]"></i>
-                                            <span>Clear Cell</span>
+                                            <span>Clear Shift</span>
                                         </button>
                                     </div>
-                                )}
-                            </div>
-
-                        </div>
-
-                        <div className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000] overflow-hidden flex flex-col flex-1 min-h-[360px] lg:min-h-[440px] order-1">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 shrink-0">
-                                <div>
-                                    <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606]">Week Grid</h4>
-                                    <p className="text-sm font-bold text-gray-600 mt-1">
-                                        The full week lives here. Drag templates into any cell, or click a cell to edit it below.
-                                    </p>
-                                </div>
-                                <div className="text-xs md:text-sm font-bold text-gray-500">
-                                    {isRefreshing ? 'Syncing latest schedule rows...' : `${sortedEmployees.length} active team member${sortedEmployees.length === 1 ? '' : 's'} in view`}
                                 </div>
                             </div>
-
-                            <div className="flex-1 overflow-auto rounded-2xl border-2 border-black bg-[#f8fafc] p-2 md:p-3">
-                                {sortedEmployees.length === 0 ? (
-                                    <div className="h-full flex items-center justify-center text-center text-sm md:text-base font-bold text-gray-400 border-2 border-dashed border-gray-300 rounded-xl">
-                                        No active employees were found for scheduling.
-                                    </div>
-                                ) : (
-                                    <div className="space-y-4 min-h-full pb-2">
-                                        <div className="hidden lg:block w-full">
-                                            <div className="grid gap-px bg-black rounded-2xl overflow-hidden w-full" style={{ gridTemplateColumns: '96px repeat(7, minmax(0, 1fr))' }}>
-                                                <div className="sticky left-0 top-0 z-20 bg-[#38bdf8] px-1.5 py-3 font-bold font-poppins text-[#060606] text-sm">Team</div>
-                                                {weekDays.map(dayObj => {
-                                                    const dayKey = normalizeDate(dayObj);
-                                                    const isToday = dayKey === normalizeDate(new Date());
-                                                    return (
-                                                        <div key={dayKey} className={`sticky top-0 z-10 px-2 py-3 font-bold text-center ${isToday ? 'bg-[#0ea5e9] text-white' : 'bg-[#bae6fd] text-[#060606]'}`}>
-                                                            <div className="text-xs uppercase">{dayObj.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                                                            <div className="text-sm mt-1">{formatShortDate(dayObj)}</div>
-                                                        </div>
-                                                    );
-                                                })}
-
-                                                {sortedEmployees.map(emp => (
-                                                    <React.Fragment key={emp.id}>
-                                                        <div className="sticky left-0 z-10 bg-[#fff7ed] px-1.5 py-2.5 border-t border-black">
-                                                            <div className="font-bold font-poppins text-[#060606] text-xs md:text-sm leading-tight truncate">{emp.name}</div>
-                                                            <div className="text-[10px] font-bold text-gray-500 mt-1 truncate">{emp.department}</div>
-                                                        </div>
-                                                        {weekDays.map(dayObj => {
-                                                            const dayKey = normalizeDate(dayObj);
-                                                            const { draft, cellFormattedIn, cellFormattedOut, cellMinutes, hasAssignedShift, cellStateClass } = getWeekGridCellState(emp.name, dayKey);
-
-                                                            return (
-                                                                <button
-                                                                    key={`${emp.id}-${dayKey}`}
-                                                                    type="button"
-                                                                    onClick={() => onSelectCell(emp.name, dayKey)}
-                                                                    onDragOver={e => e.preventDefault()}
-                                                                    onDrop={e => {
-                                                                        e.preventDefault();
-                                                                        const templateId = e.dataTransfer.getData('text/plain');
-                                                                        if (!templateId) return;
-                                                                        onSelectCell(emp.name, dayKey);
-                                                                        applyTemplateToCell(emp.name, dayKey, templateId);
-                                                                    }}
-                                                                    className={`min-h-[88px] border-t border-black px-2 py-2.5 text-left flex flex-col justify-between gap-2 transition-colors ${cellStateClass}`}
-                                                                >
-                                                                    <div className="text-xs font-bold leading-snug min-h-[2.5rem]">
-                                                                        {draft.clearSchedule
-                                                                            ? 'Clear on save'
-                                                                            : (hasAssignedShift ? `${cellFormattedIn} - ${cellFormattedOut}` : '')}
-                                                                    </div>
-                                                                    {(draft.clearSchedule || hasAssignedShift) && (
-                                                                        <div className="space-y-1">
-                                                                            <div className="text-[10px] font-bold uppercase tracking-wide opacity-70">
-                                                                                {draft.clearSchedule ? 'Clearing' : normalizeAdminScheduleStatus(draft.scheduleStatus)}
-                                                                            </div>
-                                                                            {draft.clearSchedule ? (
-                                                                                <div className="text-[10px] font-bold opacity-70">
-                                                                                    Schedule will be removed
-                                                                                </div>
-                                                                            ) : (
-                                                                                <div className="text-[10px] font-bold opacity-70">
-                                                                                    {formatWorkedDurationForDisplay(cellMinutes)}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    )}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </React.Fragment>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <div className="lg:hidden space-y-4">
-                                            {weekDays.map(dayObj => {
-                                                const dayKey = normalizeDate(dayObj);
-                                                const isToday = dayKey === normalizeDate(new Date());
-
-                                                return (
-                                                    <div key={dayKey} className="rounded-2xl border-2 border-black overflow-hidden shadow-[4px_4px_0px_0px_#000000] bg-white">
-                                                        <div className={`px-4 py-3 border-b-2 border-black ${isToday ? 'bg-[#38bdf8] text-[#060606]' : 'bg-[#bae6fd] text-[#060606]'}`}>
-                                                            <div className="text-xs font-bold uppercase tracking-wide">{dayObj.toLocaleDateString('en-US', { weekday: 'long' })}</div>
-                                                            <div className="text-lg font-bold font-poppins mt-1">{formatShortDate(dayObj)}</div>
-                                                        </div>
-
-                                                        <div className="divide-y divide-black">
-                                                            {sortedEmployees.map(emp => {
-                                                                const { draft, cellFormattedIn, cellFormattedOut, cellMinutes, hasAssignedShift, cellStateClass } = getWeekGridCellState(emp.name, dayKey);
-
-                                                                return (
-                                                                    <button
-                                                                        key={`${dayKey}-${emp.id}`}
-                                                                        type="button"
-                                                                        onClick={() => onSelectCell(emp.name, dayKey)}
-                                                                        className={`w-full px-4 py-3 text-left flex items-start justify-between gap-3 transition-colors ${cellStateClass}`}
-                                                                    >
-                                                                        <div className="min-w-0">
-                                                                            <div className="font-bold font-poppins text-[#060606] text-sm truncate">{emp.name}</div>
-                                                                            {(draft.clearSchedule || hasAssignedShift) && (
-                                                                                <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mt-1">
-                                                                                    {draft.clearSchedule ? 'Clearing' : normalizeAdminScheduleStatus(draft.scheduleStatus)}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                        <div className="text-right shrink-0">
-                                                                            <div className="text-xs font-bold text-[#060606]">
-                                                                                {draft.clearSchedule
-                                                                                    ? 'Clear on save'
-                                                                                    : (hasAssignedShift ? `${cellFormattedIn} - ${cellFormattedOut}` : '')}
-                                                                            </div>
-                                                                            {(draft.clearSchedule || hasAssignedShift) && (
-                                                                                <div className="text-[10px] font-bold text-gray-500 mt-1">
-                                                                                    {draft.clearSchedule
-                                                                                        ? 'Schedule will be removed'
-                                                                                        : formatWorkedDurationForDisplay(cellMinutes)}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             );
         };
@@ -4133,7 +4353,7 @@
             return (
                 <div className="min-h-screen p-2 md:p-8 flex flex-col items-center">
                     {/* Header */}
-                    <div className="w-full max-w-[1450px] flex justify-between items-center mb-4 md:mb-8 brutal-card p-3 md:p-6">
+                    <div className="page-width flex justify-between items-center mb-4 md:mb-8 brutal-card p-3 md:p-6">
                         <div className="flex items-center gap-2 md:gap-4 overflow-hidden">
                             <button
                                 onClick={openAdminDirectory}
@@ -4163,10 +4383,10 @@
                         </div>
                     </div>
 
-                    <div className="w-full max-w-[1450px] grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
+                    <div className="page-width app-shell">
                         
                         {/* LEFT: Employee Selection & Actions */}
-                        <div className="lg:col-span-3 flex flex-col gap-4 lg:gap-8">
+                        <div className="left-panel">
                             
                             {/* Employee List (Hides when a user is authenticated, or on mobile when selected) */}
                             <div className={`brutal-card p-4 md:p-6 transition-all duration-300 ${!selectedId ? 'block' : isAuthenticated ? 'hidden' : 'hidden lg:block'}`}>
@@ -4332,7 +4552,7 @@
                         </div>
 
                         {/* RIGHT: Dynamic Panel */}
-                        <div className={`lg:col-span-9 transition-all duration-300 ${!selectedId && directoryMode === 'admin' && !isAdminWorkspaceOpen ? 'hidden lg:block' : 'block'}`}>
+                        <div className={`right-panel transition-all duration-300 ${!selectedId && directoryMode === 'admin' && !isAdminWorkspaceOpen ? 'hidden lg:block' : 'block'}`}>
                             
                             {/* Adding relative positioning so absolute children (toast) anchor exactly here */}
                             <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-220px)] lg:max-h-[860px]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PAYROLL'].includes(viewMode) ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
@@ -4423,6 +4643,7 @@
                                                 onJumpToWeek={jumpToAdminWeek}
                                                 selectedCell={selectedAdminCell}
                                                 onSelectCell={selectAdminCell}
+                                                onCloseEditor={() => setSelectedAdminCell(null)}
                                                 getCellDraft={getAdminScheduleDraft}
                                                 updateCellDraft={updateAdminScheduleDraft}
                                                 applyTemplateToCell={applyTemplateToAdminSchedule}
