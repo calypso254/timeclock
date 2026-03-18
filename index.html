@@ -1412,7 +1412,7 @@
                                         <div className="text-lg font-bold font-poppins">{row.awaitingApproval}</div>
                                     </div>
                                     <div className="rounded-xl border-2 border-black bg-[#d1fae5] px-3 py-2">
-                                        <div className="text-[10px] uppercase font-bold text-gray-500">Added To Store</div>
+                                        <div className="text-[10px] uppercase font-bold text-gray-500">Approved</div>
                                         <div className="text-lg font-bold font-poppins">{row.addedToStore}</div>
                                     </div>
                                     <div className="rounded-xl border-2 border-black bg-[#fee2e2] px-3 py-2">
@@ -1914,7 +1914,7 @@
                                 <div className="space-y-2 mt-4 text-sm font-bold text-gray-600">
                                     <div>`Still Needed` is what has not been claimed, finished, or approved yet.</div>
                                     <div>`Awaiting Approval` is finished work that still needs your review.</div>
-                                    <div>`Added To Store` is what has already been pushed into Shopify.</div>
+                                    <div>`Approved` is what has already been reviewed and approved by admin.</div>
                                 </div>
                             </div>
                         </div>
@@ -1953,7 +1953,7 @@
                                             <div className="text-lg font-bold font-poppins">{row.awaitingApproval}</div>
                                         </div>
                                         <div className="rounded-xl border-2 border-black bg-[#d1fae5] px-3 py-2">
-                                            <div className="text-[10px] uppercase font-bold text-gray-500">Added To Store</div>
+                                            <div className="text-[10px] uppercase font-bold text-gray-500">Approved</div>
                                             <div className="text-lg font-bold font-poppins">{row.addedToStore}</div>
                                         </div>
                                         <div className="rounded-xl border-2 border-black bg-[#fee2e2] px-3 py-2">
@@ -1985,7 +1985,7 @@
                                         </div>
 
                                         <div className="rounded-xl border-2 border-black bg-[#f0fdf4] p-3">
-                                            <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Approve To Shopify</label>
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Approve</label>
                                             <div className="flex gap-2">
                                                 <input
                                                     type="number"
@@ -3621,7 +3621,7 @@
                         editorName: adminUser.name,
                         editorRole: adminUser.role || 'admin',
                     },
-                    `${quantity} ${quantity === 1 ? 'item was' : 'items were'} approved into Shopify for ${row.sku}.`,
+                    `${quantity} ${quantity === 1 ? 'item was' : 'items were'} approved for ${row.sku}.`,
                     `${quantity} ${quantity === 1 ? 'item was' : 'items were'} approved for ${row.sku}, but the inventory board could not be refreshed automatically.`
                 );
             };

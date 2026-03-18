@@ -587,41 +587,19 @@ function handleInventoryApprove_(data) {
   }
 
   var beforeState = serializeInventoryState_(record);
-  var shopifyInfo = null;
-
-  try {
-    shopifyInfo = resolveShopifyInventoryInfo_(record);
-    adjustShopifyInventory_(shopifyInfo.inventoryItemId, quantity, record, data);
-  } catch (err) {
-    logInventoryAction_({
-      sku: record.sku,
-      product: record.product,
-      action: "Approval Failed",
-      quantity: quantity,
-      beforeState: beforeState,
-      afterState: beforeState,
-      shopifyResult: "failed",
-      message: err && err.message ? err.message : String(err)
-    });
-    throw err;
-  }
-
   record.awaitingApproval -= quantity;
   record.addedToStore += quantity;
-  if (shopifyInfo) {
-    hydrateInventoryRecordFromShopify_(record, shopifyInfo);
-  }
 
   var savedRecord = writeInventoryRecord_(sheet, record.rowNumber, record);
   logInventoryAction_({
     sku: savedRecord.sku,
     product: savedRecord.product,
-    action: "Approved To Shopify",
+    action: "Approved",
     quantity: quantity,
     beforeState: beforeState,
     afterState: serializeInventoryState_(savedRecord),
-    shopifyResult: "success",
-    message: "Approved inventory was added to Shopify."
+    shopifyResult: "not_requested",
+    message: "Inventory was approved without posting to Shopify."
   });
 
   return jsonResponse_({
@@ -649,7 +627,7 @@ function ensureInventorySheetStructure_(sheet) {
     "Needed",
     "In Process",
     "Awaiting Approval",
-    "Added To Store",
+    "Approved",
     "Still Needed",
     "Status",
     "Last Updated",
@@ -876,7 +854,7 @@ function serializeInventoryState_(record) {
   return "Needed " + record.needed +
     " | In Process " + record.inProcess +
     " | Awaiting Approval " + record.awaitingApproval +
-    " | Added To Store " + record.addedToStore +
+    " | Approved " + record.addedToStore +
     " | Still Needed " + record.stillNeeded;
 }
 
