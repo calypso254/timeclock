@@ -1037,7 +1037,7 @@
 
         const ADMIN_SHIFT_UTILITY_TEMPLATE = {
             id: 'clear-cell',
-            label: 'Clear Cell',
+            label: 'Remove Shift',
             schedIn: '',
             schedOut: '',
             scheduleStatus: '',
@@ -2679,6 +2679,9 @@
             updateCellDraft,
             applyTemplateToCell,
             shiftTemplates,
+            templateName,
+            onTemplateNameChange,
+            onSaveCurrentTemplate,
             savedWeekOptions,
             saveWeekSchedules,
             dirtyCount,
@@ -2688,8 +2691,7 @@
             onSignOut,
         }) => {
             const [weekJumpValue, setWeekJumpValue] = useState('');
-
-            if (!adminUser) return null;
+            const [editorDraft, setEditorDraft] = useState(null);
 
             const sortedEmployees = employees
                 .slice()
@@ -2705,16 +2707,122 @@
             };
 
             const selectedDraft = selectedCell ? getCellDraft(selectedCell.name, selectedCell.date) : null;
-            const selectedFormattedIn = selectedDraft && !selectedDraft.clearSchedule
-                ? formatTimeField(selectedDraft.schedIn, selectedDraft.schedInPeriod)
+            const isSelectingDayEmployee = Boolean(selectedDraft && !String(selectedDraft.name || '').trim());
+
+            useEffect(() => {
+                const selectedName = String(selectedCell?.name || '').trim();
+                if (!selectedCell || !selectedName) {
+                    setEditorDraft(null);
+                    if (onTemplateNameChange) onTemplateNameChange('');
+                    return;
+                }
+
+                const nextDraft = getCellDraft(selectedName, selectedCell.date);
+                setEditorDraft({
+                    ...nextDraft,
+                    name: selectedName,
+                    date: normalizeDate(selectedCell.date),
+                    scheduleStatus: normalizeAdminScheduleStatus(nextDraft.scheduleStatus),
+                    clearSchedule: Boolean(nextDraft.clearSchedule),
+                });
+                if (onTemplateNameChange) onTemplateNameChange('');
+            }, [selectedCell ? selectedCell.name : '', selectedCell ? selectedCell.date : '']);
+
+            const activeSelectedDraft = isSelectingDayEmployee ? selectedDraft : (editorDraft || selectedDraft);
+            const selectedFormattedIn = activeSelectedDraft && !activeSelectedDraft.clearSchedule
+                ? formatTimeField(activeSelectedDraft.schedIn, activeSelectedDraft.schedInPeriod)
                 : '';
-            const selectedFormattedOut = selectedDraft && !selectedDraft.clearSchedule
-                ? formatTimeField(selectedDraft.schedOut, selectedDraft.schedOutPeriod)
+            const selectedFormattedOut = activeSelectedDraft && !activeSelectedDraft.clearSchedule
+                ? formatTimeField(activeSelectedDraft.schedOut, activeSelectedDraft.schedOutPeriod)
                 : '';
-            const selectedPreviewMinutes = selectedDraft && !selectedDraft.clearSchedule
+            const selectedPreviewMinutes = activeSelectedDraft && !activeSelectedDraft.clearSchedule
                 ? calculateWorkedMinutes(selectedFormattedIn, selectedFormattedOut)
                 : null;
-            const isSelectingDayEmployee = Boolean(selectedDraft && !String(selectedDraft.name || '').trim());
+            const canSaveEditorDraft = Boolean(
+                activeSelectedDraft
+                && !isSelectingDayEmployee
+                && (activeSelectedDraft.clearSchedule || (selectedFormattedIn && selectedFormattedOut))
+            );
+            const canSaveTemplate = Boolean(
+                activeSelectedDraft
+                && !isSelectingDayEmployee
+                && !activeSelectedDraft.clearSchedule
+                && selectedFormattedIn
+                && selectedFormattedOut
+                && String(templateName || '').trim()
+            );
+
+            const updateEditorDraft = (patch) => {
+                setEditorDraft(prev => {
+                    if (!prev) return prev;
+                    const nextPatch = typeof patch === 'function' ? patch(prev) : patch;
+                    return {
+                        ...prev,
+                        ...nextPatch,
+                        name: prev.name,
+                        date: prev.date,
+                        sourceRow: nextPatch?.sourceRow === undefined ? (prev.sourceRow || null) : nextPatch.sourceRow,
+                    };
+                });
+            };
+
+            const clearEditorForm = () => {
+                updateEditorDraft({
+                    schedIn: '',
+                    schedInPeriod: 'AM',
+                    schedOut: '',
+                    schedOutPeriod: 'PM',
+                    scheduleStatus: DEFAULT_ADMIN_SCHEDULE_STATUS,
+                    clearSchedule: false,
+                });
+            };
+
+            const applyTemplateToEditorDraft = (template) => {
+                if (!template || isSelectingDayEmployee) return;
+
+                updateEditorDraft(currentDraft => {
+                    if (template.clearSchedule) {
+                        return {
+                            schedIn: '',
+                            schedInPeriod: 'AM',
+                            schedOut: '',
+                            schedOutPeriod: 'PM',
+                            scheduleStatus: '',
+                            clearSchedule: true,
+                        };
+                    }
+
+                    const parsedIn = parseTimeField(template.schedIn);
+                    const parsedOut = parseTimeField(template.schedOut);
+                    return {
+                        schedIn: parsedIn.time,
+                        schedInPeriod: parsedIn.period || 'AM',
+                        schedOut: parsedOut.time,
+                        schedOutPeriod: parsedOut.period || 'PM',
+                        scheduleStatus: normalizeAdminScheduleStatus(template.scheduleStatus),
+                        clearSchedule: false,
+                    };
+                });
+            };
+
+            const handleSaveShift = () => {
+                if (!canSaveEditorDraft || !activeSelectedDraft || isSelectingDayEmployee) return;
+
+                updateCellDraft(activeSelectedDraft.name, activeSelectedDraft.date, {
+                    schedIn: activeSelectedDraft.clearSchedule ? '' : activeSelectedDraft.schedIn,
+                    schedInPeriod: activeSelectedDraft.clearSchedule ? 'AM' : activeSelectedDraft.schedInPeriod,
+                    schedOut: activeSelectedDraft.clearSchedule ? '' : activeSelectedDraft.schedOut,
+                    schedOutPeriod: activeSelectedDraft.clearSchedule ? 'PM' : activeSelectedDraft.schedOutPeriod,
+                    scheduleStatus: activeSelectedDraft.clearSchedule ? '' : normalizeAdminScheduleStatus(activeSelectedDraft.scheduleStatus),
+                    clearSchedule: Boolean(activeSelectedDraft.clearSchedule),
+                });
+                onCloseEditor();
+            };
+
+            const handleSaveTemplate = async () => {
+                if (!canSaveTemplate || !activeSelectedDraft || !onSaveCurrentTemplate) return;
+                await onSaveCurrentTemplate(activeSelectedDraft, templateName);
+            };
             const getWeekGridCellState = (employeeName, dayKey) => {
                 const draft = getCellDraft(employeeName, dayKey);
                 const cellFormattedIn = draft.clearSchedule ? '' : formatTimeField(draft.schedIn, draft.schedInPeriod);
@@ -2743,6 +2851,8 @@
                     cellStateClass,
                 };
             };
+
+            if (!adminUser) return null;
 
             return (
                 <div className="section-width flex flex-col h-full min-h-0 animate-fade-in overflow-y-auto pr-1">
@@ -2929,7 +3039,7 @@
                                         className="brutal-btn bg-white px-4 py-2 text-sm md:text-base flex items-center gap-2 self-start"
                                     >
                                         <i className="fas fa-xmark"></i>
-                                        <span>Close</span>
+                                        <span>Cancel</span>
                                     </button>
                                 </div>
 
@@ -2970,11 +3080,11 @@
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
                                             <div className="section-card bg-[#f8fafc] px-4 py-3">
                                                 <div className="card-eyebrow">Shift</div>
                                                 <div className="card-title mt-2">
-                                                    {selectedDraft.clearSchedule
+                                                    {activeSelectedDraft.clearSchedule
                                                         ? 'Clearing on save'
                                                         : ((selectedFormattedIn && selectedFormattedOut) ? `${selectedFormattedIn} - ${selectedFormattedOut}` : 'No shift assigned')}
                                                 </div>
@@ -2982,53 +3092,25 @@
                                             <div className="section-card bg-[#f8fafc] px-4 py-3">
                                                 <div className="card-eyebrow">Duration</div>
                                                 <div className="card-title mt-2">
-                                                    {selectedDraft.clearSchedule
+                                                    {activeSelectedDraft.clearSchedule
                                                         ? 'Removed'
                                                         : (selectedPreviewMinutes === null ? '--' : formatWorkedDurationForDisplay(selectedPreviewMinutes))}
                                                 </div>
                                             </div>
-                                            <div className="section-card bg-[#f8fafc] px-4 py-3">
-                                                <div className="card-eyebrow">Row State</div>
-                                                <div className="card-title mt-2">
-                                                    {selectedDraft.sourceRow ? 'Loaded Row' : 'New Row'}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="section-card bg-[#eff6ff] p-4 mt-4">
-                                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                                                <div>
-                                                    <h5 className="card-title">Quick Templates</h5>
-                                                    <p className="section-subtitle mt-1">Apply a saved shift or clear this schedule instantly.</p>
-                                                </div>
-                                                <div className="card-meta">{quickActionCount} quick action{quickActionCount === 1 ? '' : 's'}</div>
-                                            </div>
-
-                                            <div className="card-grid mt-4">
-                                                {[ADMIN_SHIFT_UTILITY_TEMPLATE, ...visibleTemplates].map(template => (
-                                                    <button
-                                                        key={template.id}
-                                                        type="button"
-                                                        onClick={() => applyTemplateToCell(selectedDraft.name, selectedDraft.date, template.id)}
-                                                        disabled={isSavingTemplates}
-                                                        className={`brutal-btn card-frame card-size-1x1 ${template.accent || 'bg-white'} p-3 text-left flex flex-col justify-between`}
-                                                    >
-                                                        <div>
-                                                            <div className="card-title text-sm">{template.label}</div>
-                                                            <div className="card-meta mt-2">
-                                                                {template.clearSchedule ? 'Remove this schedule' : `${template.schedIn} - ${template.schedOut}`}
-                                                            </div>
-                                                        </div>
-                                                        <div className="card-eyebrow text-[#060606]/70">
-                                                            {template.clearSchedule ? 'Utility' : normalizeAdminScheduleStatus(template.scheduleStatus)}
-                                                        </div>
-                                                    </button>
-                                                ))}
-                                            </div>
                                         </div>
 
                                         <div className="section-card bg-white p-4 mt-4">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(160px,0.9fr)_minmax(160px,0.9fr)_minmax(150px,0.8fr)_auto] gap-3 items-end">
+                                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                                <div>
+                                                    <h5 className="card-title">Shift Details</h5>
+                                                    <p className="section-subtitle mt-1">Enter the scheduled in time, scheduled out time, and status for this shift.</p>
+                                                </div>
+                                                {activeSelectedDraft.clearSchedule && (
+                                                    <div className="status-chip bg-[#fee2e2]">Shift removal staged</div>
+                                                )}
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-end mt-4">
                                                 <div>
                                                     <label className="field-label block mb-2">Scheduled In</label>
                                                     <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
@@ -3036,10 +3118,10 @@
                                                             type="text"
                                                             inputMode="numeric"
                                                             placeholder="9:00"
-                                                            value={selectedDraft.clearSchedule ? '' : selectedDraft.schedIn}
+                                                            value={activeSelectedDraft.clearSchedule ? '' : activeSelectedDraft.schedIn}
                                                             onChange={e => {
-                                                                const next = normalizeTimeInputWithPeriod(e.target.value, selectedDraft.schedInPeriod);
-                                                                updateCellDraft(selectedDraft.name, selectedDraft.date, {
+                                                                const next = normalizeTimeInputWithPeriod(e.target.value, activeSelectedDraft.schedInPeriod);
+                                                                updateEditorDraft({
                                                                     schedIn: next.time,
                                                                     schedInPeriod: next.period,
                                                                     clearSchedule: false,
@@ -3049,8 +3131,8 @@
                                                             maxLength={5}
                                                         />
                                                         <div className="ml-auto flex shrink-0 items-center gap-2">
-                                                            <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedInPeriod: 'AM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedInPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
-                                                            <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedInPeriod: 'PM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedInPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
+                                                            <button type="button" onClick={() => updateEditorDraft({ schedInPeriod: 'AM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${activeSelectedDraft.schedInPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
+                                                            <button type="button" onClick={() => updateEditorDraft({ schedInPeriod: 'PM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${activeSelectedDraft.schedInPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -3062,10 +3144,10 @@
                                                             type="text"
                                                             inputMode="numeric"
                                                             placeholder="5:00"
-                                                            value={selectedDraft.clearSchedule ? '' : selectedDraft.schedOut}
+                                                            value={activeSelectedDraft.clearSchedule ? '' : activeSelectedDraft.schedOut}
                                                             onChange={e => {
-                                                                const next = normalizeTimeInputWithPeriod(e.target.value, selectedDraft.schedOutPeriod);
-                                                                updateCellDraft(selectedDraft.name, selectedDraft.date, {
+                                                                const next = normalizeTimeInputWithPeriod(e.target.value, activeSelectedDraft.schedOutPeriod);
+                                                                updateEditorDraft({
                                                                     schedOut: next.time,
                                                                     schedOutPeriod: next.period,
                                                                     clearSchedule: false,
@@ -3075,8 +3157,8 @@
                                                             maxLength={5}
                                                         />
                                                         <div className="ml-auto flex shrink-0 items-center gap-2">
-                                                            <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedOutPeriod: 'AM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedOutPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
-                                                            <button type="button" onClick={() => updateCellDraft(selectedDraft.name, selectedDraft.date, { schedOutPeriod: 'PM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${selectedDraft.schedOutPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
+                                                            <button type="button" onClick={() => updateEditorDraft({ schedOutPeriod: 'AM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${activeSelectedDraft.schedOutPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
+                                                            <button type="button" onClick={() => updateEditorDraft({ schedOutPeriod: 'PM', clearSchedule: false })} className={`text-xs md:text-sm font-bold ${activeSelectedDraft.schedOutPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -3084,23 +3166,89 @@
                                                 <div>
                                                     <label className="field-label block mb-2">Status</label>
                                                     <select
-                                                        value={selectedDraft.clearSchedule ? DEFAULT_ADMIN_SCHEDULE_STATUS : normalizeAdminScheduleStatus(selectedDraft.scheduleStatus)}
-                                                        onChange={e => updateCellDraft(selectedDraft.name, selectedDraft.date, { scheduleStatus: e.target.value, clearSchedule: false })}
+                                                        value={activeSelectedDraft.clearSchedule ? DEFAULT_ADMIN_SCHEDULE_STATUS : normalizeAdminScheduleStatus(activeSelectedDraft.scheduleStatus)}
+                                                        onChange={e => updateEditorDraft({ scheduleStatus: e.target.value, clearSchedule: false })}
                                                         className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
                                                     >
                                                         <option value="Draft">Draft</option>
                                                         <option value="Published">Published</option>
                                                     </select>
                                                 </div>
+                                            </div>
 
+                                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(220px,1fr)_auto_auto_auto] gap-3 items-end mt-4">
+                                                <div>
+                                                    <label className="field-label block mb-2">Template Name</label>
+                                                    <input
+                                                        type="text"
+                                                        value={templateName}
+                                                        onChange={e => onTemplateNameChange && onTemplateNameChange(e.target.value)}
+                                                        placeholder="Morning Shift"
+                                                        className="w-full brutal-input px-3 py-3 font-bold text-sm md:text-base"
+                                                    />
+                                                </div>
                                                 <button
                                                     type="button"
-                                                    onClick={() => applyTemplateToCell(selectedDraft.name, selectedDraft.date, ADMIN_SHIFT_UTILITY_TEMPLATE.id)}
+                                                    onClick={clearEditorForm}
                                                     className="brutal-btn bg-white px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2"
                                                 >
-                                                    <i className="fas fa-eraser text-[#f43f5e]"></i>
-                                                    <span>Clear Shift</span>
+                                                    <i className="fas fa-eraser text-[#f59e0b]"></i>
+                                                    <span>Clear Form</span>
                                                 </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSaveTemplate}
+                                                    disabled={!canSaveTemplate || isSavingTemplates}
+                                                    className="brutal-btn bg-[#dbeafe] hover:bg-[#bfdbfe] px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2"
+                                                >
+                                                    <i className={`fas ${isSavingTemplates ? 'fa-circle-notch spinner' : 'fa-bookmark'}`}></i>
+                                                    <span>{isSavingTemplates ? 'Saving Template...' : 'Save as Template'}</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSaveShift}
+                                                    disabled={!canSaveEditorDraft}
+                                                    className="brutal-btn bg-[#4ade80] hover:bg-[#22c55e] px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2"
+                                                >
+                                                    <i className="fas fa-save"></i>
+                                                    <span>Save Shift</span>
+                                                </button>
+                                            </div>
+
+                                            <p className="section-subtitle mt-3">
+                                                Save Shift updates the week board. Use Save Changes at the top when you are ready to publish the week.
+                                            </p>
+                                        </div>
+
+                                        <div className="section-card bg-[#eff6ff] p-4 mt-4">
+                                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                                <div>
+                                                    <h5 className="card-title">Quick Templates</h5>
+                                                    <p className="section-subtitle mt-1">Apply a saved shift or stage a removal in one click.</p>
+                                                </div>
+                                                <div className="card-meta">{quickActionCount} quick action{quickActionCount === 1 ? '' : 's'}</div>
+                                            </div>
+
+                                            <div className="card-grid mt-4">
+                                                {[ADMIN_SHIFT_UTILITY_TEMPLATE, ...visibleTemplates].map(template => (
+                                                    <button
+                                                        key={template.id}
+                                                        type="button"
+                                                        onClick={() => applyTemplateToEditorDraft(template)}
+                                                        disabled={isSavingTemplates}
+                                                        className={`brutal-btn card-frame card-size-1x1 ${template.accent || 'bg-white'} p-3 text-left flex flex-col justify-between`}
+                                                    >
+                                                        <div>
+                                                            <div className="card-title text-sm">{template.label}</div>
+                                                            <div className="card-meta mt-2">
+                                                                {template.clearSchedule ? 'Stage this shift for removal' : `${template.schedIn} - ${template.schedOut}`}
+                                                            </div>
+                                                        </div>
+                                                        <div className="card-eyebrow text-[#060606]/70">
+                                                            {template.clearSchedule ? 'Utility' : normalizeAdminScheduleStatus(template.scheduleStatus)}
+                                                        </div>
+                                                    </button>
+                                                ))}
                                             </div>
                                         </div>
                                     </>
@@ -3406,15 +3554,17 @@
                 }
             };
 
-            const saveSelectedShiftAsTemplate = async () => {
-                const label = String(adminTemplateName || '').trim();
+            const saveSelectedShiftAsTemplate = async (draftOverride = null, nameOverride = undefined) => {
+                const templateDraftSource = draftOverride || adminTemplateDraft;
+                const templateNameSource = nameOverride === undefined ? adminTemplateName : nameOverride;
+                const label = String(templateNameSource || '').trim();
                 if (!label) {
                     setNotification({ type: 'error', message: "Enter a template name first." });
                     return;
                 }
 
-                const schedIn = formatTimeField(adminTemplateDraft.schedIn, adminTemplateDraft.schedInPeriod);
-                const schedOut = formatTimeField(adminTemplateDraft.schedOut, adminTemplateDraft.schedOutPeriod);
+                const schedIn = formatTimeField(templateDraftSource.schedIn, templateDraftSource.schedInPeriod);
+                const schedOut = formatTimeField(templateDraftSource.schedOut, templateDraftSource.schedOutPeriod);
                 if (!schedIn || !schedOut) {
                     setNotification({ type: 'error', message: "Enter valid scheduled in and out times before saving a template." });
                     return;
@@ -3429,7 +3579,7 @@
                     label,
                     schedIn,
                     schedOut,
-                    scheduleStatus: normalizeAdminScheduleStatus(adminTemplateDraft.scheduleStatus),
+                    scheduleStatus: normalizeAdminScheduleStatus(templateDraftSource.scheduleStatus),
                 };
                 const nextTemplates = existingIndex >= 0
                     ? normalizedTemplates.map((template, index) => index === existingIndex ? nextTemplate : template)
@@ -4559,6 +4709,9 @@
                                                 updateCellDraft={updateAdminScheduleDraft}
                                                 applyTemplateToCell={applyTemplateToAdminSchedule}
                                                 shiftTemplates={settings.shiftTemplates}
+                                                templateName={adminTemplateName}
+                                                onTemplateNameChange={setAdminTemplateName}
+                                                onSaveCurrentTemplate={saveSelectedShiftAsTemplate}
                                                 savedWeekOptions={savedWeekOptions}
                                                 saveWeekSchedules={saveAdminWeekSchedules}
                                                 dirtyCount={stagedScheduleChangeCount}
