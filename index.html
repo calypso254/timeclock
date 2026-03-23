@@ -166,6 +166,26 @@
             width: 100%;
             min-height: var(--size-unit-1);
         }
+        .admin-action-button {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+            text-align: center;
+            line-height: 1.1;
+            font-size: 0.78rem;
+        }
+        .admin-action-button i {
+            font-size: 1rem;
+            line-height: 1;
+        }
+        .admin-action-button span {
+            display: block;
+            max-width: 100%;
+        }
         .card-grid {
             --active-card-column-width: var(--card-grid-column-width);
             --active-card-row-height: var(--card-grid-row-height);
@@ -495,17 +515,22 @@
         .message-reaction-button {
             display: inline-flex;
             align-items: center;
-            gap: 0.45rem;
+            justify-content: center;
             border: 2px solid #000000;
             border-radius: 999px;
             background: #ffffff;
-            padding: 0.45rem 0.8rem;
-            font-size: 0.76rem;
+            width: 2.35rem;
+            height: 2.35rem;
+            padding: 0;
+            font-size: 0.9rem;
             font-weight: 700;
             line-height: 1.1;
             color: #060606;
             box-shadow: 2px 2px 0px 0px #000000;
             transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
+        }
+        .message-reaction-button i {
+            line-height: 1;
         }
         .message-reaction-button:hover:not(:disabled) {
             background: #f8fafc;
@@ -560,6 +585,54 @@
             border-radius: 1rem;
             box-shadow: 2px 2px 0px 0px #000000;
         }
+        .admin-week-board-grid {
+            gap: 0.625rem;
+            align-items: start;
+        }
+        .admin-week-board-day-card {
+            min-width: 0;
+            align-self: start;
+        }
+        .admin-week-board-day-button {
+            padding: 0.75rem 0.75rem 0.7rem;
+        }
+        .admin-week-board-day-button .card-eyebrow {
+            font-size: 0.54rem;
+            letter-spacing: 0.14em;
+        }
+        .admin-week-board-day-button .card-title {
+            font-size: 0.78rem;
+            line-height: 1.2;
+        }
+        .admin-week-board-scroll {
+            min-height: 4.75rem;
+            padding: 0.625rem;
+            overflow: visible;
+        }
+        .admin-week-board-shift-card {
+            padding: 0.7rem 0.75rem;
+        }
+        .admin-week-board-shift-card .card-title {
+            font-size: 0.82rem;
+            line-height: 1.15;
+        }
+        .admin-week-board-shift-card .card-meta {
+            font-size: 0.67rem;
+            line-height: 1.3;
+        }
+        .admin-week-board-shift-card .card-eyebrow {
+            font-size: 0.54rem;
+            letter-spacing: 0.12em;
+        }
+        .admin-week-board-shift-time {
+            font-size: 0.82rem;
+            font-weight: 700;
+            line-height: 1.35;
+            color: #060606;
+        }
+        .admin-week-board-shift-duration {
+            font-size: 0.68rem;
+        }
         .editor-modal-backdrop {
             position: fixed;
             inset: 0;
@@ -596,6 +669,11 @@
                 grid-template-columns: minmax(0, var(--left-panel-width)) minmax(0, 1fr);
                 gap: var(--size-gap);
                 align-items: start;
+            }
+        }
+        @media (min-width: 768px) {
+            .admin-action-button {
+                font-size: 0.875rem;
             }
         }
         @media (max-width: 1023px) {
@@ -2995,9 +3073,10 @@
                                                                     onClick={event => handleReactionSelect(event, message, option.key)}
                                                                     disabled={isReactionPending}
                                                                     className={`message-reaction-button ${isSelected ? 'message-reaction-button-active' : ''}`}
+                                                                    aria-label={option.label}
+                                                                    title={option.label}
                                                                 >
                                                                     <i className={`fas ${option.icon}`}></i>
-                                                                    <span>{option.label}</span>
                                                                 </button>
                                                             );
                                                         })}
@@ -3902,8 +3981,8 @@
                         </div>
                     </div>
 
-                    <div className="section-card p-4 md:p-5 overflow-hidden flex flex-col flex-1 min-h-[520px] lg:min-h-0">
-                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4 shrink-0">
+                    <div className="section-card p-3 md:p-4 overflow-hidden flex flex-col flex-1 min-h-[520px] lg:min-h-0">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0">
                             <div>
                                 <div className="card-eyebrow text-[#0284c7]">Weekly Schedule</div>
                                 <h4 className="section-title mt-1">Week Board</h4>
@@ -3941,7 +4020,7 @@
                                     No active employees were found for scheduling.
                                 </div>
                             ) : (
-                                <div className="schedule-week-grid">
+                                <div className="schedule-week-grid admin-week-board-grid">
                                     {weekDays.map(dayObj => {
                                         const dayKey = normalizeDate(dayObj);
                                         const isToday = dayKey === normalizeDate(new Date());
@@ -3953,17 +4032,17 @@
                                             .filter(entry => entry.timeOffRow || entry.hasAssignedShift || entry.draft.clearSchedule || entry.isSelected);
 
                                         return (
-                                            <div key={dayKey} className={`section-card card-frame card-size-1x2 schedule-day-card overflow-hidden bg-white ${isToday ? 'ring-4 ring-[#bae6fd]' : ''}`}>
+                                            <div key={dayKey} className={`section-card admin-week-board-day-card overflow-hidden bg-white ${isToday ? 'ring-4 ring-[#bae6fd]' : ''}`}>
                                                 <button
                                                     type="button"
                                                     onClick={() => onSelectCell('', dayKey)}
-                                                    className={`w-full px-4 py-3 border-b-2 border-black text-left ${isToday ? 'bg-[#38bdf8] text-[#060606]' : 'bg-[#bae6fd] text-[#060606]'}`}
+                                                    className={`w-full admin-week-board-day-button border-b-2 border-black text-left ${isToday ? 'bg-[#38bdf8] text-[#060606]' : 'bg-[#bae6fd] text-[#060606]'}`}
                                                 >
                                                     <div className="card-eyebrow text-[#060606]">{dayObj.toLocaleDateString('en-US', { weekday: 'long' })}</div>
                                                     <div className="card-title mt-1">{formatShortDate(dayObj)}</div>
                                                 </button>
 
-                                                <div className="schedule-day-scroll no-scrollbar p-3 space-y-2">
+                                                <div className="admin-week-board-scroll no-scrollbar space-y-2">
                                                     {dayEntries.map(({ employee, draft, timeOffRow, timeOffMeta, cellFormattedIn, cellFormattedOut, cellMinutes, hasAssignedShift, cellStateClass, isSelected }, index) => {
                                                         const isTimeOffApproved = isApprovedTimeOffRow(timeOffRow);
                                                         const surfaceClass = timeOffRow
@@ -3980,11 +4059,11 @@
                                                                 key={`${dayKey}-${employee.id}-${index}`}
                                                                 type="button"
                                                                 onClick={() => onSelectCell(employee.name, dayKey)}
-                                                                className={`schedule-shift-card w-full px-3 py-3 text-left transition-colors ${surfaceClass} ${outlineClass}`}
+                                                                className={`schedule-shift-card admin-week-board-shift-card w-full text-left transition-colors ${surfaceClass} ${outlineClass}`}
                                                             >
                                                                 <div className="flex items-start justify-between gap-3">
                                                                     <div className="min-w-0">
-                                                                        <div className="card-title text-sm truncate">{employee.name}</div>
+                                                                        <div className="card-title truncate">{employee.name}</div>
                                                                         <div className="card-meta mt-1 truncate">{employee.department || 'Team'}</div>
                                                                     </div>
                                                                     {(timeOffRow || draft.clearSchedule || isSelected) && (
@@ -3998,7 +4077,7 @@
 
                                                                 {timeOffRow ? (
                                                                     <>
-                                                                        <div className="card-meta text-[#060606] mt-3">
+                                                                        <div className="card-meta text-[#060606] mt-2.5">
                                                                             {getTimeOffRangeLabel(timeOffRow, timeOffMeta)}
                                                                         </div>
                                                                         <div className="card-meta mt-1">
@@ -4011,13 +4090,13 @@
                                                                         )}
                                                                     </>
                                                                 ) : draft.clearSchedule ? (
-                                                                    <div className="card-meta text-[#060606] mt-3">Schedule will be removed</div>
+                                                                    <div className="card-meta text-[#060606] mt-2.5">Schedule will be removed</div>
                                                                 ) : hasAssignedShift ? (
-                                                                    <div className="card-meta text-[#060606] mt-3">{cellFormattedIn} - {cellFormattedOut}</div>
+                                                                    <div className="admin-week-board-shift-time mt-2.5">{cellFormattedIn} - {cellFormattedOut}</div>
                                                                 ) : null}
 
                                                                 {!timeOffRow && (draft.clearSchedule || hasAssignedShift) && (
-                                                                    <div className="card-meta mt-1">
+                                                                    <div className="card-meta admin-week-board-shift-duration mt-1">
                                                                         {draft.clearSchedule ? 'Removal staged' : formatWorkedDurationForDisplay(cellMinutes)}
                                                                     </div>
                                                                 )}
@@ -5975,7 +6054,7 @@
                                     <div className="standard-two-up-grid shadow-safe-4">
                                         <button
                                             onClick={() => setViewMode('ADMIN')}
-                                            className={`brutal-btn standard-unit-button py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button admin-action-button py-3 text-[#060606] ${
                                                 viewMode === 'ADMIN' ? 'bg-[#38bdf8] hover:bg-[#0ea5e9]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -5984,7 +6063,7 @@
                                         </button>
                                         <button
                                             onClick={handleOpenAdminInventory}
-                                            className={`brutal-btn standard-unit-button py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button admin-action-button py-3 text-[#060606] ${
                                                 viewMode === 'ADMIN_INVENTORY' ? 'bg-[#fef3c7] hover:bg-[#fde68a]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -5993,7 +6072,7 @@
                                         </button>
                                         <button
                                             onClick={handleOpenAdminPayroll}
-                                            className={`brutal-btn standard-unit-button py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button admin-action-button py-3 text-[#060606] ${
                                                 viewMode === 'ADMIN_PAYROLL' ? 'bg-[#bbf7d0] hover:bg-[#86efac]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -6002,7 +6081,7 @@
                                         </button>
                                         <button
                                             onClick={handleOpenAdminMessages}
-                                            className={`brutal-btn standard-unit-button py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button admin-action-button py-3 text-[#060606] ${
                                                 viewMode === 'ADMIN_MESSAGES' ? 'bg-[#f9a8d4] hover:bg-[#f472b6]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -6011,7 +6090,7 @@
                                         </button>
                                         <button
                                             onClick={handleLogout}
-                                            className="brutal-btn standard-unit-button py-3 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
+                                            className="brutal-btn standard-unit-button admin-action-button py-3 bg-white hover:bg-gray-50 text-[#060606]"
                                         >
                                             <i className="fas fa-user-lock text-[#f43f5e]"></i>
                                             <span>Sign Out</span>
