@@ -263,13 +263,58 @@
             line-height: 1.1;
             white-space: nowrap;
         }
-        .public-overview-grid {
-            --active-card-column-width: 250px;
-            --active-card-row-height: 168px;
+        .public-overview-masonry {
+            display: grid;
+            grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.95fr);
+            gap: var(--card-grid-gap);
+            align-items: start;
+        }
+        .public-overview-left-column {
+            display: flex;
+            flex-direction: column;
+            gap: var(--card-grid-gap);
+            min-width: 0;
+        }
+        .public-overview-right-column {
+            min-width: 0;
+            align-self: stretch;
         }
         .public-overview-card {
             min-width: 0;
             min-height: 0;
+        }
+        .public-overview-schedule-card {
+            width: fit-content;
+            max-width: 100%;
+        }
+        .public-overview-message-card {
+            min-height: 640px;
+            display: flex;
+            flex-direction: column;
+        }
+        .public-overview-message-card > * {
+            flex: 1;
+            min-height: 0;
+        }
+        .public-overview-inventory-card {
+            min-height: 360px;
+        }
+        .public-schedule-wrap {
+            width: fit-content;
+            max-width: 100%;
+        }
+        .public-schedule-grid {
+            display: grid;
+            gap: 12px;
+            align-content: start;
+        }
+        .public-schedule-shift-card {
+            border: var(--surface-border);
+            border-radius: 1rem;
+            box-shadow: 2px 2px 0px 0px #000000;
+            background: #ffffff;
+            padding: 0.9rem;
+            min-height: 118px;
         }
         .public-summary-row {
             border: var(--surface-border);
@@ -413,6 +458,16 @@
             .schedule-week-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
+            .public-overview-masonry {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .public-overview-schedule-card,
+            .public-schedule-wrap {
+                width: 100%;
+            }
+            .public-overview-message-card {
+                min-height: 520px;
+            }
         }
         @media (min-width: 768px) {
             .content-safe-padding {
@@ -441,6 +496,9 @@
             }
             .schedule-day-card {
                 min-height: auto;
+            }
+            .public-schedule-grid {
+                grid-template-columns: minmax(0, 1fr) !important;
             }
         }
     </style>
@@ -2445,6 +2503,8 @@
             const todayDate = parseLocalDate(todayKey);
             const todayShifts = getTodayPublishedShifts(sheetData);
             const scheduleSubtitle = subtitle || `Published shifts for ${formatFullDate(todayDate)}.`;
+            const scheduleColumnCount = Math.min(Math.max(todayShifts.length, 1), 4);
+            const scheduleGridWidth = `${(scheduleColumnCount * 176) + ((scheduleColumnCount - 1) * 12)}px`;
 
             return (
                 <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
@@ -2459,28 +2519,34 @@
                         </div>
                     </div>
 
-                    <div className="message-thread-scroll no-scrollbar shadow-safe-2">
+                    <div className="public-schedule-wrap shadow-safe-2" style={{ width: `min(100%, ${scheduleGridWidth})` }}>
                         {todayShifts.length === 0 ? (
                             <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
                                 No published shifts today.
                             </div>
                         ) : (
-                            <div className="space-y-2.5">
+                            <div
+                                className="public-schedule-grid"
+                                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(176px, 1fr))' }}
+                            >
                                 {todayShifts.map((shift, idx) => (
                                     <div
                                         key={`${todayKey}-${shift.name}-${idx}`}
-                                        className="public-summary-row flex items-center justify-between gap-3"
+                                        className="public-schedule-shift-card flex flex-col justify-between gap-3"
                                     >
                                         <div className="min-w-0">
-                                            <div className="card-title text-sm leading-tight truncate" title={shift.name}>
+                                            <div className="card-title text-sm leading-tight break-words" title={shift.name}>
                                                 {shift.name}
                                             </div>
                                             <div className="card-meta mt-1">
                                                 {todayDate.toLocaleDateString('en-US', { weekday: 'long' })}
                                             </div>
                                         </div>
-                                        <div className="message-role-pill bg-[#e0f2fe] shrink-0">
-                                            {shift.schedIn} - {shift.schedOut}
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="message-role-pill bg-[#e0f2fe] shrink-0">
+                                                {shift.schedIn} - {shift.schedOut}
+                                            </div>
+                                            <div className="card-meta text-[#0284c7]">Scheduled</div>
                                         </div>
                                     </div>
                                 ))}
@@ -2497,7 +2563,6 @@
             subtitle = '',
         }) => {
             const { openRows, totals } = buildInventorySnapshotSummary(inventoryRows);
-            const previewRows = openRows.slice(0, 4);
             const inventorySubtitle = subtitle || 'Active needs grouped into one quick summary.';
 
             return (
@@ -2535,7 +2600,7 @@
                             </div>
                         ) : (
                             <div className="space-y-2.5">
-                                {previewRows.map(row => (
+                                {openRows.map(row => (
                                     <div key={row.rowNumber} className="public-summary-row flex items-start justify-between gap-3">
                                         <div className="min-w-0">
                                             <div className="inventory-card-sku" title={getInventorySkuText(row)}>
@@ -2553,11 +2618,6 @@
                                         </div>
                                     </div>
                                 ))}
-                                {openRows.length > previewRows.length && (
-                                    <div className="card-meta px-1">
-                                        +{openRows.length - previewRows.length} more open item{openRows.length - previewRows.length === 1 ? '' : 's'} on the full board.
-                                    </div>
-                                )}
                             </div>
                         )}
                     </div>
@@ -2592,7 +2652,7 @@
             }, [safeMessages.length]);
 
             return (
-                <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
+                <div className="section-width flex flex-col h-full min-h-0 animate-fade-in pr-2 pb-2">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0 pr-1 pb-1">
                         <div>
                             <div className="card-eyebrow text-[#ec4899]">{eyebrow}</div>
@@ -2678,7 +2738,7 @@
                                 placeholder="Share a note about time off, inventory, supplies, or anything the admin team should see."
                                 className="brutal-input w-full px-4 py-3 text-sm md:text-base resize-none"
                             />
-                            <div className="mt-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div className="mt-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 pr-1 pb-1">
                                 <div className="card-meta">
                                     {trimmedDraft.length}/{MESSAGE_MAX_LENGTH} characters. Press Ctrl+Enter to send.
                                 </div>
@@ -2707,24 +2767,28 @@
                     </div>
 
                     <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pt-1 pb-4 pr-2">
-                        <div className="card-grid public-overview-grid">
-                            <div className="section-card card-frame card-size-2x1 public-overview-card bg-[#f8fafc] p-3 md:p-4">
-                                <TodaySchedulePanel sheetData={sheetData} />
+                        <div className="public-overview-masonry">
+                            <div className="public-overview-left-column">
+                                <div className="section-card public-overview-card public-overview-schedule-card bg-[#f8fafc] p-3 md:p-4">
+                                    <TodaySchedulePanel sheetData={sheetData} />
+                                </div>
+                                <div className="section-card public-overview-card public-overview-inventory-card bg-[#fff7ed] p-3 md:p-4">
+                                    <InventorySnapshotPanel
+                                        inventoryRows={inventoryRows}
+                                        title="Inventory Snapshot"
+                                    />
+                                </div>
                             </div>
-                            <div className="section-card card-frame card-size-1x2 public-overview-card bg-[#fff7ed] p-3 md:p-4">
-                            <InventorySnapshotPanel
-                                inventoryRows={inventoryRows}
-                                    title="Inventory Snapshot"
-                                />
-                            </div>
-                            <div className="section-card card-frame card-size-2x2 public-overview-card bg-[#fdf2f8] p-3 md:p-4">
-                                <MessageBoardPanel
-                                    messages={messages}
-                                    eyebrow="Team Notes"
-                                    title="Messages"
-                                    subtitle="Read-only view of the shared staff notes board."
-                                    readOnly={true}
-                                />
+                            <div className="public-overview-right-column">
+                                <div className="section-card public-overview-card public-overview-message-card bg-[#fdf2f8] p-3 md:p-4">
+                                    <MessageBoardPanel
+                                        messages={messages}
+                                        eyebrow="Team Notes"
+                                        title="Messages"
+                                        subtitle="Read-only view of the shared staff notes board."
+                                        readOnly={true}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -4104,7 +4168,7 @@
 
         function App() {
             // Updated API URL to your current endpoint
-            const scriptUrl = "https://script.google.com/macros/s/AKfycbzKABOopu4uyWkJEzyYbDpe8ydz--I9USoJE_Vytf2KAxrsyV7D_4J_tBm2VHahSJjb-w/exec";
+            const scriptUrl = "https://script.google.com/macros/s/AKfycbyQipNZW0DC8R0Etm_-giUXx-5pSt1bZTrUjikY7kgxmRyminft4xAiVNBpdHBb_NxgpA/exec";
             const employeeFetchErrorMessage = "Could not load employees. Please check the Google Sheet setup.";
 
             const [currentTime, setCurrentTime] = useState(new Date());
