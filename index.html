@@ -28,11 +28,18 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
         <style>
             :root {
-                --page-max-width: 1450px;
-                --left-panel-width: 340px;
-                --card-grid-column-width: 180px;
+                --size-unit-1: 103px;
+                --size-gap: 16px;
+                --size-panel-padding: 28px;
+                --size-content-2: calc((var(--size-unit-1) * 2) + var(--size-gap));
+                --size-panel-2: calc(var(--size-content-2) + (var(--size-panel-padding) * 2));
+                --size-panel-4: calc((var(--size-panel-2) * 2) + var(--size-gap));
+                --left-panel-width: var(--size-panel-2);
+                --right-panel-width: calc(var(--size-panel-4) + var(--size-panel-2) + var(--size-gap));
+                --page-max-width: calc(var(--left-panel-width) + var(--right-panel-width) + var(--size-gap));
+                --card-grid-column-width: var(--size-unit-1);
                 --card-grid-row-height: 148px;
-                --card-grid-gap: 16px;
+                --card-grid-gap: var(--size-gap);
                 --surface-shadow: 4px 4px 0px 0px #000000;
                 --surface-border: 2px solid #000000;
             }
@@ -124,18 +131,40 @@
         }
         .app-shell {
             width: 100%;
+            max-width: calc(var(--left-panel-width) + var(--right-panel-width) + var(--size-gap));
+            margin-left: auto;
+            margin-right: auto;
         }
         .left-panel {
             display: flex;
             flex-direction: column;
             gap: 1rem;
+            width: 100%;
+            max-width: none;
         }
         .right-panel {
             min-width: 0;
             width: 100%;
+            max-width: none;
         }
         .section-width {
             width: 100%;
+        }
+        .left-panel-card {
+            width: 100%;
+            max-width: none;
+        }
+        .left-panel-card-padding {
+            padding: 1rem;
+        }
+        .standard-two-up-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+        .standard-unit-button {
+            width: 100%;
+            min-height: var(--size-unit-1);
         }
         .card-grid {
             --active-card-column-width: var(--card-grid-column-width);
@@ -265,7 +294,7 @@
         }
         .public-overview-masonry {
             display: grid;
-            grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.95fr);
+            grid-template-columns: minmax(0, var(--size-panel-4)) minmax(0, var(--size-panel-2));
             gap: var(--card-grid-gap);
             align-items: start;
         }
@@ -274,20 +303,24 @@
             flex-direction: column;
             gap: var(--card-grid-gap);
             min-width: 0;
+            max-width: var(--size-panel-4);
         }
         .public-overview-right-column {
             min-width: 0;
             align-self: stretch;
+            max-width: var(--size-panel-2);
         }
         .public-overview-card {
             min-width: 0;
             min-height: 0;
         }
         .public-overview-schedule-card {
-            width: fit-content;
-            max-width: 100%;
+            width: 100%;
+            max-width: var(--size-panel-4);
         }
         .public-overview-message-card {
+            width: 100%;
+            max-width: var(--size-panel-2);
             min-height: 640px;
             display: flex;
             flex-direction: column;
@@ -297,24 +330,51 @@
             min-height: 0;
         }
         .public-overview-inventory-card {
+            width: 100%;
+            max-width: var(--size-panel-4);
             min-height: 360px;
         }
         .public-schedule-wrap {
-            width: fit-content;
+            width: 100%;
             max-width: 100%;
         }
         .public-schedule-grid {
             display: grid;
-            gap: 12px;
+            gap: var(--card-grid-gap);
             align-content: start;
+            grid-template-columns: repeat(auto-fit, minmax(var(--size-unit-1), var(--size-unit-1)));
+            justify-content: start;
         }
         .public-schedule-shift-card {
             border: var(--surface-border);
             border-radius: 1rem;
             box-shadow: 2px 2px 0px 0px #000000;
             background: #ffffff;
-            padding: 0.9rem;
-            min-height: 118px;
+            padding: 0.55rem;
+            min-height: 84px;
+        }
+        .public-schedule-name {
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            line-height: 1.15;
+            color: #060606;
+            word-break: break-word;
+        }
+        .public-schedule-time-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            border: var(--surface-border);
+            border-radius: 999px;
+            padding: 0.25rem 0.4rem;
+            font-size: 0.58rem;
+            font-weight: 700;
+            line-height: 1.2;
+            background: #e0f2fe;
+            color: #060606;
+            text-align: center;
         }
         .public-summary-row {
             border: var(--surface-border);
@@ -346,11 +406,22 @@
             justify-content: flex-end;
         }
         .message-bubble {
-            width: min(100%, 30rem);
+            width: min(100%, var(--size-panel-2));
             border: var(--surface-border);
             border-radius: 1rem;
             box-shadow: 2px 2px 0px 0px #000000;
             padding: 0.8rem 0.9rem;
+        }
+        .message-bubble-interactive {
+            cursor: pointer;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+        .message-bubble-interactive:hover {
+            transform: translate(-1px, -1px);
+            box-shadow: 3px 3px 0px 0px #000000;
+        }
+        .message-bubble-active {
+            box-shadow: 4px 4px 0px 0px #000000;
         }
         .message-bubble-own {
             background: #dbeafe;
@@ -390,6 +461,65 @@
             color: #060606;
             white-space: pre-wrap;
             word-break: break-word;
+        }
+        .message-reaction-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            margin-top: 0.75rem;
+        }
+        .message-reaction-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            border: 2px solid #000000;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.82);
+            padding: 0.2rem 0.55rem;
+            font-size: 0.76rem;
+            font-weight: 700;
+            line-height: 1.1;
+            color: #060606;
+        }
+        .message-reaction-pill-active {
+            background: #fef3c7;
+        }
+        .message-reaction-picker {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+            padding-top: 0.8rem;
+            border-top: 2px solid rgba(6, 6, 6, 0.12);
+        }
+        .message-reaction-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            border: 2px solid #000000;
+            border-radius: 999px;
+            background: #ffffff;
+            padding: 0.45rem 0.8rem;
+            font-size: 0.76rem;
+            font-weight: 700;
+            line-height: 1.1;
+            color: #060606;
+            box-shadow: 2px 2px 0px 0px #000000;
+            transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
+        }
+        .message-reaction-button:hover:not(:disabled) {
+            background: #f8fafc;
+        }
+        .message-reaction-button:active:not(:disabled) {
+            box-shadow: 0px 0px 0px 0px #000000;
+            transform: translate(2px, 2px);
+        }
+        .message-reaction-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .message-reaction-button-active {
+            background: #fef3c7;
         }
         .schedule-week-grid {
             display: grid;
@@ -447,10 +577,24 @@
             overflow: auto;
         }
         @media (min-width: 1024px) {
+            .left-panel {
+                max-width: var(--left-panel-width);
+            }
+            .right-panel {
+                max-width: var(--right-panel-width);
+            }
+            .left-panel-card {
+                max-width: var(--left-panel-width);
+            }
+            .standard-two-up-grid {
+                grid-template-columns: repeat(2, minmax(0, var(--size-unit-1)));
+                gap: var(--size-gap);
+                justify-content: start;
+            }
             .app-shell {
                 display: grid;
-                grid-template-columns: minmax(280px, var(--left-panel-width)) minmax(0, 1fr);
-                gap: 1.5rem;
+                grid-template-columns: minmax(0, var(--left-panel-width)) minmax(0, 1fr);
+                gap: var(--size-gap);
                 align-items: start;
             }
         }
@@ -461,6 +605,13 @@
             .public-overview-masonry {
                 grid-template-columns: minmax(0, 1fr);
             }
+            .public-overview-left-column,
+            .public-overview-right-column,
+            .public-overview-schedule-card,
+            .public-overview-message-card,
+            .public-overview-inventory-card {
+                max-width: none;
+            }
             .public-overview-schedule-card,
             .public-schedule-wrap {
                 width: 100%;
@@ -470,6 +621,9 @@
             }
         }
         @media (min-width: 768px) {
+            .left-panel-card-padding {
+                padding: var(--size-panel-padding);
+            }
             .content-safe-padding {
                 padding-right: 1rem;
             }
@@ -579,6 +733,13 @@
         const PAYROLL_PERIOD_LENGTH_DAYS = 14;
         const PAYROLL_PAYDAY_OFFSET_DAYS = 5;
         const MESSAGE_MAX_LENGTH = 1000;
+        const MESSAGE_REACTION_OPTIONS = [
+            { key: 'thumbs_up', icon: 'fa-thumbs-up', label: 'Seen' },
+            { key: 'heart', icon: 'fa-heart', label: 'Support' },
+            { key: 'star', icon: 'fa-star', label: 'Important' },
+        ];
+        const STANDARD_SIZE_UNIT = 103;
+        const STANDARD_SIZE_GAP = 16;
 
         const addDaysToLocalDate = (dateValue, dayCount) => {
             const dateObj = parseLocalDate(dateValue);
@@ -643,6 +804,54 @@
                 .replace(/\r\n/g, '\n')
                 .replace(/\r/g, '\n')
                 .trim();
+        };
+
+        const normalizeMessageReactionKey = (value) => {
+            const normalized = String(value || '').trim().toLowerCase();
+            return MESSAGE_REACTION_OPTIONS.some(option => option.key === normalized) ? normalized : '';
+        };
+
+        const sanitizeMessageReactions = (value) => {
+            if (!Array.isArray(value)) return [];
+            const deduped = new Map();
+
+            value.forEach(entry => {
+                if (!entry || typeof entry !== 'object') return;
+                const name = String(entry.name || entry.senderName || '').trim();
+                const role = normalizeMessageRole(entry.role || entry.senderRole);
+                const reaction = normalizeMessageReactionKey(entry.reaction || entry.key);
+                const updatedAt = String(entry.updatedAt || entry.at || '').trim();
+                if (!name || !reaction) return;
+                deduped.set(`${name.toLowerCase()}|${role}`, { name, role, reaction, updatedAt });
+            });
+
+            return Array.from(deduped.values()).sort((a, b) => a.name.localeCompare(b.name));
+        };
+
+        const getMessageReactionSummary = (value) => {
+            const reactions = sanitizeMessageReactions(value);
+            return MESSAGE_REACTION_OPTIONS.map(option => {
+                const matching = reactions.filter(entry => entry.reaction === option.key);
+                if (matching.length === 0) return null;
+                return {
+                    ...option,
+                    count: matching.length,
+                    names: matching.map(entry => entry.name),
+                };
+            }).filter(Boolean);
+        };
+
+        const getViewerMessageReaction = (value, viewerName = '', viewerRole = '') => {
+            const normalizedViewerName = String(viewerName || '').trim().toLowerCase();
+            if (!normalizedViewerName) return '';
+
+            const normalizedViewerRole = normalizeMessageRole(viewerRole || 'employee');
+            const reactions = sanitizeMessageReactions(value);
+            const match = reactions.find(entry =>
+                entry.name.toLowerCase() === normalizedViewerName &&
+                entry.role === normalizedViewerRole
+            );
+            return match?.reaction || '';
         };
 
         const isLikelyLegacyMessageResponse = (rows) => {
@@ -2506,23 +2715,22 @@
 
         const TodaySchedulePanel = ({
             sheetData,
-            title = "Today's Schedule",
+            eyebrow = '',
+            title = 'Schedule',
             subtitle = '',
         }) => {
             const todayKey = normalizeDate(new Date());
-            const todayDate = parseLocalDate(todayKey);
             const todayShifts = getTodayPublishedShifts(sheetData);
-            const scheduleSubtitle = subtitle || `Published shifts for ${formatFullDate(todayDate)}.`;
             const scheduleColumnCount = Math.min(Math.max(todayShifts.length, 1), 4);
-            const scheduleGridWidth = `${(scheduleColumnCount * 176) + ((scheduleColumnCount - 1) * 12)}px`;
+            const scheduleGridWidth = `${(scheduleColumnCount * STANDARD_SIZE_UNIT) + ((scheduleColumnCount - 1) * STANDARD_SIZE_GAP)}px`;
 
             return (
                 <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
                     <div className="flex items-start justify-between gap-3 mb-3 shrink-0">
                         <div>
-                            <div className="card-eyebrow text-[#0284c7]">Today</div>
-                            <h3 className="section-title mt-1">{title}</h3>
-                            <p className="section-subtitle mt-1">{scheduleSubtitle}</p>
+                            {eyebrow && <div className="card-eyebrow text-[#0284c7]">{eyebrow}</div>}
+                            <h3 className={`section-title ${eyebrow ? 'mt-1' : ''}`}>{title}</h3>
+                            {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
                         <div className="status-chip bg-[#e0f2fe] self-start">
                             {todayShifts.length} {todayShifts.length === 1 ? 'shift' : 'shifts'}
@@ -2532,31 +2740,27 @@
                     <div className="public-schedule-wrap shadow-safe-2" style={{ width: `min(100%, ${scheduleGridWidth})` }}>
                         {todayShifts.length === 0 ? (
                             <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
-                                No published shifts today.
+                                No published shifts.
                             </div>
                         ) : (
                             <div
                                 className="public-schedule-grid"
-                                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(176px, 1fr))' }}
+                                style={{ width: `min(100%, ${scheduleGridWidth})` }}
                             >
                                 {todayShifts.map((shift, idx) => (
                                     <div
                                         key={`${todayKey}-${shift.name}-${idx}`}
-                                        className="public-schedule-shift-card flex flex-col justify-between gap-3"
+                                        className="public-schedule-shift-card flex flex-col gap-2"
                                     >
                                         <div className="min-w-0">
-                                            <div className="card-title text-sm leading-tight break-words" title={shift.name}>
+                                            <div className="public-schedule-name" title={shift.name}>
                                                 {shift.name}
-                                            </div>
-                                            <div className="card-meta mt-1">
-                                                {todayDate.toLocaleDateString('en-US', { weekday: 'long' })}
                                             </div>
                                         </div>
                                         <div className="flex items-center justify-between gap-2">
-                                            <div className="message-role-pill bg-[#e0f2fe] shrink-0">
+                                            <div className="public-schedule-time-pill">
                                                 {shift.schedIn} - {shift.schedOut}
                                             </div>
-                                            <div className="card-meta text-[#0284c7]">Scheduled</div>
                                         </div>
                                     </div>
                                 ))}
@@ -2569,6 +2773,7 @@
 
         const InventorySnapshotPanel = ({
             inventoryRows,
+            eyebrow = '',
             title = 'Inventory Snapshot',
             subtitle = '',
         }) => {
@@ -2579,8 +2784,8 @@
                 <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 shrink-0">
                         <div>
-                            <div className="card-eyebrow text-[#f97316]">Inventory Snapshot</div>
-                            <h3 className="section-title mt-1">{title}</h3>
+                            {eyebrow && <div className="card-eyebrow text-[#f97316]">{eyebrow}</div>}
+                            <h3 className={`section-title ${eyebrow ? 'mt-1' : ''}`}>{title}</h3>
                             <p className="section-subtitle mt-1">{inventorySubtitle}</p>
                         </div>
                         <div className="status-chip bg-[#fef3c7] self-start md:self-auto">
@@ -2641,22 +2846,27 @@
             eyebrow = 'Message Board',
             subtitle = '',
             viewerName = '',
+            viewerRole = '',
             draft = '',
             onDraftChange,
             onSend,
             onRefresh,
+            onReact,
             canCompose = false,
             isFetching = false,
             isSubmitting = false,
+            reactingRowNumber = null,
             readOnly = false,
             newestFirst = false,
         }) => {
             const threadEndRef = useRef(null);
             const threadScrollRef = useRef(null);
+            const [activeReactionMessageRow, setActiveReactionMessageRow] = useState(null);
             const normalizedViewerName = String(viewerName || '').trim().toLowerCase();
             const safeMessages = Array.isArray(messages) ? messages : [];
             const displayedMessages = newestFirst ? [...safeMessages].reverse() : safeMessages;
             const trimmedDraft = normalizeMessageText(draft);
+            const canReact = !readOnly && Boolean(normalizedViewerName) && typeof onReact === 'function';
 
             useEffect(() => {
                 if (newestFirst && threadScrollRef.current) {
@@ -2668,12 +2878,42 @@
                 }
             }, [safeMessages.length, newestFirst]);
 
+            useEffect(() => {
+                if (!activeReactionMessageRow) return;
+                const hasActiveMessage = safeMessages.some(message => message?.rowNumber === activeReactionMessageRow);
+                if (!hasActiveMessage) {
+                    setActiveReactionMessageRow(null);
+                }
+            }, [safeMessages, activeReactionMessageRow]);
+
+            const toggleReactionPicker = (rowNumber) => {
+                if (!canReact || !rowNumber) return;
+                setActiveReactionMessageRow(prev => prev === rowNumber ? null : rowNumber);
+            };
+
+            const handleReactionKeyDown = (event, rowNumber) => {
+                if (!canReact || !rowNumber) return;
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    toggleReactionPicker(rowNumber);
+                }
+            };
+
+            const handleReactionSelect = async (event, message, reactionKey) => {
+                event.stopPropagation();
+                if (!canReact || !message?.rowNumber) return;
+                const didSave = await onReact(message, reactionKey);
+                if (didSave) {
+                    setActiveReactionMessageRow(null);
+                }
+            };
+
             return (
                 <div className="section-width flex flex-col h-full min-h-0 animate-fade-in pr-2 pb-2">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0 pr-1 pb-1">
                         <div>
-                            <div className="card-eyebrow text-[#ec4899]">{eyebrow}</div>
-                            <h3 className="section-title mt-1">{title}</h3>
+                            {eyebrow && <div className="card-eyebrow text-[#ec4899]">{eyebrow}</div>}
+                            <h3 className={`section-title ${eyebrow ? 'mt-1' : ''}`}>{title}</h3>
                             {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 self-start justify-end">
@@ -2703,6 +2943,11 @@
                                     const senderRole = normalizeMessageRole(message?.senderRole);
                                     const normalizedSenderName = senderName.toLowerCase();
                                     const isOwnMessage = Boolean(normalizedViewerName) && normalizedSenderName === normalizedViewerName;
+                                    const reactions = sanitizeMessageReactions(message?.reactions);
+                                    const reactionSummary = getMessageReactionSummary(reactions);
+                                    const viewerReaction = getViewerMessageReaction(reactions, viewerName, viewerRole);
+                                    const isReactionPickerOpen = canReact && activeReactionMessageRow === message?.rowNumber;
+                                    const isReactionPending = reactingRowNumber === message?.rowNumber;
                                     const alignRight = isOwnMessage || (!normalizedViewerName && senderRole === 'admin');
                                     const bubbleTone = isOwnMessage
                                         ? 'message-bubble-own'
@@ -2715,9 +2960,49 @@
                                             key={`${message?.rowNumber || 'msg'}-${index}`}
                                             className={`message-row ${alignRight ? 'message-row-right' : 'message-row-left'}`}
                                         >
-                                            <div className={`message-bubble ${bubbleTone}`}>
+                                            <div
+                                                className={`message-bubble ${bubbleTone} ${canReact && message?.rowNumber ? 'message-bubble-interactive' : ''} ${isReactionPickerOpen ? 'message-bubble-active' : ''}`}
+                                                role={canReact && message?.rowNumber ? 'button' : undefined}
+                                                tabIndex={canReact && message?.rowNumber ? 0 : undefined}
+                                                onClick={() => toggleReactionPicker(message?.rowNumber)}
+                                                onKeyDown={event => handleReactionKeyDown(event, message?.rowNumber)}
+                                                aria-label={canReact && message?.rowNumber ? `React to message from ${senderName}` : undefined}
+                                            >
                                                 <div className="message-author mb-2">{senderName}</div>
                                                 <div className="message-text">{message?.message || ''}</div>
+                                                {reactionSummary.length > 0 && (
+                                                    <div className="message-reaction-strip">
+                                                        {reactionSummary.map(reaction => (
+                                                            <div
+                                                                key={`${message?.rowNumber || 'msg'}-${reaction.key}`}
+                                                                className={`message-reaction-pill ${viewerReaction === reaction.key ? 'message-reaction-pill-active' : ''}`}
+                                                                title={reaction.names.join(', ')}
+                                                            >
+                                                                <i className={`fas ${reaction.icon}`}></i>
+                                                                <span>{reaction.count}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {isReactionPickerOpen && (
+                                                    <div className="message-reaction-picker">
+                                                        {MESSAGE_REACTION_OPTIONS.map(option => {
+                                                            const isSelected = viewerReaction === option.key;
+                                                            return (
+                                                                <button
+                                                                    key={`${message?.rowNumber || 'msg'}-${option.key}`}
+                                                                    type="button"
+                                                                    onClick={event => handleReactionSelect(event, message, option.key)}
+                                                                    disabled={isReactionPending}
+                                                                    className={`message-reaction-button ${isSelected ? 'message-reaction-button-active' : ''}`}
+                                                                >
+                                                                    <i className={`fas ${option.icon}`}></i>
+                                                                    <span>{option.label}</span>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
                                                 <div className="card-meta mt-3">
                                                     {formatMessageTimestamp(message?.timestamp, message?.isoTimestamp)}
                                                 </div>
@@ -2771,8 +3056,7 @@
             return (
                 <div className="flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="mb-4 md:mb-6 shrink-0">
-                        <div className="card-eyebrow text-[#0284c7]">Overview</div>
-                        <h2 className="page-title mt-1">Today at a Glance</h2>
+                        <h2 className="page-title">Today at a Glance</h2>
                     </div>
 
                     <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pt-1 pb-4 pr-2">
@@ -2792,7 +3076,7 @@
                                 <div className="section-card public-overview-card public-overview-message-card bg-[#fdf2f8] p-3 md:p-4">
                                     <MessageBoardPanel
                                         messages={messages}
-                                        eyebrow="Team Notes"
+                                        eyebrow=""
                                         title="Messages"
                                         subtitle="Read-only view of the shared staff notes board."
                                         readOnly={true}
@@ -3095,239 +3379,132 @@
             employees,
             sheetData,
             isRefreshing,
-            isSubmittingPayroll,
             onRefresh,
-            onToggleCompletion,
         }) => {
-            const currentPeriodKey = normalizeDate(getPayrollPeriodStart(new Date()));
-            const [selectedPeriodKey, setSelectedPeriodKey] = useState(currentPeriodKey);
-
             if (!adminUser) return null;
-            try {
-                const safeEmployees = Array.isArray(employees) ? employees : [];
-                const payrollRows = (Array.isArray(sheetData) ? sheetData : []).filter(row =>
-                    hasValue(row?.name) &&
-                    hasValue(row?.date) &&
-                    isPayrollRelevantRow(row)
-                );
+            const safeEmployees = Array.isArray(employees) ? employees : [];
+            const safeRows = Array.isArray(sheetData) ? sheetData : [];
+            const currentPeriod = buildPayrollPeriodFromStart(getPayrollPeriodStart(new Date()));
+            const adminNameSet = new Set(
+                safeEmployees
+                    .filter(emp => isAdminRole(emp?.role))
+                    .map(emp => String(emp?.name || '').trim().toLowerCase())
+                    .filter(Boolean)
+            );
 
-                const periodStartKeys = payrollRows.map(row => normalizeDate(getPayrollPeriodStart(row.date)));
-                const availablePeriodKeys = [...new Set([...periodStartKeys, currentPeriodKey])].sort((a, b) => a.localeCompare(b));
-                const activePeriodKey = availablePeriodKeys.includes(selectedPeriodKey) ? selectedPeriodKey : currentPeriodKey;
-                const currentPeriodIndex = availablePeriodKeys.indexOf(activePeriodKey);
-                const selectedPeriod = buildPayrollPeriodFromStart(activePeriodKey);
-                const selectedPeriodRows = payrollRows.filter(row => {
-                    const rowDateKey = normalizeDate(row.date);
-                    return rowDateKey >= selectedPeriod.startKey && rowDateKey <= selectedPeriod.endKey;
-                });
+            const currentPeriodRows = safeRows.filter(row => {
+                const name = String(row?.name || '').trim();
+                if (!name || adminNameSet.has(name.toLowerCase())) return false;
+                if (isTimeOffRow(row) || !isPayrollRelevantRow(row)) return false;
 
-                const allEmployeeNames = [...new Set([
-                    ...safeEmployees.map(emp => String(emp?.name || '').trim()).filter(Boolean),
-                    ...selectedPeriodRows.map(row => String(row?.name || '').trim()).filter(Boolean),
-                ])].sort((a, b) => a.localeCompare(b));
+                const rowDate = parseLocalDate(row?.date);
+                if (isNaN(rowDate.getTime())) return false;
 
-                const employeeSummaries = allEmployeeNames.map(name => {
-                    const rows = selectedPeriodRows.filter(row => String(row.name || '').trim() === name);
+                const rowDateKey = normalizeDate(rowDate);
+                return rowDateKey >= currentPeriod.startKey && rowDateKey <= currentPeriod.endKey;
+            });
+
+            const employeeNames = [...new Set([
+                ...safeEmployees
+                    .filter(emp => !isAdminRole(emp?.role))
+                    .map(emp => String(emp?.name || '').trim())
+                    .filter(Boolean),
+                ...currentPeriodRows
+                    .map(row => String(row?.name || '').trim())
+                    .filter(Boolean),
+            ])].sort((a, b) => a.localeCompare(b));
+
+            const employeeSummaries = employeeNames
+                .map(name => {
+                    const rows = currentPeriodRows.filter(row => String(row?.name || '').trim() === name);
                     const totalMinutes = rows.reduce((sum, row) => sum + getPayrollRowMinutes(row), 0);
-                    const isComplete = rows.length > 0 && rows.every(isEntryLocked);
+                    const workedEntryCount = rows.filter(row => getPayrollRowMinutes(row) > 0).length;
                     return {
                         name,
-                        rowCount: rows.length,
                         totalMinutes,
-                        isComplete,
+                        workedEntryCount,
                     };
+                })
+                .sort((a, b) => {
+                    const hourDiff = b.totalMinutes - a.totalMinutes;
+                    if (hourDiff !== 0) return hourDiff;
+                    return a.name.localeCompare(b.name);
                 });
 
-                const employeesWithHoursCount = employeeSummaries.filter(summary => summary.totalMinutes > 0).length;
-                const periodLockedCount = selectedPeriodRows.filter(isEntryLocked).length;
-                const periodTotalMinutes = employeeSummaries.reduce((sum, summary) => sum + summary.totalMinutes, 0);
-                const completionState = selectedPeriodRows.length === 0
-                    ? 'empty'
-                    : periodLockedCount === 0
-                        ? 'open'
-                        : periodLockedCount === selectedPeriodRows.length
-                            ? 'completed'
-                            : 'mixed';
-                const completionLabel = completionState === 'completed'
-                    ? 'Completed'
-                    : completionState === 'mixed'
-                        ? 'Partially Complete'
-                        : completionState === 'empty'
-                            ? 'No Hours Yet'
-                            : 'Open';
-                const completionBadgeClass = completionState === 'completed'
-                    ? 'bg-[#bbf7d0]'
-                    : completionState === 'mixed'
-                        ? 'bg-[#fde68a]'
-                        : completionState === 'empty'
-                            ? 'bg-[#e5e7eb]'
-                            : 'bg-[#bae6fd]';
+            const totalWorkedMinutes = employeeSummaries.reduce((sum, summary) => sum + summary.totalMinutes, 0);
+            const employeesWithHoursCount = employeeSummaries.filter(summary => summary.totalMinutes > 0).length;
 
-                return (
-                    <div className="section-width flex flex-col h-full min-h-0 animate-fade-in overflow-hidden">
-                        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
-                            <div>
-                                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Payroll</div>
-                                <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606] mt-1">Payroll Hours</h3>
-                                <p className="text-sm font-bold text-gray-600 mt-1">Hi, {adminUser.name}</p>
-                                <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">
-                                    Each payroll period is anchored to Monday, March 16, 2026 and runs for two weeks.
-                                </p>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 shadow-safe-4">
-                                <button
-                                    onClick={onRefresh}
-                                    disabled={isRefreshing || isSubmittingPayroll}
-                                    className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
-                                >
-                                    <i className={`fas ${isRefreshing ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#38bdf8]`}></i>
-                                    <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
-                                </button>
-                                <button
-                                    onClick={() => onToggleCompletion(selectedPeriod, completionState !== 'completed')}
-                                    disabled={isSubmittingPayroll || selectedPeriodRows.length === 0}
-                                    className={`brutal-btn px-4 py-2 text-sm flex items-center gap-2 ${
-                                        completionState === 'completed'
-                                            ? 'bg-white hover:bg-gray-50'
-                                            : 'bg-[#4ade80] hover:bg-[#22c55e]'
-                                    }`}
-                                >
-                                    <i className={`fas ${isSubmittingPayroll ? 'fa-circle-notch spinner' : (completionState === 'completed' ? 'fa-lock-open' : 'fa-lock')}`}></i>
-                                    <span>
-                                        {isSubmittingPayroll
-                                            ? 'Saving...'
-                                            : (completionState === 'completed' ? 'Mark Incomplete' : 'Mark Complete')}
-                                    </span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-4 shrink-0 shadow-safe-4">
-                            <div className="xl:col-span-2 flex items-center gap-2 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
-                                <button
-                                    onClick={() => currentPeriodIndex > 0 && setSelectedPeriodKey(availablePeriodKeys[currentPeriodIndex - 1])}
-                                    disabled={currentPeriodIndex <= 0}
-                                    className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg disabled:opacity-40"
-                                >
-                                    <i className="fas fa-chevron-left"></i>
-                                </button>
-                                <span className="font-bold font-poppins text-[#060606] min-w-0 flex-1 text-center text-sm md:text-base px-2">
-                                    {selectedPeriod.label}
-                                </span>
-                                <button
-                                    onClick={() => currentPeriodIndex < availablePeriodKeys.length - 1 && setSelectedPeriodKey(availablePeriodKeys[currentPeriodIndex + 1])}
-                                    disabled={currentPeriodIndex >= availablePeriodKeys.length - 1}
-                                    className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg disabled:opacity-40"
-                                >
-                                    <i className="fas fa-chevron-right"></i>
-                                </button>
-                            </div>
-
-                            <div className="xl:col-span-2 h-12 flex items-center gap-2 rounded-xl border-2 border-black bg-white px-3 shadow-[2px_2px_0px_0px_#000000]">
-                                <i className="fas fa-calendar-days text-[#0284c7]"></i>
-                                <select
-                                    value={activePeriodKey}
-                                    onChange={e => setSelectedPeriodKey(e.target.value)}
-                                    className="h-full bg-transparent outline-none font-bold text-sm md:text-base min-w-0 flex-1"
-                                >
-                                    {availablePeriodKeys.slice().reverse().map(periodKey => {
-                                        const period = buildPayrollPeriodFromStart(periodKey);
-                                        return (
-                                            <option key={period.key} value={period.key}>
-                                                {period.fullLabel}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
-                            </div>
-
-                            <div className="xl:col-span-1 flex items-center xl:justify-end text-xs md:text-sm font-bold text-gray-500 px-1">
-                                Pay date {formatFullDate(selectedPeriod.payDate)}
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-4 shrink-0 shadow-safe-4">
-                            <div className="xl:col-span-2 rounded-2xl border-2 border-black bg-[#f8fafc] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
-                                <div className="text-[10px] uppercase font-bold text-gray-500">Period Status</div>
-                                <div className={`inline-flex items-center mt-3 rounded-full border-2 border-black px-3 py-1 text-xs font-bold uppercase tracking-wide ${completionBadgeClass}`}>
-                                    {completionLabel}
-                                </div>
-                            </div>
-                            <div className="rounded-2xl border-2 border-black bg-[#ecfccb] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
-                                <div className="text-[10px] uppercase font-bold text-gray-500">Total Hours</div>
-                                <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{formatPayrollHours(periodTotalMinutes)}</div>
-                            </div>
-                            <div className="rounded-2xl border-2 border-black bg-[#fff7ed] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
-                                <div className="text-[10px] uppercase font-bold text-gray-500">Employees With Hours</div>
-                                <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{employeesWithHoursCount}</div>
-                            </div>
-                            <div className="rounded-2xl border-2 border-black bg-[#dbeafe] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
-                                <div className="text-[10px] uppercase font-bold text-gray-500">Worked Entries</div>
-                                <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{selectedPeriodRows.length}</div>
-                            </div>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pr-1 pb-4">
-                            {employeeSummaries.length === 0 ? (
-                                <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
-                                    No employee records were found for this payroll period.
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 content-start">
-                                    {employeeSummaries.map(summary => {
-                                        const rowStatusLabel = summary.rowCount === 0
-                                            ? 'No hours'
-                                            : summary.isComplete
-                                                ? 'Locked'
-                                                : 'Open';
-                                        const rowStatusClass = summary.rowCount === 0
-                                            ? 'bg-[#e5e7eb]'
-                                            : summary.isComplete
-                                                ? 'bg-[#bbf7d0]'
-                                                : 'bg-[#bae6fd]';
-
-                                        return (
-                                            <div key={`${selectedPeriod.key}-${summary.name}`} className="xl:col-span-5 rounded-2xl border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
-                                                <div className="grid md:grid-cols-[minmax(0,1.4fr)_150px_120px] gap-3 items-center">
-                                                    <div className="min-w-0">
-                                                        <div className="font-bold font-poppins text-[#060606] text-base md:text-lg truncate">{summary.name}</div>
-                                                        <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 mt-1">
-                                                            {summary.rowCount === 0
-                                                                ? 'No worked shifts yet in this pay period'
-                                                                : `${summary.rowCount} worked entr${summary.rowCount === 1 ? 'y' : 'ies'}`}
-                                                        </div>
-                                                    </div>
-                                                    <div className="rounded-xl border-2 border-black bg-[#f8fafc] px-3 py-2">
-                                                        <div className="text-[10px] uppercase font-bold text-gray-500">Hours</div>
-                                                        <div className="text-lg font-bold font-poppins text-[#060606] mt-1">{formatPayrollHours(summary.totalMinutes)}</div>
-                                                    </div>
-                                                    <div className={`inline-flex items-center justify-center rounded-full border-2 border-black px-3 py-2 text-xs font-bold uppercase tracking-wide ${rowStatusClass}`}>
-                                                        {rowStatusLabel}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                );
-            } catch (error) {
-                console.error("Admin payroll workspace render failed:", error);
-                return (
-                    <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
-                        <div className="rounded-2xl border-2 border-black bg-white px-5 py-6 shadow-[4px_4px_0px_0px_#000000]">
+            return (
+                <div className="section-width flex flex-col h-full min-h-0 animate-fade-in overflow-hidden">
+                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
+                        <div>
                             <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Payroll</div>
-                            <h3 className="text-2xl font-bold font-poppins text-[#060606] mt-1">Payroll Hours</h3>
-                            <p className="text-sm font-bold text-[#e11d48] mt-3">The payroll workspace could not be displayed right now.</p>
-                            <p className="text-xs md:text-sm font-bold text-gray-500 mt-2">
-                                Refresh the logs and try again. If it happens again, the browser console will show the render error details.
+                            <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606] mt-1">Current Pay Period Hours</h3>
+                            <p className="text-sm font-bold text-gray-600 mt-1">Hi, {adminUser.name}</p>
+                            <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">
+                                Current period: {formatFullDate(currentPeriod.startDate)} through {formatFullDate(currentPeriod.endDate)}.
+                            </p>
+                            <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">
+                                Hours shown here are the worked hours logged so far in this two-week period.
                             </p>
                         </div>
+                        <div className="flex flex-wrap items-center gap-2 shadow-safe-4">
+                            <button
+                                onClick={onRefresh}
+                                disabled={isRefreshing}
+                                className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
+                            >
+                                <i className={`fas ${isRefreshing ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#38bdf8]`}></i>
+                                <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                            </button>
+                        </div>
                     </div>
-                );
-            }
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 shrink-0 shadow-safe-4">
+                        <div className="rounded-2xl border-2 border-black bg-[#f8fafc] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                            <div className="text-[10px] uppercase font-bold text-gray-500">Pay Period</div>
+                            <div className="text-lg font-bold font-poppins text-[#060606] mt-2">{currentPeriod.label}</div>
+                        </div>
+                        <div className="rounded-2xl border-2 border-black bg-[#ecfccb] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                            <div className="text-[10px] uppercase font-bold text-gray-500">Total Worked Hours</div>
+                            <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{formatPayrollHours(totalWorkedMinutes)}</div>
+                        </div>
+                        <div className="rounded-2xl border-2 border-black bg-[#fff7ed] px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                            <div className="text-[10px] uppercase font-bold text-gray-500">Employees With Hours</div>
+                            <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{employeesWithHoursCount}</div>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pr-1 pb-4">
+                        {employeeSummaries.length === 0 ? (
+                            <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
+                                No employee records were found for {currentPeriod.label}.
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-4 content-start">
+                                {employeeSummaries.map(summary => (
+                                    <div key={`${currentPeriod.key}-${summary.name}`} className="rounded-2xl border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0px_0px_#000000]">
+                                        <div className="grid md:grid-cols-[minmax(0,1fr)_140px] gap-3 items-center">
+                                            <div className="min-w-0">
+                                                <div className="font-bold font-poppins text-[#060606] text-base md:text-lg truncate">{summary.name}</div>
+                                                <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 mt-1">
+                                                    {summary.workedEntryCount === 0
+                                                        ? 'No completed shifts logged yet this period'
+                                                        : `${summary.workedEntryCount} worked entr${summary.workedEntryCount === 1 ? 'y' : 'ies'}`}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-xl border-2 border-black bg-[#f8fafc] px-3 py-2 text-center">
+                                                <div className="text-[10px] uppercase font-bold text-gray-500">Hours</div>
+                                                <div className="text-lg font-bold font-poppins text-[#060606] mt-1">{formatPayrollHours(summary.totalMinutes)}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
         };
 
         const TeamScheduleModal = ({ isOpen, onClose, sheetData, onRefresh }) => {
@@ -4219,9 +4396,9 @@
             const [isSubmittingInventory, setIsSubmittingInventory] = useState(false);
             const [isSubmittingAdminSchedule, setIsSubmittingAdminSchedule] = useState(false);
             const [isSavingShiftTemplates, setIsSavingShiftTemplates] = useState(false);
-            const [isSubmittingPayroll, setIsSubmittingPayroll] = useState(false);
             const [isSubmittingTimeOff, setIsSubmittingTimeOff] = useState(false);
             const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
+            const [reactingMessageRowNumber, setReactingMessageRowNumber] = useState(null);
             const [fetchError, setFetchError] = useState(null);
 
             // Dynamic Data State
@@ -4585,6 +4762,7 @@
                 setEditTarget(null);
                 setEmployeeTimeOffDraft(null);
                 setMessageDraft('');
+                setReactingMessageRowNumber(null);
                 setReasonValidationTriggered(false);
                 setShowTimeoutWarning(false);
                 lastActivityRef.current = Date.now();
@@ -4964,6 +5142,23 @@
                 );
             };
 
+            const mergeUpdatedMessageRow = (updatedMessageRow) => {
+                if (!updatedMessageRow?.rowNumber) return;
+                setMessages(prev => {
+                    let didReplace = false;
+                    const nextMessages = prev.map(message => {
+                        if (message?.rowNumber !== updatedMessageRow.rowNumber) return message;
+                        didReplace = true;
+                        return {
+                            ...message,
+                            ...updatedMessageRow,
+                            reactions: sanitizeMessageReactions(updatedMessageRow.reactions),
+                        };
+                    });
+                    return didReplace ? nextMessages : prev;
+                });
+            };
+
             const submitMessage = async () => {
                 const activeUser = adminUser || selectedEmployee;
                 const messageText = normalizeMessageText(messageDraft);
@@ -5019,6 +5214,59 @@
                     return false;
                 } finally {
                     setIsSubmittingMessage(false);
+                }
+            };
+
+            const submitMessageReaction = async (message, reactionKey) => {
+                const activeUser = adminUser || selectedEmployee;
+                const normalizedReaction = normalizeMessageReactionKey(reactionKey);
+                if (!activeUser || !message?.rowNumber || !normalizedReaction || reactingMessageRowNumber) return false;
+
+                lastActivityRef.current = Date.now();
+                setReactingMessageRowNumber(message.rowNumber);
+
+                try {
+                    const timestamp = buildActionTimestamp();
+                    const result = await sendToSheet({
+                        action: "TOGGLE_MESSAGE_REACTION",
+                        rowNumber: message.rowNumber,
+                        editorName: activeUser.name,
+                        editorRole: activeUser.role || (adminUser ? 'admin' : 'employee'),
+                        reaction: normalizedReaction,
+                        submittedAt: timestamp.isoTimestamp,
+                        timezone: timestamp.timezone,
+                        timezoneOffsetMinutes: timestamp.timezoneOffsetMinutes,
+                    });
+
+                    if (!result.ok) {
+                        const reactionErrorText = String(result.error || '').trim();
+                        const isUnsupportedReactionAction = /Unsupported action:\s*TOGGLE_MESSAGE_REACTION/i.test(reactionErrorText);
+                        setNotification({
+                            type: 'error',
+                            message: isUnsupportedReactionAction
+                                ? "The live Apps Script deployment does not support message reactions yet. Redeploy the latest web app version, then try again."
+                                : (result.error || "Could not save that reaction.")
+                        });
+                        return false;
+                    }
+
+                    const updatedMessageRow = result?.parsed?.messageRow;
+                    if (updatedMessageRow?.rowNumber) {
+                        mergeUpdatedMessageRow(updatedMessageRow);
+                        return true;
+                    }
+
+                    const refreshedMessages = await refreshMessages({ showSpinner: false });
+                    if (!refreshedMessages) {
+                        setNotification({ type: 'info', message: "The reaction was saved, but the latest board could not be refreshed automatically." });
+                    }
+                    return true;
+                } catch (err) {
+                    console.error("Message reaction failed:", err);
+                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted the reaction." });
+                    return false;
+                } finally {
+                    setReactingMessageRowNumber(null);
                 }
             };
 
@@ -5101,44 +5349,6 @@
                     },
                     `${quantity} ${quantity === 1 ? 'item was' : 'items were'} sent back from Awaiting Approval for ${row.sku}.`
                 );
-            };
-
-            const handleSetPayrollPeriodCompletion = async (period, shouldComplete) => {
-                if (!adminUser || !period?.startKey || !period?.endKey || isSubmittingPayroll) return false;
-
-                lastActivityRef.current = Date.now();
-                setIsSubmittingPayroll(true);
-
-                try {
-                    const result = await sendToSheet({
-                        action: "ADMIN_SET_PAYROLL_PERIOD_STATUS",
-                        periodStart: period.startKey,
-                        periodEnd: period.endKey,
-                        completed: shouldComplete,
-                        editorName: adminUser.name,
-                        editorRole: adminUser.role || 'admin',
-                    });
-
-                    if (!result.ok) {
-                        setNotification({ type: 'error', message: result.error || "Could not update payroll for that pay period." });
-                        return false;
-                    }
-
-                    const refreshedRows = await refreshLogs({ showSpinner: false });
-                    const nextLabel = shouldComplete ? 'completed' : 'reopened';
-                    if (refreshedRows) {
-                        setNotification({ type: 'success', message: `Payroll for ${period.label} was marked ${nextLabel}.` });
-                    } else {
-                        setNotification({ type: 'info', message: `Payroll for ${period.label} was marked ${nextLabel}, but the latest timesheet rows could not be reloaded automatically.` });
-                    }
-                    return true;
-                } catch (err) {
-                    console.error("Payroll update failed:", err);
-                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted the payroll update." });
-                    return false;
-                } finally {
-                    setIsSubmittingPayroll(false);
-                }
             };
 
             useEffect(() => {
@@ -5632,7 +5842,7 @@
                         <div className="left-panel">
                             
                             {/* Employee List (Hides when a user is authenticated, or on mobile when selected) */}
-                            <div className={`brutal-card p-4 md:p-6 transition-all duration-300 ${!selectedId ? 'block' : isAuthenticated ? 'hidden' : 'hidden lg:block'}`}>
+                            <div className={`brutal-card left-panel-card left-panel-card-padding transition-all duration-300 ${!selectedId ? 'block' : isAuthenticated ? 'hidden' : 'hidden lg:block'}`}>
                                 <div className="flex items-start justify-between gap-3 mb-4 md:mb-6">
                                     <div>
                                         <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] flex items-center gap-2 md:gap-3">
@@ -5671,13 +5881,13 @@
                                                 : 'No active employee accounts were found.'}
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-2 gap-3 lg:gap-4 shadow-safe-4">
+                                        <div className="standard-two-up-grid shadow-safe-4">
                                             {directoryEmployees.map(emp => (
                                                 <button
                                                     key={emp.id}
                                                     onClick={() => handleEmployeeSelect(emp.id)}
                                                     className={`
-                                                        brutal-btn p-2 md:p-3 flex flex-col items-center justify-center gap-1 relative h-20 md:h-24
+                                                        brutal-btn standard-unit-button p-2 md:p-3 flex flex-col items-center justify-center gap-1 relative
                                                         ${selectedId === emp.id ? 'bg-[#38bdf8]' : emp.isClockedIn ? 'bg-[#a7f3d0]' : 'bg-white hover:bg-gray-50'}
                                                     `}
                                                 >
@@ -5699,12 +5909,12 @@
 
                             {/* Employee Actions */}
                             {isAuthenticated && !adminUser && (
-                                <div className="brutal-card p-4 md:p-6 animate-fade-in bg-white">
+                                <div className="brutal-card left-panel-card left-panel-card-padding animate-fade-in bg-white">
                                     <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-5 truncate">Hello, {selectedEmployee?.name}!</h2>
-                                    <div className="grid grid-cols-2 gap-3 lg:gap-4 shadow-safe-4">
+                                    <div className="standard-two-up-grid shadow-safe-4">
                                         <button
                                             onClick={handleOpenEmployeeTimesheet}
-                                            className={`brutal-btn py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
                                                 ['TIMESHEET', 'EDIT'].includes(viewMode) ? 'bg-[#38bdf8] hover:bg-[#0ea5e9]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -5713,7 +5923,7 @@
                                         </button>
                                         <button
                                             onClick={handleOpenEmployeeSchedule}
-                                            className={`brutal-btn py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
                                                 viewMode === 'SCHEDULE' ? 'bg-[#38bdf8] hover:bg-[#0ea5e9]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -5722,7 +5932,7 @@
                                         </button>
                                         <button
                                             onClick={handleOpenEmployeeInventory}
-                                            className={`brutal-btn py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
                                                 viewMode === 'INVENTORY' ? 'bg-[#fef3c7] hover:bg-[#fde68a]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -5731,7 +5941,7 @@
                                         </button>
                                         <button
                                             onClick={handleOpenEmployeeMessages}
-                                            className={`brutal-btn py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
                                                 viewMode === 'MESSAGES' ? 'bg-[#f9a8d4] hover:bg-[#f472b6]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -5740,7 +5950,7 @@
                                         </button>
                                         <button
                                             onClick={handleLogout}
-                                            className="brutal-btn py-3 md:py-4 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
+                                            className="brutal-btn standard-unit-button py-3 md:py-4 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
                                         >
                                             <i className="fas fa-user-lock text-[#f43f5e]"></i>
                                             <span>Sign Out</span>
@@ -5751,7 +5961,7 @@
 
                             {/* Admin Actions */}
                             {isAuthenticated && adminUser && (
-                                <div className="brutal-card p-4 md:p-6 animate-fade-in bg-white">
+                                <div className="brutal-card left-panel-card left-panel-card-padding animate-fade-in bg-white">
                                     <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-2 truncate">Hi, {adminUser.name}</h2>
                                     <p className="text-sm font-bold text-gray-600 mb-5">
                                         {viewMode === 'ADMIN_INVENTORY'
@@ -5759,13 +5969,13 @@
                                             : viewMode === 'ADMIN_MESSAGES'
                                                 ? 'Review employee notes and reply in the shared chat thread.'
                                             : viewMode === 'ADMIN_PAYROLL'
-                                                ? 'Review biweekly payroll totals and mark the period complete from here.'
+                                                ? 'Review current pay period hours from here.'
                                                 : 'Open the schedule studio, payroll, message board, or the inventory request board from here.'}
                                     </p>
-                                    <div className="grid grid-cols-2 gap-3 shadow-safe-4">
+                                    <div className="standard-two-up-grid shadow-safe-4">
                                         <button
                                             onClick={() => setViewMode('ADMIN')}
-                                            className={`brutal-btn py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
                                                 viewMode === 'ADMIN' ? 'bg-[#38bdf8] hover:bg-[#0ea5e9]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -5774,7 +5984,7 @@
                                         </button>
                                         <button
                                             onClick={handleOpenAdminInventory}
-                                            className={`brutal-btn py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
                                                 viewMode === 'ADMIN_INVENTORY' ? 'bg-[#fef3c7] hover:bg-[#fde68a]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -5783,7 +5993,7 @@
                                         </button>
                                         <button
                                             onClick={handleOpenAdminPayroll}
-                                            className={`brutal-btn py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
                                                 viewMode === 'ADMIN_PAYROLL' ? 'bg-[#bbf7d0] hover:bg-[#86efac]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -5792,7 +6002,7 @@
                                         </button>
                                         <button
                                             onClick={handleOpenAdminMessages}
-                                            className={`brutal-btn py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
                                                 viewMode === 'ADMIN_MESSAGES' ? 'bg-[#f9a8d4] hover:bg-[#f472b6]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -5801,7 +6011,7 @@
                                         </button>
                                         <button
                                             onClick={handleLogout}
-                                            className="brutal-btn py-3 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
+                                            className="brutal-btn standard-unit-button py-3 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
                                         >
                                             <i className="fas fa-user-lock text-[#f43f5e]"></i>
                                             <span>Sign Out</span>
@@ -5904,13 +6114,16 @@
                                                 eyebrow="Notes To Admin"
                                                 subtitle="Leave updates about time off, inventory, supplies, or anything else the admin team should see."
                                                 viewerName={activeMessageViewer?.name || ''}
+                                                viewerRole={activeMessageViewer?.role || ''}
                                                 draft={messageDraft}
                                                 onDraftChange={setMessageDraft}
                                                 onSend={submitMessage}
                                                 onRefresh={() => refreshMessages({ showSpinner: true })}
+                                                onReact={submitMessageReaction}
                                                 canCompose={Boolean(activeMessageViewer)}
                                                 isFetching={isFetchingMessages}
                                                 isSubmitting={isSubmittingMessage}
+                                                reactingRowNumber={reactingMessageRowNumber}
                                             />
                                         )}
                                         {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} reasonValidationTriggered={reasonValidationTriggered} onPrev={handleEditPrev} onNext={handleEditNext} canPrev={canEditPrev} canNext={canEditNext} onClose={() => { setReasonValidationTriggered(false); setViewMode('TIMESHEET'); }} isSubmitting={isSubmittingAction} />}
@@ -5976,13 +6189,16 @@
                                                 eyebrow="Admin Message Board"
                                                 subtitle="Review employee notes and reply in the same shared chat thread."
                                                 viewerName={activeMessageViewer?.name || ''}
+                                                viewerRole={activeMessageViewer?.role || ''}
                                                 draft={messageDraft}
                                                 onDraftChange={setMessageDraft}
                                                 onSend={submitMessage}
                                                 onRefresh={() => refreshMessages({ showSpinner: true })}
+                                                onReact={submitMessageReaction}
                                                 canCompose={Boolean(activeMessageViewer)}
                                                 isFetching={isFetchingMessages}
                                                 isSubmitting={isSubmittingMessage}
+                                                reactingRowNumber={reactingMessageRowNumber}
                                             />
                                         )}
                                         {viewMode === 'ADMIN_PAYROLL' && (
@@ -5991,9 +6207,7 @@
                                                 employees={employees}
                                                 sheetData={sheetData}
                                                 isRefreshing={isFetchingLogs}
-                                                isSubmittingPayroll={isSubmittingPayroll}
                                                 onRefresh={() => refreshLogs({ showSpinner: true })}
-                                                onToggleCompletion={handleSetPayrollPeriodCompletion}
                                             />
                                         )}
                                     </div>

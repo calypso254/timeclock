@@ -81,7 +81,8 @@ var MESSAGE_COL = {
   TIMESTAMP: 1,
   SENDER_NAME: 2,
   SENDER_ROLE: 3,
-  MESSAGE: 4
+  MESSAGE: 4,
+  REACTIONS: 5
 };
 
 var MESSAGE_FETCH_LIMIT = 120;
@@ -166,6 +167,10 @@ function doPost(e) {
 
     if (data.action === "POST_MESSAGE") {
       return handlePostMessage_(data);
+    }
+
+    if (data.action === "TOGGLE_MESSAGE_REACTION") {
+      return handleToggleMessageReaction_(data);
     }
 
     if (data.action === "SAVE_SHIFT_TEMPLATES") {
@@ -404,11 +409,12 @@ function handlePostMessage_(data) {
     submittedAt = new Date();
   }
 
-  sheet.getRange(nextRow, 1, 1, MESSAGE_COL.MESSAGE).setValues([[
+  sheet.getRange(nextRow, 1, 1, MESSAGE_COL.REACTIONS).setValues([[
     submittedAt,
     senderName,
     senderRole,
-    messageText
+    messageText,
+    ""
   ]]);
   sheet.getRange(nextRow, MESSAGE_COL.TIMESTAMP).setNumberFormat("m/d/yyyy h:mm:ss am/pm");
 
@@ -419,8 +425,52 @@ function handlePostMessage_(data) {
       rowNumber: nextRow,
       senderName: senderName,
       senderRole: senderRole,
-      message: messageText
+      message: messageText,
+      reactions: []
     }
+  });
+}
+
+function handleToggleMessageReaction_(data) {
+  validateRequiredFields_(data, ["rowNumber", "editorName", "editorRole", "reaction"]);
+
+  var rowNumber = parseMessageRowNumber_(data.rowNumber);
+  var actorName = String(data.editorName || "").trim();
+  var actorRole = normalizeMessageSenderRole_(data.editorRole);
+  var reactionKey = sanitizeMessageReactionKey_(data.reaction);
+  if (!actorName) {
+    throw new Error("Missing required field: editorName");
+  }
+  if (!reactionKey) {
+    throw new Error("Choose a valid reaction.");
+  }
+
+  var sheet = getOrCreateMessagesSheet_();
+  ensureMessagesSheetStructure_(sheet);
+  var messageRecord = getMessageRecordByRowNumber_(sheet, rowNumber);
+  if (!messageRecord) {
+    throw new Error("That message could not be found.");
+  }
+
+  var updatedAt = hasValue_(data.submittedAt) ? String(data.submittedAt).trim() : new Date().toISOString();
+  var nextReactions = toggleMessageReactionEntries_(messageRecord.reactions, {
+    name: actorName,
+    role: actorRole,
+    reaction: reactionKey,
+    updatedAt: updatedAt
+  });
+  var serializedReactions = serializeMessageReactionEntries_(nextReactions);
+  var reactionRange = sheet.getRange(rowNumber, MESSAGE_COL.REACTIONS);
+  if (serializedReactions) {
+    reactionRange.setValue(serializedReactions);
+  } else {
+    reactionRange.clearContent();
+  }
+
+  return jsonResponse_({
+    status: "success",
+    action: "TOGGLE_MESSAGE_REACTION",
+    messageRow: getMessageRecordByRowNumber_(sheet, rowNumber)
   });
 }
 
@@ -723,7 +773,8 @@ function ensureMessagesSheetStructure_(sheet) {
     "Timestamp",
     "Sender",
     "Role",
-    "Message"
+    "Message",
+    "Reactions"
   ]];
 
   if (sheet.getMaxColumns() < headers[0].length) {
@@ -742,8 +793,8 @@ function getMessageRecords_(sheet) {
 
   var startRow = Math.max(2, lastRow - MESSAGE_FETCH_LIMIT + 1);
   var rowCount = lastRow - startRow + 1;
-  var rawValues = sheet.getRange(startRow, 1, rowCount, MESSAGE_COL.MESSAGE).getValues();
-  var displayValues = sheet.getRange(startRow, 1, rowCount, MESSAGE_COL.MESSAGE).getDisplayValues();
+  var rawValues = sheet.getRange(startRow, 1, rowCount, MESSAGE_COL.REACTIONS).getValues();
+  var displayValues = sheet.getRange(startRow, 1, rowCount, MESSAGE_COL.REACTIONS).getDisplayValues();
   var records = [];
 
   for (var i = 0; i < displayValues.length; i++) {
@@ -763,6 +814,7 @@ function buildMessageRecord_(rawRow, displayRow, rowNumber) {
   if (Object.prototype.toString.call(timestampValue) === "[object Date]" && !isNaN(timestampValue.getTime())) {
     isoTimestamp = timestampValue.toISOString();
   }
+  var reactions = sanitizeMessageReactionEntries_(rawRow[MESSAGE_COL.REACTIONS - 1]);
 
   return {
     rowNumber: rowNumber,
@@ -770,8 +822,25 @@ function buildMessageRecord_(rawRow, displayRow, rowNumber) {
     isoTimestamp: isoTimestamp,
     senderName: String(displayRow[MESSAGE_COL.SENDER_NAME - 1] || "").trim(),
     senderRole: normalizeMessageSenderRole_(displayRow[MESSAGE_COL.SENDER_ROLE - 1]),
-    message: String(displayRow[MESSAGE_COL.MESSAGE - 1] || "")
+    message: String(displayRow[MESSAGE_COL.MESSAGE - 1] || ""),
+    reactions: reactions
   };
+}
+
+function getMessageRecordByRowNumber_(sheet, rowNumberValue) {
+  var rowNumber = parseMessageRowNumber_(rowNumberValue);
+  if (rowNumber < 2 || rowNumber > sheet.getLastRow()) {
+    return null;
+  }
+
+  var rawRow = sheet.getRange(rowNumber, 1, 1, MESSAGE_COL.REACTIONS).getValues()[0];
+  var displayRow = sheet.getRange(rowNumber, 1, 1, MESSAGE_COL.REACTIONS).getDisplayValues()[0];
+  if (!hasValue_(displayRow[MESSAGE_COL.SENDER_NAME - 1]) &&
+      !hasValue_(displayRow[MESSAGE_COL.MESSAGE - 1])) {
+    return null;
+  }
+
+  return buildMessageRecord_(rawRow, displayRow, rowNumber);
 }
 
 function ensureInventorySheetStructure_(sheet) {
@@ -1025,6 +1094,14 @@ function parseRowNumber_(value) {
   var rowNumber = Number(String(value || "").trim());
   if (isNaN(rowNumber) || !isFinite(rowNumber) || Math.floor(rowNumber) !== rowNumber) {
     throw new Error("Invalid inventory row number.");
+  }
+  return rowNumber;
+}
+
+function parseMessageRowNumber_(value) {
+  var rowNumber = Number(String(value || "").trim());
+  if (isNaN(rowNumber) || !isFinite(rowNumber) || Math.floor(rowNumber) !== rowNumber) {
+    throw new Error("Invalid message row number.");
   }
   return rowNumber;
 }
@@ -2124,6 +2201,111 @@ function isAdminRole_(role) {
 function normalizeMessageSenderRole_(role) {
   var normalized = String(role || "").trim().toLowerCase();
   return isAdminRole_(normalized) ? "admin" : (normalized || "employee");
+}
+
+function sanitizeMessageReactionKey_(value) {
+  var normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "thumbs_up" || normalized === "heart" || normalized === "star") {
+    return normalized;
+  }
+  return "";
+}
+
+function sanitizeMessageReactionEntries_(value) {
+  if (!value) {
+    return [];
+  }
+
+  var parsed = value;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch (err) {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  var deduped = {};
+  for (var i = 0; i < parsed.length; i++) {
+    var entry = parsed[i];
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    var name = String(entry.name || entry.senderName || "").trim();
+    var role = normalizeMessageSenderRole_(entry.role || entry.senderRole);
+    var reaction = sanitizeMessageReactionKey_(entry.reaction || entry.key);
+    var updatedAt = String(entry.updatedAt || entry.at || "").trim();
+    if (!name || !reaction) {
+      continue;
+    }
+
+    deduped[name.toLowerCase() + "|" + role] = {
+      name: name,
+      role: role,
+      reaction: reaction,
+      updatedAt: updatedAt
+    };
+  }
+
+  return Object.keys(deduped).map(function(key) {
+    return deduped[key];
+  }).sort(function(a, b) {
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function serializeMessageReactionEntries_(entries) {
+  var sanitized = sanitizeMessageReactionEntries_(entries);
+  return sanitized.length ? JSON.stringify(sanitized) : "";
+}
+
+function toggleMessageReactionEntries_(entries, nextEntry) {
+  var currentEntries = sanitizeMessageReactionEntries_(entries);
+  var actorName = String(nextEntry && nextEntry.name || "").trim();
+  var actorRole = normalizeMessageSenderRole_(nextEntry && nextEntry.role);
+  var nextReaction = sanitizeMessageReactionKey_(nextEntry && nextEntry.reaction);
+  if (!actorName || !nextReaction) {
+    return currentEntries;
+  }
+
+  var actorKey = actorName.toLowerCase() + "|" + actorRole;
+  var nextEntries = [];
+  var matchedExisting = false;
+
+  for (var i = 0; i < currentEntries.length; i++) {
+    var entry = currentEntries[i];
+    var entryKey = entry.name.toLowerCase() + "|" + entry.role;
+    if (entryKey !== actorKey) {
+      nextEntries.push(entry);
+      continue;
+    }
+
+    matchedExisting = true;
+    if (entry.reaction !== nextReaction) {
+      nextEntries.push({
+        name: actorName,
+        role: actorRole,
+        reaction: nextReaction,
+        updatedAt: String(nextEntry.updatedAt || "").trim()
+      });
+    }
+  }
+
+  if (!matchedExisting) {
+    nextEntries.push({
+      name: actorName,
+      role: actorRole,
+      reaction: nextReaction,
+      updatedAt: String(nextEntry.updatedAt || "").trim()
+    });
+  }
+
+  return sanitizeMessageReactionEntries_(nextEntries);
 }
 
 function getOrCreateSettingsSheet_() {
