@@ -587,6 +587,18 @@
                 .trim();
         };
 
+        const isLikelyLegacyMessageResponse = (rows) => {
+            if (!Array.isArray(rows) || rows.length === 0) return false;
+            return rows.some(row =>
+                row &&
+                typeof row === 'object' &&
+                !Array.isArray(row) &&
+                'pin' in row &&
+                'department' in row &&
+                !('message' in row)
+            );
+        };
+
         const formatMessageTimestamp = (value, isoTimestamp = '') => {
             const candidate = isoTimestamp || value;
             if (!candidate) return '';
@@ -2581,13 +2593,13 @@
 
             return (
                 <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
-                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0 pr-1 pb-1">
                         <div>
                             <div className="card-eyebrow text-[#ec4899]">{eyebrow}</div>
                             <h3 className="section-title mt-1">{title}</h3>
                             {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
-                        <div className="flex items-center gap-2 self-start">
+                        <div className="flex flex-wrap items-center gap-2 self-start justify-end">
                             <div className="status-chip bg-[#fce7f3]">
                                 {safeMessages.length} {safeMessages.length === 1 ? 'note' : 'notes'}
                             </div>
@@ -2687,10 +2699,6 @@
         };
 
         const PublicOverviewPanel = ({ sheetData, inventoryRows, messages }) => {
-            const todayShiftCount = getTodayPublishedShifts(sheetData).length;
-            const openInventoryCount = buildInventorySnapshotSummary(inventoryRows).openRows.length;
-            const noteCount = Array.isArray(messages) ? messages.length : 0;
-
             return (
                 <div className="flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="mb-4 md:mb-6 shrink-0">
@@ -2717,31 +2725,6 @@
                                     subtitle="Read-only view of the shared staff notes board."
                                     readOnly={true}
                                 />
-                            </div>
-                            <div className="section-card card-frame card-size-1x1 public-overview-card bg-[#ecfeff] p-3 md:p-4">
-                                <div className="section-width flex flex-col h-full justify-between animate-fade-in">
-                                    <div>
-                                        <div className="card-eyebrow text-[#0891b2]">Live Snapshot</div>
-                                        <h3 className="section-title mt-1">Operations</h3>
-                                        <p className="section-subtitle mt-1">
-                                            One glance at the team, open inventory, and the latest notes before anyone logs in.
-                                        </p>
-                                    </div>
-                                    <div className="space-y-2.5 mt-4">
-                                        <div className="public-summary-row bg-white">
-                                            <div className="text-[9px] uppercase font-bold text-gray-500">Published Shifts Today</div>
-                                            <div className="font-bold font-poppins text-xl text-[#060606] mt-1">{todayShiftCount}</div>
-                                        </div>
-                                        <div className="public-summary-row bg-white">
-                                            <div className="text-[9px] uppercase font-bold text-gray-500">Open Inventory Rows</div>
-                                            <div className="font-bold font-poppins text-xl text-[#060606] mt-1">{openInventoryCount}</div>
-                                        </div>
-                                        <div className="public-summary-row bg-white">
-                                            <div className="text-[9px] uppercase font-bold text-gray-500">Shared Notes</div>
-                                            <div className="font-bold font-poppins text-xl text-[#060606] mt-1">{noteCount}</div>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -4255,6 +4238,9 @@
                     if (!response.ok) throw new Error('Failed to fetch messages');
                     const messageData = await response.json();
                     const rows = Array.isArray(messageData) ? messageData : [];
+                    if (isLikelyLegacyMessageResponse(rows)) {
+                        throw new Error("The deployed Apps Script is still the older version and does not support messages yet. Redeploy the latest Apps Script web app and try again.");
+                    }
                     setMessages(rows);
                     return rows;
                 } catch (error) {
@@ -4725,7 +4711,10 @@
             const handleOpenEmployeeMessages = async () => {
                 setEmployeeTimeOffDraft(null);
                 setViewMode('MESSAGES');
-                await refreshMessages({ showSpinner: false });
+                const rows = await refreshMessages({ showSpinner: false });
+                if (rows === null) {
+                    setNotification({ type: 'error', message: "Could not load messages. If the web app was redeployed recently, make sure the latest Apps Script version was deployed." });
+                }
             };
 
             const handleOpenEmployeeSchedule = async () => {
@@ -4754,7 +4743,10 @@
             const handleOpenAdminMessages = async () => {
                 setEmployeeTimeOffDraft(null);
                 setViewMode('ADMIN_MESSAGES');
-                await refreshMessages({ showSpinner: false });
+                const rows = await refreshMessages({ showSpinner: false });
+                if (rows === null) {
+                    setNotification({ type: 'error', message: "Could not load messages. If the web app was redeployed recently, make sure the latest Apps Script version was deployed." });
+                }
             };
 
             const openEmployeeTimeOffRequest = (dateValue) => {
@@ -4928,7 +4920,14 @@
                     });
 
                     if (!result.ok) {
-                        setNotification({ type: 'error', message: result.error || "Could not post that note." });
+                        const messageText = String(result.error || '').trim();
+                        const isUnsupportedMessageAction = /Unsupported action:\s*POST_MESSAGE/i.test(messageText);
+                        setNotification({
+                            type: 'error',
+                            message: isUnsupportedMessageAction
+                                ? "The live Apps Script deployment is still the older version and does not support messages yet. Redeploy the latest web app version, then try again."
+                                : (result.error || "Could not post that note.")
+                        });
                         return false;
                     }
 
