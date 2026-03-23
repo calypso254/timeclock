@@ -2639,17 +2639,24 @@
             isFetching = false,
             isSubmitting = false,
             readOnly = false,
+            newestFirst = false,
         }) => {
             const threadEndRef = useRef(null);
+            const threadScrollRef = useRef(null);
             const normalizedViewerName = String(viewerName || '').trim().toLowerCase();
             const safeMessages = Array.isArray(messages) ? messages : [];
+            const displayedMessages = newestFirst ? [...safeMessages].reverse() : safeMessages;
             const trimmedDraft = normalizeMessageText(draft);
 
             useEffect(() => {
+                if (newestFirst && threadScrollRef.current) {
+                    threadScrollRef.current.scrollTop = 0;
+                    return;
+                }
                 if (threadEndRef.current) {
                     threadEndRef.current.scrollIntoView({ block: 'end' });
                 }
-            }, [safeMessages.length]);
+            }, [safeMessages.length, newestFirst]);
 
             return (
                 <div className="section-width flex flex-col h-full min-h-0 animate-fade-in pr-2 pb-2">
@@ -2660,9 +2667,6 @@
                             {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 self-start justify-end">
-                            <div className="status-chip bg-[#fce7f3]">
-                                {safeMessages.length} {safeMessages.length === 1 ? 'note' : 'notes'}
-                            </div>
                             {!readOnly && onRefresh && (
                                 <button
                                     type="button"
@@ -2677,14 +2681,14 @@
                         </div>
                     </div>
 
-                    <div className="message-thread-scroll no-scrollbar shadow-safe-2 pb-2">
+                    <div ref={threadScrollRef} className="message-thread-scroll no-scrollbar shadow-safe-2 pb-2">
                         {safeMessages.length === 0 ? (
                             <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
                                 No notes yet.
                             </div>
                         ) : (
                             <div className="message-thread">
-                                {safeMessages.map((message, index) => {
+                                {displayedMessages.map((message, index) => {
                                     const senderName = String(message?.senderName || '').trim() || 'Unknown';
                                     const senderRole = normalizeMessageRole(message?.senderRole);
                                     const normalizedSenderName = senderName.toLowerCase();
@@ -2702,12 +2706,7 @@
                                             className={`message-row ${alignRight ? 'message-row-right' : 'message-row-left'}`}
                                         >
                                             <div className={`message-bubble ${bubbleTone}`}>
-                                                <div className="flex items-center justify-between gap-3 mb-2">
-                                                    <div className="message-author">{senderName}</div>
-                                                    <div className="message-role-pill">
-                                                        {senderRole === 'admin' ? 'Admin' : 'Employee'}
-                                                    </div>
-                                                </div>
+                                                <div className="message-author mb-2">{senderName}</div>
                                                 <div className="message-text">{message?.message || ''}</div>
                                                 <div className="card-meta mt-3">
                                                     {formatMessageTimestamp(message?.timestamp, message?.isoTimestamp)}
@@ -2787,6 +2786,7 @@
                                         title="Messages"
                                         subtitle="Read-only view of the shared staff notes board."
                                         readOnly={true}
+                                        newestFirst={true}
                                     />
                                 </div>
                             </div>
@@ -5747,7 +5747,7 @@
                                         {viewMode === 'ADMIN_INVENTORY'
                                             ? `${inventoryAwaitingRows.length} inventory row${inventoryAwaitingRows.length === 1 ? '' : 's'} currently need approval.`
                                             : viewMode === 'ADMIN_MESSAGES'
-                                                ? `${messages.length} note${messages.length === 1 ? '' : 's'} are visible on the shared board.`
+                                                ? 'Review employee notes and reply in the shared chat thread.'
                                             : viewMode === 'ADMIN_PAYROLL'
                                                 ? 'Review biweekly payroll totals and mark the period complete from here.'
                                                 : 'Open the schedule studio, payroll, message board, or the inventory request board from here.'}
