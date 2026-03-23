@@ -4,6 +4,7 @@ var LOGS_SHEET_NAME = "Timesheet";
 var SETTINGS_SHEET_NAME = "Settings";
 var INVENTORY_SHEET_NAME = "Inventory";
 var INVENTORY_LOG_SHEET_NAME = "Inventory Log";
+var MESSAGES_SHEET_NAME = "Messages";
 var SHOPIFY_API_VERSION = "2025-10";
 
 /*
@@ -44,6 +45,11 @@ var SETTINGS_COL = {
 };
 
 var DEFAULT_ADMIN_SCHEDULE_STATUS = "Draft";
+var TIME_OFF_STATUS = {
+  REQUESTED: "Time Off Requested",
+  APPROVED: "Time Off Approved"
+};
+var TIME_OFF_NOTE_KIND = "time_off";
 
 var INVENTORY_COL = {
   SKU: 1,
@@ -71,6 +77,15 @@ var INVENTORY_LOG_COL = {
   MESSAGE: 9
 };
 
+var MESSAGE_COL = {
+  TIMESTAMP: 1,
+  SENDER_NAME: 2,
+  SENDER_ROLE: 3,
+  MESSAGE: 4
+};
+
+var MESSAGE_FETCH_LIMIT = 120;
+
 var INVENTORY_STATUS = {
   OPEN: "Open",
   IN_PROCESS: "In Process",
@@ -91,6 +106,10 @@ function doGet(e) {
 
   if (type === "inventory") {
     return getInventory_();
+  }
+
+  if (type === "messages") {
+    return getMessages_();
   }
 
   return getEmployees_();
@@ -131,6 +150,22 @@ function doPost(e) {
 
     if (data.action === "ADMIN_BATCH_UPSERT_SCHEDULES") {
       return handleAdminBatchUpsertSchedules_(sheet, data);
+    }
+
+    if (data.action === "REQUEST_TIME_OFF") {
+      return handleRequestTimeOff_(sheet, data);
+    }
+
+    if (data.action === "ADMIN_APPROVE_TIME_OFF") {
+      return handleAdminApproveTimeOff_(sheet, data);
+    }
+
+    if (data.action === "ADMIN_CLEAR_TIME_OFF") {
+      return handleAdminClearTimeOff_(sheet, data);
+    }
+
+    if (data.action === "POST_MESSAGE") {
+      return handlePostMessage_(data);
     }
 
     if (data.action === "SAVE_SHIFT_TEMPLATES") {
@@ -336,6 +371,57 @@ function getInventory_() {
   var sheet = getOrCreateInventorySheet_();
   ensureInventorySheetStructure_(sheet);
   return jsonResponse_(getInventoryRecords_(sheet));
+}
+
+function getMessages_() {
+  var sheet = getOrCreateMessagesSheet_();
+  ensureMessagesSheetStructure_(sheet);
+  return jsonResponse_(getMessageRecords_(sheet));
+}
+
+function handlePostMessage_(data) {
+  validateRequiredFields_(data, ["editorName", "editorRole", "message"]);
+
+  var senderName = String(data.editorName || "").trim();
+  var senderRole = normalizeMessageSenderRole_(data.editorRole);
+  var messageText = sanitizeMessageText_(data.message);
+
+  if (!senderName) {
+    throw new Error("Missing required field: editorName");
+  }
+  if (!messageText) {
+    throw new Error("Enter a message before sending.");
+  }
+  if (messageText.length > 1000) {
+    throw new Error("Messages must be 1000 characters or less.");
+  }
+
+  var sheet = getOrCreateMessagesSheet_();
+  ensureMessagesSheetStructure_(sheet);
+  var nextRow = Math.max(sheet.getLastRow(), 1) + 1;
+  var submittedAt = data.submittedAt ? new Date(data.submittedAt) : new Date();
+  if (Object.prototype.toString.call(submittedAt) !== "[object Date]" || isNaN(submittedAt.getTime())) {
+    submittedAt = new Date();
+  }
+
+  sheet.getRange(nextRow, 1, 1, MESSAGE_COL.MESSAGE).setValues([[
+    submittedAt,
+    senderName,
+    senderRole,
+    messageText
+  ]]);
+  sheet.getRange(nextRow, MESSAGE_COL.TIMESTAMP).setNumberFormat("m/d/yyyy h:mm:ss am/pm");
+
+  return jsonResponse_({
+    status: "success",
+    action: "POST_MESSAGE",
+    messageRow: {
+      rowNumber: nextRow,
+      senderName: senderName,
+      senderRole: senderRole,
+      message: messageText
+    }
+  });
 }
 
 function handleInventoryAddNeed_(data) {
@@ -625,6 +711,67 @@ function getOrCreateInventorySheet_() {
 function getOrCreateInventoryLogSheet_() {
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   return spreadsheet.getSheetByName(INVENTORY_LOG_SHEET_NAME) || spreadsheet.insertSheet(INVENTORY_LOG_SHEET_NAME);
+}
+
+function getOrCreateMessagesSheet_() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  return spreadsheet.getSheetByName(MESSAGES_SHEET_NAME) || spreadsheet.insertSheet(MESSAGES_SHEET_NAME);
+}
+
+function ensureMessagesSheetStructure_(sheet) {
+  var headers = [[
+    "Timestamp",
+    "Sender",
+    "Role",
+    "Message"
+  ]];
+
+  if (sheet.getMaxColumns() < headers[0].length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers[0].length - sheet.getMaxColumns());
+  }
+
+  sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
+  sheet.setFrozenRows(1);
+}
+
+function getMessageRecords_(sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return [];
+  }
+
+  var startRow = Math.max(2, lastRow - MESSAGE_FETCH_LIMIT + 1);
+  var rowCount = lastRow - startRow + 1;
+  var rawValues = sheet.getRange(startRow, 1, rowCount, MESSAGE_COL.MESSAGE).getValues();
+  var displayValues = sheet.getRange(startRow, 1, rowCount, MESSAGE_COL.MESSAGE).getDisplayValues();
+  var records = [];
+
+  for (var i = 0; i < displayValues.length; i++) {
+    if (!hasValue_(displayValues[i][MESSAGE_COL.SENDER_NAME - 1]) &&
+        !hasValue_(displayValues[i][MESSAGE_COL.MESSAGE - 1])) {
+      continue;
+    }
+    records.push(buildMessageRecord_(rawValues[i], displayValues[i], startRow + i));
+  }
+
+  return records;
+}
+
+function buildMessageRecord_(rawRow, displayRow, rowNumber) {
+  var timestampValue = rawRow[MESSAGE_COL.TIMESTAMP - 1];
+  var isoTimestamp = "";
+  if (Object.prototype.toString.call(timestampValue) === "[object Date]" && !isNaN(timestampValue.getTime())) {
+    isoTimestamp = timestampValue.toISOString();
+  }
+
+  return {
+    rowNumber: rowNumber,
+    timestamp: String(displayRow[MESSAGE_COL.TIMESTAMP - 1] || "").trim(),
+    isoTimestamp: isoTimestamp,
+    senderName: String(displayRow[MESSAGE_COL.SENDER_NAME - 1] || "").trim(),
+    senderRole: normalizeMessageSenderRole_(displayRow[MESSAGE_COL.SENDER_ROLE - 1]),
+    message: String(displayRow[MESSAGE_COL.MESSAGE - 1] || "")
+  };
 }
 
 function ensureInventorySheetStructure_(sheet) {
@@ -1284,6 +1431,170 @@ function handleAdminBatchUpsertSchedules_(sheet, data) {
   });
 }
 
+function handleRequestTimeOff_(sheet, data) {
+  validateRequiredFields_(data, ["name", "date", "editorName", "editorRole"]);
+
+  var editorName = String(data.editorName || "");
+  var editorRole = String(data.editorRole || "employee").toLowerCase();
+  var targetName = String(data.name || "");
+  if (editorRole === "employee" && editorName !== targetName) {
+    throw new Error("Unauthorized. Employees can only request time off for themselves.");
+  }
+
+  var targetDate = normalizeDateKey_(data.date);
+  if (!targetDate) {
+    throw new Error("A valid date is required for a time-off request.");
+  }
+
+  var todayKey = normalizeDateKey_(new Date());
+  if (targetDate < todayKey) {
+    throw new Error("Time-off requests can only be made for today or a future date.");
+  }
+
+  var fullDay = data.fullDay === true || String(data.fullDay).toLowerCase() === "true";
+  var schedIn = "";
+  var schedOut = "";
+  if (!fullDay) {
+    validateRequiredFields_(data, ["schedIn", "schedOut"]);
+    schedIn = String(data.schedIn || "").trim();
+    schedOut = String(data.schedOut || "").trim();
+    if (!isValidTimeOffRange_(schedIn, schedOut)) {
+      throw new Error("Enter a valid blocked time range.");
+    }
+  }
+
+  var records = getLogRecords_(sheet);
+  var sameDayWorkedRow = records.find(function(record) {
+    return record.name === targetName &&
+      record.dateKey === targetDate &&
+      !isTimeOffRecord_(record) &&
+      (hasValue_(record.timeIn) || hasValue_(record.timeOut) || hasValue_(record.totalHours) || hasValue_(record.decimalHours));
+  });
+  if (sameDayWorkedRow) {
+    throw new Error("Time off cannot be requested for a day that already has worked hours.");
+  }
+
+  var targetRow = resolveTimeOffRow_(records, data, [TIME_OFF_STATUS.REQUESTED, TIME_OFF_STATUS.APPROVED]);
+  if (targetRow && isApprovedTimeOffStatus_(targetRow.scheduleStatus)) {
+    throw new Error("This day already has approved time off. Ask an admin to clear it before requesting different hours.");
+  }
+
+  var submittedAt = hasValue_(data.submittedAt) ? String(data.submittedAt) : new Date().toISOString();
+  var existingNote = targetRow ? parseTimeOffNote_(targetRow.notes) : null;
+  var nextNote = buildTimeOffNote_(existingNote, {
+    fullDay: fullDay,
+    requestedBy: editorName,
+    requestedAt: existingNote && hasValue_(existingNote.requestedAt) ? existingNote.requestedAt : submittedAt,
+    updatedAt: submittedAt,
+    approvedBy: "",
+    approvedAt: ""
+  });
+
+  if (targetRow) {
+    writeTimeOffRow_(sheet, targetRow.rowNumber, {
+      date: targetDate,
+      name: targetName,
+      schedIn: schedIn,
+      schedOut: schedOut,
+      scheduleStatus: TIME_OFF_STATUS.REQUESTED,
+      note: stringifyTimeOffNote_(nextNote)
+    });
+
+    return jsonResponse_({
+      status: "success",
+      action: "REQUEST_TIME_OFF",
+      rowNumber: targetRow.rowNumber,
+      mode: "updated-existing-row"
+    });
+  }
+
+  var nextRow = Math.max(sheet.getLastRow() + 1, 2);
+  writeTimeOffRow_(sheet, nextRow, {
+    date: targetDate,
+    name: targetName,
+    schedIn: schedIn,
+    schedOut: schedOut,
+    scheduleStatus: TIME_OFF_STATUS.REQUESTED,
+    note: stringifyTimeOffNote_(nextNote)
+  });
+
+  return jsonResponse_({
+    status: "success",
+    action: "REQUEST_TIME_OFF",
+    rowNumber: nextRow,
+    mode: "appended-row"
+  });
+}
+
+function handleAdminApproveTimeOff_(sheet, data) {
+  validateRequiredFields_(data, ["name", "date", "editorName", "editorRole"]);
+
+  if (!isAdminRole_(data.editorRole)) {
+    throw new Error("Unauthorized. Only admin-capable accounts can approve time off.");
+  }
+
+  var records = getLogRecords_(sheet);
+  var targetRow = resolveTimeOffRow_(records, data, [TIME_OFF_STATUS.REQUESTED, TIME_OFF_STATUS.APPROVED]);
+  if (!targetRow) {
+    throw new Error("The requested time-off row could not be found. Reload and try again.");
+  }
+
+  var submittedAt = hasValue_(data.submittedAt) ? String(data.submittedAt) : new Date().toISOString();
+  var existingNote = parseTimeOffNote_(targetRow.notes);
+  var nextNote = buildTimeOffNote_(existingNote, {
+    fullDay: resolveTimeOffFullDay_(targetRow, existingNote),
+    requestedBy: existingNote && hasValue_(existingNote.requestedBy) ? existingNote.requestedBy : targetRow.name,
+    requestedAt: existingNote && hasValue_(existingNote.requestedAt) ? existingNote.requestedAt : submittedAt,
+    updatedAt: submittedAt,
+    approvedBy: String(data.editorName || ""),
+    approvedAt: submittedAt
+  });
+
+  writeTimeOffRow_(sheet, targetRow.rowNumber, {
+    date: targetRow.dateKey || normalizeDateKey_(data.date),
+    name: targetRow.name,
+    schedIn: targetRow.schedIn || "",
+    schedOut: targetRow.schedOut || "",
+    scheduleStatus: TIME_OFF_STATUS.APPROVED,
+    note: stringifyTimeOffNote_(nextNote)
+  });
+  clearUnlockedScheduledRowsForTimeOff_(sheet, records, targetRow.rowNumber, targetRow.name, targetRow.dateKey);
+
+  return jsonResponse_({
+    status: "success",
+    action: "ADMIN_APPROVE_TIME_OFF",
+    rowNumber: targetRow.rowNumber
+  });
+}
+
+function handleAdminClearTimeOff_(sheet, data) {
+  validateRequiredFields_(data, ["name", "date", "editorName", "editorRole"]);
+
+  if (!isAdminRole_(data.editorRole)) {
+    throw new Error("Unauthorized. Only admin-capable accounts can clear time off.");
+  }
+
+  var records = getLogRecords_(sheet);
+  var targetRow = resolveTimeOffRow_(records, data, [TIME_OFF_STATUS.REQUESTED, TIME_OFF_STATUS.APPROVED]);
+  if (!targetRow) {
+    return jsonResponse_({
+      status: "success",
+      action: "ADMIN_CLEAR_TIME_OFF",
+      rowNumber: 0,
+      mode: "already-clear"
+    });
+  }
+
+  clearTimeOffRow_(sheet, targetRow.rowNumber);
+
+  return jsonResponse_({
+    status: "success",
+    action: "ADMIN_CLEAR_TIME_OFF",
+    rowNumber: targetRow.rowNumber,
+    mode: "cleared-row"
+  });
+}
+
 function upsertAdminScheduleEntry_(sheet, records, data) {
   validateRequiredFields_(data, ["name", "date", "editorName", "editorRole"]);
 
@@ -1415,6 +1726,7 @@ function resolveClockInRow_(records, data) {
     return record.name === data.name &&
       record.dateKey === targetDate &&
       !isLocked_(record) &&
+      !isTimeOffRecord_(record) &&
       !hasValue_(record.timeIn) &&
       !hasValue_(record.timeOut);
   });
@@ -1449,6 +1761,7 @@ function resolveClockOutRow_(records, data) {
     return record.name === data.name &&
       record.dateKey === targetDate &&
       !isLocked_(record) &&
+      !isTimeOffRecord_(record) &&
       hasValue_(record.timeIn) &&
       !hasValue_(record.timeOut);
   });
@@ -1481,7 +1794,8 @@ function resolveEditRow_(records, data) {
   var candidates = records.filter(function(record) {
     return record.name === data.name &&
       record.dateKey === targetDate &&
-      !isLocked_(record);
+      !isLocked_(record) &&
+      !isTimeOffRecord_(record);
   });
 
   if (candidates.length === 1) {
@@ -1513,7 +1827,8 @@ function resolveScheduleRow_(records, data) {
   var candidates = records.filter(function(record) {
     return record.name === data.name &&
       record.dateKey === targetDate &&
-      !isLocked_(record);
+      !isLocked_(record) &&
+      !isTimeOffRecord_(record);
   });
 
   if (candidates.length === 0) {
@@ -1621,6 +1936,175 @@ function isLocked_(record) {
     .toLowerCase() === "locked";
 }
 
+function resolveTimeOffRow_(records, data, allowedStatuses) {
+  var keyMatch = findExactRowByKey_(records, data);
+  if (keyMatch.found) {
+    if (isTimeOffRecord_(keyMatch.row) && isAllowedTimeOffStatus_(keyMatch.row.scheduleStatus, allowedStatuses)) {
+      return keyMatch.row;
+    }
+    throw new Error("The time-off row changed before it could be updated. Please reload and try again.");
+  }
+  if (keyMatch.required) {
+    throw new Error("The time-off row changed before it could be updated. Please reload and try again.");
+  }
+
+  var targetDate = normalizeDateKey_(data.targetRowDate || data.date);
+  var candidates = records.filter(function(record) {
+    return record.name === data.name &&
+      record.dateKey === targetDate &&
+      !isLocked_(record) &&
+      isTimeOffRecord_(record) &&
+      isAllowedTimeOffStatus_(record.scheduleStatus, allowedStatuses);
+  });
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  if (candidates.length === 1) {
+    return candidates[0];
+  }
+
+  var contextualMatches = applyPostedRowContext_(candidates, data);
+  if (contextualMatches.length === 1) {
+    return contextualMatches[0];
+  }
+
+  throw new Error("Multiple time-off rows match this request. Please reload and try again.");
+}
+
+function isAllowedTimeOffStatus_(status, allowedStatuses) {
+  if (!Array.isArray(allowedStatuses) || allowedStatuses.length === 0) {
+    return isTimeOffStatus_(status);
+  }
+
+  var normalizedStatus = String(status || "").trim().toLowerCase();
+  for (var i = 0; i < allowedStatuses.length; i++) {
+    if (normalizedStatus === String(allowedStatuses[i] || "").trim().toLowerCase()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isTimeOffStatus_(status) {
+  var normalized = String(status || "").trim().toLowerCase();
+  return normalized === String(TIME_OFF_STATUS.REQUESTED).toLowerCase() ||
+    normalized === String(TIME_OFF_STATUS.APPROVED).toLowerCase();
+}
+
+function isApprovedTimeOffStatus_(status) {
+  return String(status || "").trim().toLowerCase() === String(TIME_OFF_STATUS.APPROVED).toLowerCase();
+}
+
+function parseTimeOffNote_(value) {
+  if (!hasValue_(value)) {
+    return null;
+  }
+
+  try {
+    var parsed = JSON.parse(String(value));
+    if (!parsed || typeof parsed !== "object" || parsed.kind !== TIME_OFF_NOTE_KIND) {
+      return null;
+    }
+    return parsed;
+  } catch (err) {
+    return null;
+  }
+}
+
+function buildTimeOffNote_(baseNote, overrides) {
+  var base = baseNote && typeof baseNote === "object" ? baseNote : {};
+  var next = overrides && typeof overrides === "object" ? overrides : {};
+  var fullDayOverride = next.fullDay === true || String(next.fullDay).toLowerCase() === "true";
+
+  return {
+    kind: TIME_OFF_NOTE_KIND,
+    fullDay: next.fullDay === undefined ? (base.fullDay === true) : fullDayOverride,
+    requestedBy: hasValue_(next.requestedBy) ? String(next.requestedBy) : String(base.requestedBy || ""),
+    requestedAt: hasValue_(next.requestedAt) ? String(next.requestedAt) : String(base.requestedAt || ""),
+    updatedAt: hasValue_(next.updatedAt) ? String(next.updatedAt) : String(base.updatedAt || ""),
+    approvedBy: hasValue_(next.approvedBy) ? String(next.approvedBy) : String(base.approvedBy || ""),
+    approvedAt: hasValue_(next.approvedAt) ? String(next.approvedAt) : String(base.approvedAt || "")
+  };
+}
+
+function stringifyTimeOffNote_(note) {
+  return JSON.stringify(note || {});
+}
+
+function resolveTimeOffFullDay_(record, note) {
+  if (note && note.fullDay === true) {
+    return true;
+  }
+  return !hasValue_(record && record.schedIn) && !hasValue_(record && record.schedOut);
+}
+
+function isTimeOffRecord_(record) {
+  if (!record) {
+    return false;
+  }
+
+  return isTimeOffStatus_(record.scheduleStatus) || Boolean(parseTimeOffNote_(record.notes));
+}
+
+function isValidTimeOffRange_(schedIn, schedOut) {
+  var minutes = calculateWorkedMinutes_(schedIn, schedOut);
+  return minutes !== null && minutes > 0;
+}
+
+function writeTimeOffRow_(sheet, rowNumber, data) {
+  sheet.getRange(rowNumber, LOG_COL.DAY).setValue(data.date);
+  sheet.getRange(rowNumber, LOG_COL.NAME).setValue(data.name);
+
+  if (hasValue_(data.schedIn)) {
+    sheet.getRange(rowNumber, LOG_COL.SCHED_IN).setValue(data.schedIn);
+  } else {
+    sheet.getRange(rowNumber, LOG_COL.SCHED_IN).clearContent();
+  }
+
+  if (hasValue_(data.schedOut)) {
+    sheet.getRange(rowNumber, LOG_COL.SCHED_OUT).setValue(data.schedOut);
+  } else {
+    sheet.getRange(rowNumber, LOG_COL.SCHED_OUT).clearContent();
+  }
+
+  sheet.getRange(rowNumber, LOG_COL.TIME_IN).clearContent();
+  sheet.getRange(rowNumber, LOG_COL.TIME_OUT).clearContent();
+  sheet.getRange(rowNumber, LOG_COL.NOTES).setValue(data.note || "");
+  sheet.getRange(rowNumber, LOG_COL.PAYROLL_STATUS).clearContent();
+  sheet.getRange(rowNumber, LOG_COL.SCHEDULE_STATUS).setValue(data.scheduleStatus || "");
+  writeDurationValues_(sheet, rowNumber, "", "");
+  writeScheduledDurationValue_(sheet, rowNumber, "", "");
+}
+
+function clearUnlockedScheduledRowsForTimeOff_(sheet, records, excludedRowNumber, employeeName, dateKey) {
+  for (var i = 0; i < records.length; i++) {
+    var record = records[i];
+    if (record.rowNumber === excludedRowNumber) {
+      continue;
+    }
+    if (record.name !== employeeName || record.dateKey !== dateKey) {
+      continue;
+    }
+    if (isLocked_(record) || isTimeOffRecord_(record)) {
+      continue;
+    }
+    if (hasValue_(record.timeIn) || hasValue_(record.timeOut) || hasValue_(record.totalHours) || hasValue_(record.decimalHours)) {
+      continue;
+    }
+
+    sheet.getRange(record.rowNumber, LOG_COL.SCHED_IN).clearContent();
+    sheet.getRange(record.rowNumber, LOG_COL.SCHED_OUT).clearContent();
+    sheet.getRange(record.rowNumber, LOG_COL.SCHEDULE_STATUS).clearContent();
+    writeScheduledDurationValue_(sheet, record.rowNumber, "", "");
+  }
+}
+
+function clearTimeOffRow_(sheet, rowNumber) {
+  sheet.getRange(rowNumber, 1, 1, LOG_COL.DECIMAL_HOURS).clearContent();
+}
+
 function isPayrollRelevantRecord_(record) {
   if (!record) {
     return false;
@@ -1635,6 +2119,11 @@ function isPayrollRelevantRecord_(record) {
 function isAdminRole_(role) {
   var normalized = String(role || "").trim().toLowerCase();
   return normalized === "admin" || normalized === "manager" || normalized === "owner";
+}
+
+function normalizeMessageSenderRole_(role) {
+  var normalized = String(role || "").trim().toLowerCase();
+  return isAdminRole_(normalized) ? "admin" : (normalized || "employee");
 }
 
 function getOrCreateSettingsSheet_() {
@@ -1759,6 +2248,13 @@ function writeScheduledDurationValue_(sheet, rowNumber, schedIn, schedOut) {
 
   totalScheduledRange.setNumberFormat("[h]:mm");
   totalScheduledRange.setValue(scheduledMinutes / 1440);
+}
+
+function sanitizeMessageText_(value) {
+  return String(value || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim();
 }
 
 function calculateWorkedMinutes_(startTime, endTime) {

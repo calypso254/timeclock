@@ -263,6 +263,89 @@
             line-height: 1.1;
             white-space: nowrap;
         }
+        .public-overview-grid {
+            --active-card-column-width: 250px;
+            --active-card-row-height: 168px;
+        }
+        .public-overview-card {
+            min-width: 0;
+            min-height: 0;
+        }
+        .public-summary-row {
+            border: var(--surface-border);
+            border-radius: 1rem;
+            box-shadow: 2px 2px 0px 0px #000000;
+            background: #ffffff;
+            padding: 0.8rem 0.9rem;
+        }
+        .message-thread-scroll {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 0.25rem;
+        }
+        .message-thread {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            min-height: 100%;
+        }
+        .message-row {
+            display: flex;
+            width: 100%;
+        }
+        .message-row-left {
+            justify-content: flex-start;
+        }
+        .message-row-right {
+            justify-content: flex-end;
+        }
+        .message-bubble {
+            width: min(100%, 30rem);
+            border: var(--surface-border);
+            border-radius: 1rem;
+            box-shadow: 2px 2px 0px 0px #000000;
+            padding: 0.8rem 0.9rem;
+        }
+        .message-bubble-own {
+            background: #dbeafe;
+        }
+        .message-bubble-admin {
+            background: #dcfce7;
+        }
+        .message-bubble-staff {
+            background: #ffffff;
+        }
+        .message-author {
+            font-size: 0.72rem;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #374151;
+        }
+        .message-role-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: var(--surface-border);
+            border-radius: 999px;
+            padding: 0.15rem 0.5rem;
+            font-size: 0.62rem;
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #060606;
+            background: #ffffff;
+        }
+        .message-text {
+            font-size: 0.92rem;
+            line-height: 1.45;
+            color: #060606;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
         .schedule-week-grid {
             display: grid;
             grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -429,9 +512,15 @@
 
         const ADMIN_ROLES = ['admin', 'manager', 'owner'];
         const DEFAULT_ADMIN_SCHEDULE_STATUS = 'Draft';
+        const TIME_OFF_STATUS = {
+            REQUESTED: 'Time Off Requested',
+            APPROVED: 'Time Off Approved',
+        };
+        const TIME_OFF_NOTE_KIND = 'time_off';
         const PAYROLL_PERIOD_ANCHOR = '2026-03-16';
         const PAYROLL_PERIOD_LENGTH_DAYS = 14;
         const PAYROLL_PAYDAY_OFFSET_DAYS = 5;
+        const MESSAGE_MAX_LENGTH = 1000;
 
         const addDaysToLocalDate = (dateValue, dayCount) => {
             const dateObj = parseLocalDate(dateValue);
@@ -486,9 +575,48 @@
             return ADMIN_ROLES.includes(String(role || '').trim().toLowerCase());
         };
 
+        const normalizeMessageRole = (role) => {
+            const normalized = String(role || '').trim().toLowerCase();
+            return isAdminRole(normalized) ? 'admin' : (normalized || 'employee');
+        };
+
+        const normalizeMessageText = (value) => {
+            return String(value || '')
+                .replace(/\r\n/g, '\n')
+                .replace(/\r/g, '\n')
+                .trim();
+        };
+
+        const formatMessageTimestamp = (value, isoTimestamp = '') => {
+            const candidate = isoTimestamp || value;
+            if (!candidate) return '';
+            const parsed = new Date(candidate);
+            if (isNaN(parsed.getTime())) return String(value || '');
+            return parsed.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+            });
+        };
+
         const normalizeAdminScheduleStatus = (value, fallback = DEFAULT_ADMIN_SCHEDULE_STATUS) => {
             const normalized = String(value || '').trim();
             return normalized || fallback;
+        };
+
+        const isTimeOffStatus = (value) => {
+            const normalized = String(value || '').trim().toLowerCase();
+            return normalized === TIME_OFF_STATUS.REQUESTED.toLowerCase() ||
+                normalized === TIME_OFF_STATUS.APPROVED.toLowerCase();
+        };
+
+        const isTimeOffRequestedStatus = (value) => {
+            return String(value || '').trim().toLowerCase() === TIME_OFF_STATUS.REQUESTED.toLowerCase();
+        };
+
+        const isTimeOffApprovedStatus = (value) => {
+            return String(value || '').trim().toLowerCase() === TIME_OFF_STATUS.APPROVED.toLowerCase();
         };
 
         const buildEmptyAdminScheduleForm = (employeeName = '', dateValue = new Date()) => ({
@@ -612,6 +740,7 @@
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             return rows.filter(row => {
+                if (isTimeOffRow(row)) return false;
                 if (!(row.timeIn || isPublishedSchedule(row))) return false;
                 const rowDate = parseLocalDate(row.date);
                 if (isNaN(rowDate.getTime())) return false;
@@ -632,6 +761,82 @@
 
         const isEntryLocked = (row) => {
             return String(row?.payrollStatus || '').trim().toLowerCase() === 'locked';
+        };
+
+        const parseTimeOffMetadata = (reasonText) => {
+            if (!reasonText || typeof reasonText !== 'string') return null;
+            const trimmed = reasonText.trim();
+            if (!trimmed) return null;
+
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || parsed.kind !== TIME_OFF_NOTE_KIND) {
+                    return null;
+                }
+
+                return {
+                    kind: TIME_OFF_NOTE_KIND,
+                    fullDay: parsed.fullDay === true,
+                    requestedBy: String(parsed.requestedBy || '').trim(),
+                    requestedAt: String(parsed.requestedAt || '').trim(),
+                    updatedAt: String(parsed.updatedAt || '').trim(),
+                    approvedBy: String(parsed.approvedBy || '').trim(),
+                    approvedAt: String(parsed.approvedAt || '').trim(),
+                };
+            } catch (_) {
+                return null;
+            }
+        };
+
+        const isTimeOffRow = (row) => {
+            if (!row) return false;
+            return isTimeOffStatus(row.scheduleStatus) || Boolean(parseTimeOffMetadata(row.reason));
+        };
+
+        const isTimeOffRequestRow = (row) => {
+            return isTimeOffRequestedStatus(row?.scheduleStatus);
+        };
+
+        const isApprovedTimeOffRow = (row) => {
+            return isTimeOffApprovedStatus(row?.scheduleStatus);
+        };
+
+        const resolveTimeOffFullDay = (row, metadata = parseTimeOffMetadata(row?.reason)) => {
+            if (metadata?.fullDay) return true;
+            return !hasTimeValue(row?.schedIn) && !hasTimeValue(row?.schedOut);
+        };
+
+        const getTimeOffRangeLabel = (row, metadata = parseTimeOffMetadata(row?.reason)) => {
+            if (!row) return '';
+            if (resolveTimeOffFullDay(row, metadata)) return 'Full day';
+            if (hasTimeValue(row.schedIn) && hasTimeValue(row.schedOut)) {
+                return `${row.schedIn} - ${row.schedOut}`;
+            }
+            return 'Hours requested';
+        };
+
+        const getTimeOffStatusLabel = (row) => {
+            if (isApprovedTimeOffRow(row)) return 'Approved';
+            if (isTimeOffRequestRow(row)) return 'Requested';
+            return 'Time Off';
+        };
+
+        const getTimeOffRowForEmployeeDate = (rows, employeeName, dateValue) => {
+            const targetDate = normalizeDate(dateValue);
+            const candidates = getEmployeeRows(rows, employeeName).filter(row =>
+                normalizeDate(row.date) === targetDate &&
+                !isEntryLocked(row) &&
+                isTimeOffRow(row)
+            );
+
+            if (candidates.length === 0) return null;
+            return candidates.find(isApprovedTimeOffRow) ||
+                candidates.find(isTimeOffRequestRow) ||
+                candidates[0];
+        };
+
+        const isPastScheduleDate = (dateValue) => {
+            return normalizeDate(dateValue) < normalizeDate(new Date());
         };
 
         const isPayrollRelevantRow = (row) => {
@@ -663,7 +868,7 @@
 
         const getOpenShiftRowsForEmployee = (rows, employeeName) => {
             return getEmployeeRows(rows, employeeName)
-                .filter(row => hasTimeValue(row.timeIn) && !hasTimeValue(row.timeOut) && !isEntryLocked(row))
+                .filter(row => !isTimeOffRow(row) && hasTimeValue(row.timeIn) && !hasTimeValue(row.timeOut) && !isEntryLocked(row))
                 .slice()
                 .sort((a, b) => normalizeDate(a.date).localeCompare(normalizeDate(b.date)));
         };
@@ -772,6 +977,39 @@
             return value ? String(value) : 'Not yet updated';
         };
 
+        const getTodayPublishedShifts = (sheetData) => {
+            const todayKey = normalizeDate(new Date());
+            return (Array.isArray(sheetData) ? sheetData : [])
+                .filter(row =>
+                    !isTimeOffRow(row) &&
+                    normalizeDate(row?.date) === todayKey &&
+                    (hasTimeValue(row?.schedIn) || hasTimeValue(row?.schedOut)) &&
+                    isPublishedSchedule(row)
+                )
+                .slice()
+                .sort((a, b) => {
+                    const timeCompare = (parseClockTimeToMinutes(a.schedIn) || 0) - (parseClockTimeToMinutes(b.schedIn) || 0);
+                    if (timeCompare !== 0) return timeCompare;
+                    return String(a.name || '').localeCompare(String(b.name || ''));
+                });
+        };
+
+        const buildInventorySnapshotSummary = (rows) => {
+            const openRows = sortInventoryRows(getOpenInventoryRows(rows));
+            const totals = openRows.reduce((acc, row) => {
+                acc.stillNeeded += Number(row?.stillNeeded || 0);
+                acc.inProcess += Number(row?.inProcess || 0);
+                acc.awaitingApproval += Number(row?.awaitingApproval || 0);
+                return acc;
+            }, {
+                stillNeeded: 0,
+                inProcess: 0,
+                awaitingApproval: 0,
+            });
+
+            return { openRows, totals };
+        };
+
         const getInventorySkuText = (row) => {
             return String(row?.sku || '').trim() || 'No SKU';
         };
@@ -839,6 +1077,7 @@
             if (!Array.isArray(rows) || !payload) return null;
 
             return rows.find(row =>
+                !isTimeOffRow(row) &&
                 row.name === payload.name &&
                 normalizeDate(row.date) === payload.date &&
                 normalizeTimeForComparison(row.schedIn || '') === normalizeTimeForComparison(payload.schedIn || '') &&
@@ -855,6 +1094,16 @@
         };
 
         const resolveClockInPlan = (rows, employeeName, localDate) => {
+            const approvedTimeOffRow = getTimeOffRowForEmployeeDate(rows, employeeName, localDate);
+            if (isApprovedTimeOffRow(approvedTimeOffRow)) {
+                return {
+                    status: 'blocked',
+                    code: 'approved-time-off',
+                    message: `${employeeName} has approved time off for ${formatFullDate(localDate)} (${getTimeOffRangeLabel(approvedTimeOffRow)}).`,
+                    rows: [approvedTimeOffRow],
+                };
+            }
+
             const openShifts = getOpenShiftRowsForEmployee(rows, employeeName);
             const sameDayOpen = openShifts.filter(row => normalizeDate(row.date) === localDate);
             const olderOpen = openShifts.filter(row => normalizeDate(row.date) < localDate);
@@ -898,6 +1147,7 @@
 
             const candidates = getEmployeeRows(rows, employeeName).filter(row =>
                 normalizeDate(row.date) === localDate &&
+                !isTimeOffRow(row) &&
                 !hasTimeValue(row.timeIn) &&
                 !hasTimeValue(row.timeOut) &&
                 !isEntryLocked(row)
@@ -931,6 +1181,7 @@
         };
 
         const resolveClockOutPlan = (rows, employeeName, localDate) => {
+            const approvedTimeOffRow = getTimeOffRowForEmployeeDate(rows, employeeName, localDate);
             const openShifts = getOpenShiftRowsForEmployee(rows, employeeName);
             const sameDayOpen = openShifts.filter(row => normalizeDate(row.date) === localDate);
             const olderOpen = openShifts.filter(row => normalizeDate(row.date) < localDate);
@@ -941,6 +1192,14 @@
             }
 
             if (openShifts.length === 0) {
+                if (isApprovedTimeOffRow(approvedTimeOffRow)) {
+                    return {
+                        status: 'blocked',
+                        code: 'approved-time-off',
+                        message: `${employeeName} has approved time off for ${formatFullDate(localDate)} (${getTimeOffRangeLabel(approvedTimeOffRow)}).`,
+                        rows: [approvedTimeOffRow],
+                    };
+                }
                 return {
                     status: 'blocked',
                     code: 'no-open-shift',
@@ -1026,6 +1285,40 @@
             return `${hour}:${match[2]} ${period}`;
         };
 
+        const buildEmptyTimeOffRequestDraft = (dateValue = new Date()) => ({
+            date: normalizeDate(dateValue),
+            fullDay: true,
+            schedIn: '',
+            schedInPeriod: 'AM',
+            schedOut: '',
+            schedOutPeriod: 'PM',
+            sourceRow: null,
+        });
+
+        const buildTimeOffRequestDraftFromRow = (row, dateValue = new Date()) => {
+            const metadata = parseTimeOffMetadata(row?.reason);
+            const parsedIn = parseTimeField(row?.schedIn || '');
+            const parsedOut = parseTimeField(row?.schedOut || '');
+            return {
+                ...buildEmptyTimeOffRequestDraft(dateValue || row?.date || new Date()),
+                fullDay: resolveTimeOffFullDay(row, metadata),
+                schedIn: parsedIn.time,
+                schedInPeriod: parsedIn.period || 'AM',
+                schedOut: parsedOut.time,
+                schedOutPeriod: parsedOut.period || 'PM',
+                sourceRow: row || null,
+            };
+        };
+
+        const formatTimeOffDraftRange = (draft) => {
+            if (!draft) return '';
+            if (draft.fullDay) return 'Full day';
+            const formattedIn = formatTimeField(draft.schedIn, draft.schedInPeriod);
+            const formattedOut = formatTimeField(draft.schedOut, draft.schedOutPeriod);
+            if (!formattedIn || !formattedOut) return '';
+            return `${formattedIn} - ${formattedOut}`;
+        };
+
         const ADMIN_SHIFT_TEMPLATE_ACCENTS = [
             'bg-[#bfdbfe]',
             'bg-[#fde68a]',
@@ -1101,7 +1394,8 @@
             const targetDate = normalizeDate(dateValue);
             const candidates = getEmployeeRows(rows, employeeName).filter(row =>
                 normalizeDate(row.date) === targetDate &&
-                !isEntryLocked(row)
+                !isEntryLocked(row) &&
+                !isTimeOffRow(row)
             );
 
             if (candidates.length === 0) return null;
@@ -1739,10 +2033,14 @@
             highlightName = '',
             compact = false,
             weekCount = 3,
+            allowTimeOffRequests = false,
+            onSelectDate = null,
+            isSubmittingTimeOff = false,
         }) => {
             const [currentWeekStart, setCurrentWeekStart] = useState(getWeekStartDate(new Date()));
-            const publishedRows = sheetData
-                .filter(row => (hasTimeValue(row.schedIn) || hasTimeValue(row.schedOut)) && isPublishedSchedule(row))
+            const allRows = Array.isArray(sheetData) ? sheetData : [];
+            const publishedRows = allRows
+                .filter(row => !isTimeOffRow(row) && (hasTimeValue(row.schedIn) || hasTimeValue(row.schedOut)) && isPublishedSchedule(row))
                 .slice()
                 .sort((a, b) => {
                     const dateCompare = normalizeDate(a.date).localeCompare(normalizeDate(b.date));
@@ -1811,19 +2109,96 @@
                                             const dayKey = normalizeDate(dayObj);
                                             const dayShifts = publishedRows.filter(row => normalizeDate(row.date) === dayKey);
                                             const isToday = dayKey === normalizeDate(new Date());
+                                            const timeOffRow = normalizedHighlightName
+                                                ? getTimeOffRowForEmployeeDate(allRows, normalizedHighlightName, dayKey)
+                                                : null;
+                                            const timeOffMeta = parseTimeOffMetadata(timeOffRow?.reason);
+                                            const personalShift = normalizedHighlightName
+                                                ? dayShifts.find(shift => String(shift.name || '').trim() === normalizedHighlightName)
+                                                : null;
+                                            const canSelectDate = Boolean(
+                                                allowTimeOffRequests &&
+                                                normalizedHighlightName &&
+                                                onSelectDate &&
+                                                (!isPastScheduleDate(dayKey) || timeOffRow)
+                                            );
+                                            const personalCardClass = timeOffRow
+                                                ? (isApprovedTimeOffRow(timeOffRow) ? 'bg-[#fee2e2]' : 'bg-[#fff7ed]')
+                                                : personalShift
+                                                    ? 'bg-[#dbeafe]'
+                                                    : 'bg-[#f8fafc]';
+                                            const personalCardTitle = timeOffRow
+                                                ? getTimeOffStatusLabel(timeOffRow)
+                                                : personalShift
+                                                    ? 'Your shift'
+                                                    : 'Your day';
+                                            const personalCardValue = timeOffRow
+                                                ? getTimeOffRangeLabel(timeOffRow, timeOffMeta)
+                                                : personalShift
+                                                    ? `${personalShift.schedIn} - ${personalShift.schedOut}`
+                                                    : (canSelectDate ? 'Tap the date to request time off.' : 'No shift posted.');
+                                            const dateActionLabel = canSelectDate
+                                                ? (isSubmittingTimeOff ? 'Saving...' : (timeOffRow ? 'View request' : 'Request off'))
+                                                : (isPastScheduleDate(dayKey) ? 'Past date' : 'Schedule only');
 
                                             return (
                                                 <div
                                                     key={dayKey}
                                                     className={`section-card employee-schedule-day-card overflow-hidden ${isToday ? 'bg-[#e0f2fe]' : 'bg-white'}`}
                                                 >
-                                                    <div className={`px-4 py-3 border-b-2 border-black ${isToday ? 'bg-[#38bdf8]' : 'bg-[#f8fafc]'}`}>
-                                                        <div className="card-eyebrow text-[#060606]">
-                                                            {dayObj.toLocaleDateString('en-US', { weekday: 'short' })}
+                                                    {allowTimeOffRequests ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => canSelectDate && onSelectDate(dayKey)}
+                                                            disabled={!canSelectDate}
+                                                            className={`w-full px-4 py-3 border-b-2 border-black text-left ${isToday ? 'bg-[#38bdf8]' : 'bg-[#f8fafc]'} ${canSelectDate ? 'hover:bg-[#dbeafe]' : 'cursor-default'}`}
+                                                        >
+                                                            <div className="flex items-start justify-between gap-3">
+                                                                <div>
+                                                                    <div className="card-eyebrow text-[#060606]">
+                                                                        {dayObj.toLocaleDateString('en-US', { weekday: 'short' })}
+                                                                    </div>
+                                                                    <div className="card-title mt-1">{formatShortDateLabel(dayObj)}</div>
+                                                                </div>
+                                                                <div className="card-meta text-[#060606]/70 text-right">{dateActionLabel}</div>
+                                                            </div>
+                                                        </button>
+                                                    ) : (
+                                                        <div className={`px-4 py-3 border-b-2 border-black ${isToday ? 'bg-[#38bdf8]' : 'bg-[#f8fafc]'}`}>
+                                                            <div className="card-eyebrow text-[#060606]">
+                                                                {dayObj.toLocaleDateString('en-US', { weekday: 'short' })}
+                                                            </div>
+                                                            <div className="card-title mt-1">{formatShortDateLabel(dayObj)}</div>
                                                         </div>
-                                                        <div className="card-title mt-1">{formatShortDateLabel(dayObj)}</div>
-                                                    </div>
+                                                    )}
                                                     <div className="employee-schedule-shifts no-scrollbar p-3 space-y-2">
+                                                        {normalizedHighlightName && (
+                                                            <div className={`schedule-shift-card px-2.5 py-2.5 ${personalCardClass}`}>
+                                                                <div className="flex items-start justify-between gap-2">
+                                                                    <div className="card-title text-sm leading-tight">{personalCardTitle}</div>
+                                                                    {timeOffRow ? (
+                                                                        <span className={`status-chip px-2 py-1 text-[10px] ${isApprovedTimeOffRow(timeOffRow) ? 'bg-[#fecaca]' : 'bg-[#fde68a]'}`}>
+                                                                            {getTimeOffStatusLabel(timeOffRow)}
+                                                                        </span>
+                                                                    ) : personalShift ? (
+                                                                        <span className="status-chip bg-[#e0f2fe] px-2 py-1 text-[10px]">You</span>
+                                                                    ) : null}
+                                                                </div>
+                                                                <div className="card-meta employee-shift-time mt-1.5 text-[#060606]">
+                                                                    {personalCardValue}
+                                                                </div>
+                                                                {timeOffRow && timeOffMeta?.approvedBy && (
+                                                                    <div className="card-meta mt-1">
+                                                                        Approved by {timeOffMeta.approvedBy}
+                                                                    </div>
+                                                                )}
+                                                                {timeOffRow && !timeOffMeta?.approvedBy && timeOffMeta?.requestedAt && (
+                                                                    <div className="card-meta mt-1">
+                                                                        Requested {formatHistoryTimestamp(timeOffMeta.requestedAt)}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                         {dayShifts.length > 0 ? dayShifts.map((shift, index) => {
                                                             const isHighlighted = normalizedHighlightName && String(shift.name || '').trim() === normalizedHighlightName;
                                                             return (
@@ -1856,136 +2231,244 @@
             );
         };
 
-        const TodaySchedulePanel = ({
-            sheetData,
-            title = '',
-            subtitle = '',
+        const EmployeeTimeOffModal = ({
+            employeeName,
+            draft,
+            setDraft,
+            existingRow,
+            onClose,
+            onSubmit,
+            isSubmitting,
         }) => {
-            const todayKey = normalizeDate(new Date());
-            const todayDate = parseLocalDate(todayKey);
-            const todayShifts = (Array.isArray(sheetData) ? sheetData : [])
-                .filter(row =>
-                    normalizeDate(row?.date) === todayKey &&
-                    (hasTimeValue(row?.schedIn) || hasTimeValue(row?.schedOut)) &&
-                    isPublishedSchedule(row)
-                )
-                .slice()
-                .sort((a, b) => {
-                    const timeCompare = (parseClockTimeToMinutes(a.schedIn) || 0) - (parseClockTimeToMinutes(b.schedIn) || 0);
-                    if (timeCompare !== 0) return timeCompare;
-                    return String(a.name || '').localeCompare(String(b.name || ''));
-                });
+            if (!draft) return null;
+
+            const existingMeta = parseTimeOffMetadata(existingRow?.reason);
+            const isApproved = isApprovedTimeOffRow(existingRow);
+            const isPending = isTimeOffRequestRow(existingRow);
+            const formattedRange = formatTimeOffDraftRange(draft);
+            const formattedIn = formatTimeField(draft.schedIn, draft.schedInPeriod);
+            const formattedOut = formatTimeField(draft.schedOut, draft.schedOutPeriod);
+            const hasValidHours = draft.fullDay || Boolean(formattedIn && formattedOut && calculateWorkedMinutes(formattedIn, formattedOut));
+            const isPastDate = isPastScheduleDate(draft.date);
+            const submitDisabled = isSubmitting || isApproved || isPastDate || !hasValidHours;
 
             return (
-                <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
-                    {(title || subtitle) && (
-                        <div className="mb-4 shrink-0">
-                            {title && <h3 className="section-title">{title}</h3>}
-                            {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
+                <div className="editor-modal-backdrop" onClick={onClose}>
+                    <div className="brutal-card editor-modal bg-white p-4 md:p-6" onClick={e => e.stopPropagation()}>
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                            <div>
+                                <div className="card-eyebrow text-[#0284c7]">Employee Schedule</div>
+                                <h4 className="section-title mt-1">Time Off Request</h4>
+                                <p className="section-subtitle mt-1">
+                                    {employeeName} - {formatFullDate(draft.date)}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="brutal-btn bg-white px-4 py-2 text-sm md:text-base flex items-center gap-2 self-start"
+                            >
+                                <i className="fas fa-xmark"></i>
+                                <span>Close</span>
+                            </button>
                         </div>
-                    )}
 
-                    <div className="flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pb-4">
-                        <div className="card-grid today-schedule-card-grid">
-                            {todayShifts.length === 0 ? (
-                                <div className="w-full rounded-2xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
-                                    No published shifts today.
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                            <div className="section-card bg-[#f8fafc] px-4 py-3">
+                                <div className="card-eyebrow">Requested Block</div>
+                                <div className="card-title mt-2">{formattedRange || 'Choose full day or hours'}</div>
+                            </div>
+                            <div className="section-card bg-[#f8fafc] px-4 py-3">
+                                <div className="card-eyebrow">Status</div>
+                                <div className="card-title mt-2">
+                                    {isApproved ? 'Approved' : isPending ? 'Pending approval' : 'Not submitted yet'}
                                 </div>
-                            ) : todayShifts.map((shift, idx) => (
-                                <div
-                                    key={`${todayKey}-${shift.name}-${idx}`}
-                                    className="card-frame card-size-1x1 today-schedule-card flex flex-col rounded-xl border-2 border-black overflow-hidden shadow-[3px_3px_0px_0px_#000000] bg-[#e0f2fe]"
+                                {existingMeta?.approvedBy && (
+                                    <div className="card-meta mt-1">Approved by {existingMeta.approvedBy}</div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="section-card bg-white p-4 mt-4">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                <div>
+                                    <h5 className="card-title">Request Details</h5>
+                                    <p className="section-subtitle mt-1">
+                                        {isApproved
+                                            ? 'This request is already approved. An admin will need to clear it before it can be changed.'
+                                            : 'Choose a full day or enter the specific hours you need blocked out.'}
+                                    </p>
+                                </div>
+                                {existingRow && (
+                                    <div className={`status-chip ${isApproved ? 'bg-[#fecaca]' : 'bg-[#fde68a]'}`}>
+                                        {getTimeOffStatusLabel(existingRow)}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 mt-4">
+                                <button
+                                    type="button"
+                                    disabled={isApproved}
+                                    onClick={() => setDraft(prev => ({ ...prev, fullDay: true }))}
+                                    className={`brutal-btn px-4 py-3 text-sm md:text-base ${draft.fullDay ? 'bg-[#38bdf8]' : 'bg-white hover:bg-gray-50'}`}
                                 >
-                                    <div className="px-3 py-2 border-b-2 border-black flex items-center justify-between gap-2 bg-[#38bdf8] text-[#060606]">
-                                        <div className="card-eyebrow text-[#060606]">
-                                            {todayDate.toLocaleDateString('en-US', { weekday: 'short' })}
-                                        </div>
-                                        <div className="card-title text-sm md:text-base leading-none">{formatShortDateLabel(todayDate)}</div>
-                                    </div>
-                                    <div className="p-2.5 flex-1 flex items-start">
-                                        <div className="rounded-lg border-2 border-black px-2.5 py-2 shadow-[2px_2px_0px_0px_#000000] bg-white w-full h-full flex flex-col justify-center">
-                                            <div className="card-title text-sm leading-tight truncate" title={shift.name}>
-                                                {shift.name}
+                                    Full Day
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={isApproved}
+                                    onClick={() => setDraft(prev => ({ ...prev, fullDay: false }))}
+                                    className={`brutal-btn px-4 py-3 text-sm md:text-base ${!draft.fullDay ? 'bg-[#38bdf8]' : 'bg-white hover:bg-gray-50'}`}
+                                >
+                                    Specific Hours
+                                </button>
+                            </div>
+
+                            {!draft.fullDay && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end mt-4">
+                                    <div>
+                                        <label className="field-label block mb-2">Block Starting</label>
+                                        <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
+                                            <input
+                                                type="text"
+                                                inputMode="numeric"
+                                                placeholder="9:00"
+                                                value={draft.schedIn}
+                                                onChange={e => {
+                                                    const next = normalizeTimeInputWithPeriod(e.target.value, draft.schedInPeriod);
+                                                    setDraft(prev => ({
+                                                        ...prev,
+                                                        schedIn: next.time,
+                                                        schedInPeriod: next.period,
+                                                    }));
+                                                }}
+                                                disabled={isApproved}
+                                                className="w-[5ch] min-w-[5ch] py-3 font-bold text-sm md:text-base bg-transparent outline-none disabled:opacity-50"
+                                                maxLength={5}
+                                            />
+                                            <div className="ml-auto flex shrink-0 items-center gap-2">
+                                                <button type="button" disabled={isApproved} onClick={() => setDraft(prev => ({ ...prev, schedInPeriod: 'AM' }))} className={`text-xs md:text-sm font-bold ${draft.schedInPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
+                                                <button type="button" disabled={isApproved} onClick={() => setDraft(prev => ({ ...prev, schedInPeriod: 'PM' }))} className={`text-xs md:text-sm font-bold ${draft.schedInPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
                                             </div>
-                                            <div className="card-meta mt-1 leading-tight">
-                                                <i className="far fa-clock mr-1 text-[#fb7185]"></i>
-                                                {shift.schedIn} - {shift.schedOut}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="field-label block mb-2">Block Ending</label>
+                                        <div className="w-full border-2 border-black rounded-xl bg-white overflow-hidden flex items-center gap-3 px-3 focus-within:shadow-[4px_4px_0px_0px_#000000] transition-shadow">
+                                            <input
+                                                type="text"
+                                                inputMode="numeric"
+                                                placeholder="5:00"
+                                                value={draft.schedOut}
+                                                onChange={e => {
+                                                    const next = normalizeTimeInputWithPeriod(e.target.value, draft.schedOutPeriod);
+                                                    setDraft(prev => ({
+                                                        ...prev,
+                                                        schedOut: next.time,
+                                                        schedOutPeriod: next.period,
+                                                    }));
+                                                }}
+                                                disabled={isApproved}
+                                                className="w-[5ch] min-w-[5ch] py-3 font-bold text-sm md:text-base bg-transparent outline-none disabled:opacity-50"
+                                                maxLength={5}
+                                            />
+                                            <div className="ml-auto flex shrink-0 items-center gap-2">
+                                                <button type="button" disabled={isApproved} onClick={() => setDraft(prev => ({ ...prev, schedOutPeriod: 'AM' }))} className={`text-xs md:text-sm font-bold ${draft.schedOutPeriod === 'AM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>AM</button>
+                                                <button type="button" disabled={isApproved} onClick={() => setDraft(prev => ({ ...prev, schedOutPeriod: 'PM' }))} className={`text-xs md:text-sm font-bold ${draft.schedOutPeriod === 'PM' ? 'text-[#060606]' : 'text-gray-400 hover:text-gray-500'}`}>PM</button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            ))}
+                            )}
+
+                            {isPastDate && (
+                                <p className="section-subtitle mt-3 text-[#e11d48]">
+                                    Past dates can’t be requested from this screen.
+                                </p>
+                            )}
+                            {!draft.fullDay && !hasValidHours && !isApproved && (
+                                <p className="section-subtitle mt-3 text-[#e11d48]">
+                                    Enter a valid start and end time to request a partial-day block.
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="mt-4 flex flex-col md:flex-row gap-3 md:justify-end">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="brutal-btn bg-white px-4 py-3 text-sm md:text-base"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={onSubmit}
+                                disabled={submitDisabled}
+                                className="brutal-btn bg-[#4ade80] hover:bg-[#22c55e] px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2"
+                            >
+                                <i className={`fas ${isSubmitting ? 'fa-circle-notch spinner' : 'fa-paper-plane'}`}></i>
+                                <span>
+                                    {isSubmitting
+                                        ? 'Sending...'
+                                        : isPending
+                                            ? 'Update Request'
+                                            : 'Submit Request'}
+                                </span>
+                            </button>
                         </div>
                     </div>
                 </div>
             );
         };
 
-        const InventorySnapshotPanel = ({
-            inventoryRows,
-            title = 'Inventory',
+        const TodaySchedulePanel = ({
+            sheetData,
+            title = "Today's Schedule",
             subtitle = '',
         }) => {
-            const openRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
+            const todayKey = normalizeDate(new Date());
+            const todayDate = parseLocalDate(todayKey);
+            const todayShifts = getTodayPublishedShifts(sheetData);
+            const scheduleSubtitle = subtitle || `Published shifts for ${formatFullDate(todayDate)}.`;
 
             return (
                 <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 shrink-0">
+                    <div className="flex items-start justify-between gap-3 mb-3 shrink-0">
                         <div>
-                            <div className="card-eyebrow text-[#f97316]">Inventory Snapshot</div>
+                            <div className="card-eyebrow text-[#0284c7]">Today</div>
                             <h3 className="section-title mt-1">{title}</h3>
-                            {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
+                            <p className="section-subtitle mt-1">{scheduleSubtitle}</p>
                         </div>
-                        <div className="status-chip bg-[#fef3c7] self-start md:self-auto">
-                            {openRows.length} open
+                        <div className="status-chip bg-[#e0f2fe] self-start">
+                            {todayShifts.length} {todayShifts.length === 1 ? 'shift' : 'shifts'}
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pb-4">
-                        {openRows.length === 0 ? (
-                            <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
-                                No open inventory tasks right now.
+                    <div className="message-thread-scroll no-scrollbar shadow-safe-2">
+                        {todayShifts.length === 0 ? (
+                            <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
+                                No published shifts today.
                             </div>
                         ) : (
-                            <div className="card-grid inventory-snapshot-card-grid">
-                                {openRows.map(row => (
-                                    <div key={row.rowNumber} className="card-frame card-size-1x1 inventory-summary-card rounded-xl border-2 border-black bg-white p-3 shadow-[3px_3px_0px_0px_#000000] flex flex-col">
-                                        <div>
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="text-[9px] uppercase font-bold text-gray-500">SKU</div>
-                                                <div className="inventory-status-chip shrink-0 rounded-full border-2 border-black bg-[#fef3c7] font-bold uppercase text-center text-[#060606]">
-                                                    {row.status}
-                                                </div>
+                            <div className="space-y-2.5">
+                                {todayShifts.map((shift, idx) => (
+                                    <div
+                                        key={`${todayKey}-${shift.name}-${idx}`}
+                                        className="public-summary-row flex items-center justify-between gap-3"
+                                    >
+                                        <div className="min-w-0">
+                                            <div className="card-title text-sm leading-tight truncate" title={shift.name}>
+                                                {shift.name}
                                             </div>
-                                            <div className="inventory-card-sku mt-1" title={getInventorySkuText(row)}>
-                                                {getInventorySkuText(row)}
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-2.5">
-                                            <div className="text-[9px] uppercase font-bold text-gray-500">Name</div>
-                                            <div className="font-bold font-poppins text-[#060606] text-xs leading-tight mt-1 break-words">
-                                                {getInventoryNameText(row)}
+                                            <div className="card-meta mt-1">
+                                                {todayDate.toLocaleDateString('en-US', { weekday: 'long' })}
                                             </div>
                                         </div>
-
-                                        <div className="mt-3.5 flex flex-col gap-2.5">
-                                            <div className="rounded-lg border-2 border-black bg-[#f0fdf4] px-2.5 py-2">
-                                                <div className="text-[9px] uppercase font-bold text-gray-500">Still Needed</div>
-                                                <div className="text-sm font-bold font-poppins text-[#060606]">{row.stillNeeded}</div>
-                                            </div>
-                                            <div className="rounded-lg border-2 border-black bg-[#ecfccb] px-2.5 py-2">
-                                                <div className="text-[9px] uppercase font-bold text-gray-500">In Process</div>
-                                                <div className="text-sm font-bold font-poppins text-[#060606]">{row.inProcess}</div>
-                                            </div>
-                                            <div className="rounded-lg border-2 border-black bg-[#fff7ed] px-2.5 py-2">
-                                                <div className="text-[9px] uppercase font-bold text-gray-500">Awaiting</div>
-                                                <div className="text-sm font-bold font-poppins text-[#060606]">{row.awaitingApproval}</div>
-                                            </div>
-                                        </div>
-
-                                        <div className="text-[9px] font-bold text-gray-500 uppercase tracking-wide mt-auto pt-3">
-                                            Updated {formatInventoryTimestamp(row.lastUpdated)}
+                                        <div className="message-role-pill bg-[#e0f2fe] shrink-0">
+                                            {shift.schedIn} - {shift.schedOut}
                                         </div>
                                     </div>
                                 ))}
@@ -1996,7 +2479,218 @@
             );
         };
 
-        const PublicOverviewPanel = ({ sheetData, inventoryRows }) => {
+        const InventorySnapshotPanel = ({
+            inventoryRows,
+            title = 'Inventory Snapshot',
+            subtitle = '',
+        }) => {
+            const { openRows, totals } = buildInventorySnapshotSummary(inventoryRows);
+            const previewRows = openRows.slice(0, 4);
+            const inventorySubtitle = subtitle || 'Active needs grouped into one quick summary.';
+
+            return (
+                <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 shrink-0">
+                        <div>
+                            <div className="card-eyebrow text-[#f97316]">Inventory Snapshot</div>
+                            <h3 className="section-title mt-1">{title}</h3>
+                            <p className="section-subtitle mt-1">{inventorySubtitle}</p>
+                        </div>
+                        <div className="status-chip bg-[#fef3c7] self-start md:self-auto">
+                            {openRows.length} open
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2.5 mb-3 shrink-0">
+                        <div className="public-summary-row bg-[#f0fdf4]">
+                            <div className="text-[9px] uppercase font-bold text-gray-500">Still Needed</div>
+                            <div className="font-bold font-poppins text-lg text-[#060606] mt-1">{totals.stillNeeded}</div>
+                        </div>
+                        <div className="public-summary-row bg-[#ecfccb]">
+                            <div className="text-[9px] uppercase font-bold text-gray-500">In Process</div>
+                            <div className="font-bold font-poppins text-lg text-[#060606] mt-1">{totals.inProcess}</div>
+                        </div>
+                        <div className="public-summary-row bg-[#fff7ed]">
+                            <div className="text-[9px] uppercase font-bold text-gray-500">Awaiting</div>
+                            <div className="font-bold font-poppins text-lg text-[#060606] mt-1">{totals.awaitingApproval}</div>
+                        </div>
+                    </div>
+
+                    <div className="message-thread-scroll no-scrollbar shadow-safe-2">
+                        {openRows.length === 0 ? (
+                            <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
+                                No open inventory tasks right now.
+                            </div>
+                        ) : (
+                            <div className="space-y-2.5">
+                                {previewRows.map(row => (
+                                    <div key={row.rowNumber} className="public-summary-row flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <div className="inventory-card-sku" title={getInventorySkuText(row)}>
+                                                {getInventorySkuText(row)}
+                                            </div>
+                                            <div className="font-bold font-poppins text-[#060606] text-sm leading-tight mt-1 break-words">
+                                                {getInventoryNameText(row)}
+                                            </div>
+                                            <div className="card-meta mt-2">
+                                                Updated {formatInventoryTimestamp(row.lastUpdated)}
+                                            </div>
+                                        </div>
+                                        <div className="inventory-status-chip shrink-0 rounded-full border-2 border-black bg-[#fef3c7] font-bold uppercase text-center text-[#060606]">
+                                            {row.status}
+                                        </div>
+                                    </div>
+                                ))}
+                                {openRows.length > previewRows.length && (
+                                    <div className="card-meta px-1">
+                                        +{openRows.length - previewRows.length} more open item{openRows.length - previewRows.length === 1 ? '' : 's'} on the full board.
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const MessageBoardPanel = ({
+            messages,
+            title = 'Messages',
+            eyebrow = 'Message Board',
+            subtitle = '',
+            viewerName = '',
+            draft = '',
+            onDraftChange,
+            onSend,
+            onRefresh,
+            canCompose = false,
+            isFetching = false,
+            isSubmitting = false,
+            readOnly = false,
+        }) => {
+            const threadEndRef = useRef(null);
+            const normalizedViewerName = String(viewerName || '').trim().toLowerCase();
+            const safeMessages = Array.isArray(messages) ? messages : [];
+            const trimmedDraft = normalizeMessageText(draft);
+
+            useEffect(() => {
+                if (threadEndRef.current) {
+                    threadEndRef.current.scrollIntoView({ block: 'end' });
+                }
+            }, [safeMessages.length]);
+
+            return (
+                <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0">
+                        <div>
+                            <div className="card-eyebrow text-[#ec4899]">{eyebrow}</div>
+                            <h3 className="section-title mt-1">{title}</h3>
+                            {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
+                        </div>
+                        <div className="flex items-center gap-2 self-start">
+                            <div className="status-chip bg-[#fce7f3]">
+                                {safeMessages.length} {safeMessages.length === 1 ? 'note' : 'notes'}
+                            </div>
+                            {!readOnly && onRefresh && (
+                                <button
+                                    type="button"
+                                    onClick={onRefresh}
+                                    disabled={isFetching || isSubmitting}
+                                    className="brutal-btn bg-white px-3 py-2 text-xs md:text-sm flex items-center justify-center gap-2"
+                                >
+                                    <i className={`fas ${isFetching ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#ec4899]`}></i>
+                                    <span>{isFetching ? 'Refreshing...' : 'Refresh'}</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="message-thread-scroll no-scrollbar shadow-safe-2 pb-2">
+                        {safeMessages.length === 0 ? (
+                            <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
+                                No notes yet.
+                            </div>
+                        ) : (
+                            <div className="message-thread">
+                                {safeMessages.map((message, index) => {
+                                    const senderName = String(message?.senderName || '').trim() || 'Unknown';
+                                    const senderRole = normalizeMessageRole(message?.senderRole);
+                                    const normalizedSenderName = senderName.toLowerCase();
+                                    const isOwnMessage = Boolean(normalizedViewerName) && normalizedSenderName === normalizedViewerName;
+                                    const alignRight = isOwnMessage || (!normalizedViewerName && senderRole === 'admin');
+                                    const bubbleTone = isOwnMessage
+                                        ? 'message-bubble-own'
+                                        : senderRole === 'admin'
+                                            ? 'message-bubble-admin'
+                                            : 'message-bubble-staff';
+
+                                    return (
+                                        <div
+                                            key={`${message?.rowNumber || 'msg'}-${index}`}
+                                            className={`message-row ${alignRight ? 'message-row-right' : 'message-row-left'}`}
+                                        >
+                                            <div className={`message-bubble ${bubbleTone}`}>
+                                                <div className="flex items-center justify-between gap-3 mb-2">
+                                                    <div className="message-author">{senderName}</div>
+                                                    <div className="message-role-pill">
+                                                        {senderRole === 'admin' ? 'Admin' : 'Employee'}
+                                                    </div>
+                                                </div>
+                                                <div className="message-text">{message?.message || ''}</div>
+                                                <div className="card-meta mt-3">
+                                                    {formatMessageTimestamp(message?.timestamp, message?.isoTimestamp)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                <div ref={threadEndRef}></div>
+                            </div>
+                        )}
+                    </div>
+
+                    {!readOnly && canCompose && (
+                        <div className="mt-3 pt-3 border-t-2 border-black/10 shrink-0">
+                            <label className="field-label block mb-2">Leave A Note</label>
+                            <textarea
+                                value={draft}
+                                onChange={e => onDraftChange?.(String(e.target.value || '').slice(0, MESSAGE_MAX_LENGTH))}
+                                onKeyDown={e => {
+                                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && trimmedDraft && !isSubmitting) {
+                                        e.preventDefault();
+                                        onSend?.();
+                                    }
+                                }}
+                                rows={4}
+                                maxLength={MESSAGE_MAX_LENGTH}
+                                placeholder="Share a note about time off, inventory, supplies, or anything the admin team should see."
+                                className="brutal-input w-full px-4 py-3 text-sm md:text-base resize-none"
+                            />
+                            <div className="mt-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                <div className="card-meta">
+                                    {trimmedDraft.length}/{MESSAGE_MAX_LENGTH} characters. Press Ctrl+Enter to send.
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={onSend}
+                                    disabled={isSubmitting || !trimmedDraft}
+                                    className="brutal-btn bg-[#f9a8d4] hover:bg-[#f472b6] px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2"
+                                >
+                                    <i className={`fas ${isSubmitting ? 'fa-circle-notch spinner' : 'fa-paper-plane'}`}></i>
+                                    <span>{isSubmitting ? 'Sending...' : 'Send Note'}</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const PublicOverviewPanel = ({ sheetData, inventoryRows, messages }) => {
+            const todayShiftCount = getTodayPublishedShifts(sheetData).length;
+            const openInventoryCount = buildInventorySnapshotSummary(inventoryRows).openRows.length;
+            const noteCount = Array.isArray(messages) ? messages.length : 0;
+
             return (
                 <div className="flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="mb-4 md:mb-6 shrink-0">
@@ -2004,15 +2698,51 @@
                         <h2 className="page-title mt-1">Today at a Glance</h2>
                     </div>
 
-                    <div className="flex flex-col gap-4 min-h-0 flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pt-1 pb-4 pr-2">
-                        <div className="rounded-2xl border-2 border-black bg-[#f8fafc] p-3 md:p-4 shadow-[4px_4px_0px_0px_#000000] min-h-[190px] overflow-visible">
-                            <TodaySchedulePanel sheetData={sheetData} />
-                        </div>
-                        <div className="rounded-2xl border-2 border-black bg-[#fff7ed] p-3 md:p-4 shadow-[4px_4px_0px_0px_#000000] min-h-[460px] overflow-visible">
+                    <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pt-1 pb-4 pr-2">
+                        <div className="card-grid public-overview-grid">
+                            <div className="section-card card-frame card-size-2x1 public-overview-card bg-[#f8fafc] p-3 md:p-4">
+                                <TodaySchedulePanel sheetData={sheetData} />
+                            </div>
+                            <div className="section-card card-frame card-size-1x2 public-overview-card bg-[#fff7ed] p-3 md:p-4">
                             <InventorySnapshotPanel
                                 inventoryRows={inventoryRows}
-                                title="Inventory"
-                            />
+                                    title="Inventory Snapshot"
+                                />
+                            </div>
+                            <div className="section-card card-frame card-size-2x2 public-overview-card bg-[#fdf2f8] p-3 md:p-4">
+                                <MessageBoardPanel
+                                    messages={messages}
+                                    eyebrow="Team Notes"
+                                    title="Messages"
+                                    subtitle="Read-only view of the shared staff notes board."
+                                    readOnly={true}
+                                />
+                            </div>
+                            <div className="section-card card-frame card-size-1x1 public-overview-card bg-[#ecfeff] p-3 md:p-4">
+                                <div className="section-width flex flex-col h-full justify-between animate-fade-in">
+                                    <div>
+                                        <div className="card-eyebrow text-[#0891b2]">Live Snapshot</div>
+                                        <h3 className="section-title mt-1">Operations</h3>
+                                        <p className="section-subtitle mt-1">
+                                            One glance at the team, open inventory, and the latest notes before anyone logs in.
+                                        </p>
+                                    </div>
+                                    <div className="space-y-2.5 mt-4">
+                                        <div className="public-summary-row bg-white">
+                                            <div className="text-[9px] uppercase font-bold text-gray-500">Published Shifts Today</div>
+                                            <div className="font-bold font-poppins text-xl text-[#060606] mt-1">{todayShiftCount}</div>
+                                        </div>
+                                        <div className="public-summary-row bg-white">
+                                            <div className="text-[9px] uppercase font-bold text-gray-500">Open Inventory Rows</div>
+                                            <div className="font-bold font-poppins text-xl text-[#060606] mt-1">{openInventoryCount}</div>
+                                        </div>
+                                        <div className="public-summary-row bg-white">
+                                            <div className="text-[9px] uppercase font-bold text-gray-500">Shared Notes</div>
+                                            <div className="font-bold font-poppins text-xl text-[#060606] mt-1">{noteCount}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2668,6 +3398,7 @@
         const AdminScheduleWorkspace = ({
             adminUser,
             employees,
+            sheetData,
             weekStart,
             onPrevWeek,
             onNextWeek,
@@ -2687,7 +3418,10 @@
             dirtyCount,
             isRefreshing,
             isSubmitting,
+            isSubmittingTimeOff,
             isSavingTemplates,
+            onApproveTimeOff,
+            onClearTimeOff,
             onSignOut,
         }) => {
             const [weekJumpValue, setWeekJumpValue] = useState('');
@@ -2708,6 +3442,11 @@
 
             const selectedDraft = selectedCell ? getCellDraft(selectedCell.name, selectedCell.date) : null;
             const isSelectingDayEmployee = Boolean(selectedDraft && !String(selectedDraft.name || '').trim());
+            const selectedTimeOffRow = selectedCell && String(selectedCell.name || '').trim()
+                ? getTimeOffRowForEmployeeDate(sheetData, selectedCell.name, selectedCell.date)
+                : null;
+            const selectedTimeOffMeta = parseTimeOffMetadata(selectedTimeOffRow?.reason);
+            const isReviewingTimeOff = Boolean(selectedTimeOffRow && !isSelectingDayEmployee);
 
             useEffect(() => {
                 const selectedName = String(selectedCell?.name || '').trim();
@@ -2740,11 +3479,13 @@
                 : null;
             const canSaveEditorDraft = Boolean(
                 activeSelectedDraft
+                && !isReviewingTimeOff
                 && !isSelectingDayEmployee
                 && (activeSelectedDraft.clearSchedule || (selectedFormattedIn && selectedFormattedOut))
             );
             const canSaveTemplate = Boolean(
                 activeSelectedDraft
+                && !isReviewingTimeOff
                 && !isSelectingDayEmployee
                 && !activeSelectedDraft.clearSchedule
                 && selectedFormattedIn
@@ -2778,7 +3519,7 @@
             };
 
             const applyTemplateToEditorDraft = (template) => {
-                if (!template || isSelectingDayEmployee) return;
+                if (!template || isSelectingDayEmployee || isReviewingTimeOff) return;
 
                 updateEditorDraft(currentDraft => {
                     if (template.clearSchedule) {
@@ -2806,7 +3547,7 @@
             };
 
             const handleSaveShift = () => {
-                if (!canSaveEditorDraft || !activeSelectedDraft || isSelectingDayEmployee) return;
+                if (!canSaveEditorDraft || !activeSelectedDraft || isSelectingDayEmployee || isReviewingTimeOff) return;
 
                 updateCellDraft(activeSelectedDraft.name, activeSelectedDraft.date, {
                     schedIn: activeSelectedDraft.clearSchedule ? '' : activeSelectedDraft.schedIn,
@@ -2825,6 +3566,8 @@
             };
             const getWeekGridCellState = (employeeName, dayKey) => {
                 const draft = getCellDraft(employeeName, dayKey);
+                const timeOffRow = getTimeOffRowForEmployeeDate(sheetData, employeeName, dayKey);
+                const timeOffMeta = parseTimeOffMetadata(timeOffRow?.reason);
                 const cellFormattedIn = draft.clearSchedule ? '' : formatTimeField(draft.schedIn, draft.schedInPeriod);
                 const cellFormattedOut = draft.clearSchedule ? '' : formatTimeField(draft.schedOut, draft.schedOutPeriod);
                 const cellMinutes = draft.clearSchedule ? null : calculateWorkedMinutes(cellFormattedIn, cellFormattedOut);
@@ -2843,6 +3586,8 @@
 
                 return {
                     draft,
+                    timeOffRow,
+                    timeOffMeta,
                     cellFormattedIn,
                     cellFormattedOut,
                     cellMinutes,
@@ -2929,15 +3674,23 @@
                                 <div className="card-eyebrow text-[#0284c7]">Weekly Schedule</div>
                                 <h4 className="section-title mt-1">Week Board</h4>
                                 <p className="section-subtitle mt-1">
-                                    Click a date to add shifts or a scheduled card to edit.
+                                    Click a date to add shifts, or open a card to edit shifts and time-off requests.
                                 </p>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 {selectedDraft ? (
-                                    <div className={`status-chip ${selectedDraft.sourceRow ? 'bg-[#bae6fd]' : 'bg-[#fde68a]'}`}>
+                                    <div className={`status-chip ${
+                                        isSelectingDayEmployee
+                                            ? 'bg-[#fde68a]'
+                                            : selectedTimeOffRow
+                                                ? (isApprovedTimeOffRow(selectedTimeOffRow) ? 'bg-[#fecaca]' : 'bg-[#fde68a]')
+                                                : (selectedDraft.sourceRow ? 'bg-[#bae6fd]' : 'bg-[#fde68a]')
+                                    }`}>
                                         {isSelectingDayEmployee
                                             ? `Choose employee - ${formatMonthDayDate(selectedDraft.date)}`
-                                            : `${selectedDraft.name} - ${formatMonthDayDate(selectedDraft.date)}`}
+                                            : selectedTimeOffRow
+                                                ? `${selectedDraft.name} - ${getTimeOffStatusLabel(selectedTimeOffRow)}`
+                                                : `${selectedDraft.name} - ${formatMonthDayDate(selectedDraft.date)}`}
                                     </div>
                                 ) : (
                                     <div className="status-chip bg-[#fff7ed]">Click a date to add shifts</div>
@@ -2963,7 +3716,7 @@
                                                 employee: emp,
                                                 ...getWeekGridCellState(emp.name, dayKey),
                                             }))
-                                            .filter(entry => entry.hasAssignedShift || entry.draft.clearSchedule || entry.isSelected);
+                                            .filter(entry => entry.timeOffRow || entry.hasAssignedShift || entry.draft.clearSchedule || entry.isSelected);
 
                                         return (
                                             <div key={dayKey} className={`section-card card-frame card-size-1x2 schedule-day-card overflow-hidden bg-white ${isToday ? 'ring-4 ring-[#bae6fd]' : ''}`}>
@@ -2977,35 +3730,59 @@
                                                 </button>
 
                                                 <div className="schedule-day-scroll no-scrollbar p-3 space-y-2">
-                                                    {dayEntries.map(({ employee, draft, cellFormattedIn, cellFormattedOut, cellMinutes, hasAssignedShift, cellStateClass, isSelected }, index) => {
-                                                        const surfaceClass = draft.clearSchedule ? 'bg-[#fee2e2]' : isSelected ? 'bg-[#dbeafe]' : cellStateClass;
+                                                    {dayEntries.map(({ employee, draft, timeOffRow, timeOffMeta, cellFormattedIn, cellFormattedOut, cellMinutes, hasAssignedShift, cellStateClass, isSelected }, index) => {
+                                                        const isTimeOffApproved = isApprovedTimeOffRow(timeOffRow);
+                                                        const surfaceClass = timeOffRow
+                                                            ? (isTimeOffApproved ? 'bg-[#fee2e2]' : 'bg-[#fff7ed]')
+                                                            : draft.clearSchedule
+                                                                ? 'bg-[#fee2e2]'
+                                                                : isSelected
+                                                                    ? 'bg-[#dbeafe]'
+                                                                    : cellStateClass;
+                                                        const outlineClass = isSelected ? 'ring-2 ring-[#0284c7]' : '';
 
                                                         return (
                                                             <button
                                                                 key={`${dayKey}-${employee.id}-${index}`}
                                                                 type="button"
                                                                 onClick={() => onSelectCell(employee.name, dayKey)}
-                                                                className={`schedule-shift-card w-full px-3 py-3 text-left transition-colors ${surfaceClass}`}
+                                                                className={`schedule-shift-card w-full px-3 py-3 text-left transition-colors ${surfaceClass} ${outlineClass}`}
                                                             >
                                                                 <div className="flex items-start justify-between gap-3">
                                                                     <div className="min-w-0">
                                                                         <div className="card-title text-sm truncate">{employee.name}</div>
                                                                         <div className="card-meta mt-1 truncate">{employee.department || 'Team'}</div>
                                                                     </div>
-                                                                    {(draft.clearSchedule || isSelected) && (
+                                                                    {(timeOffRow || draft.clearSchedule || isSelected) && (
                                                                         <div className="card-eyebrow text-gray-500">
-                                                                            {draft.clearSchedule ? 'Clearing' : 'Editing'}
+                                                                            {timeOffRow
+                                                                                ? (isTimeOffApproved ? 'Blocked' : 'Request')
+                                                                                : (draft.clearSchedule ? 'Clearing' : 'Editing')}
                                                                         </div>
                                                                     )}
                                                                 </div>
 
-                                                                {draft.clearSchedule ? (
+                                                                {timeOffRow ? (
+                                                                    <>
+                                                                        <div className="card-meta text-[#060606] mt-3">
+                                                                            {getTimeOffRangeLabel(timeOffRow, timeOffMeta)}
+                                                                        </div>
+                                                                        <div className="card-meta mt-1">
+                                                                            {isTimeOffApproved ? 'Approved block on the schedule' : 'Awaiting admin approval'}
+                                                                        </div>
+                                                                        {hasAssignedShift && (
+                                                                            <div className="card-meta mt-1 text-gray-500">
+                                                                                Current shift: {cellFormattedIn} - {cellFormattedOut}
+                                                                            </div>
+                                                                        )}
+                                                                    </>
+                                                                ) : draft.clearSchedule ? (
                                                                     <div className="card-meta text-[#060606] mt-3">Schedule will be removed</div>
                                                                 ) : hasAssignedShift ? (
                                                                     <div className="card-meta text-[#060606] mt-3">{cellFormattedIn} - {cellFormattedOut}</div>
                                                                 ) : null}
 
-                                                                {(draft.clearSchedule || hasAssignedShift) && (
+                                                                {!timeOffRow && (draft.clearSchedule || hasAssignedShift) && (
                                                                     <div className="card-meta mt-1">
                                                                         {draft.clearSchedule ? 'Removal staged' : formatWorkedDurationForDisplay(cellMinutes)}
                                                                     </div>
@@ -3027,10 +3804,14 @@
                             <div className="brutal-card editor-modal bg-white p-4 md:p-6" onClick={e => e.stopPropagation()}>
                                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                                     <div>
-                                        <div className="card-eyebrow text-[#0284c7]">{isSelectingDayEmployee ? 'Choose Employee' : 'Schedule Editor'}</div>
+                                        <div className="card-eyebrow text-[#0284c7]">
+                                            {isSelectingDayEmployee ? 'Choose Employee' : (isReviewingTimeOff ? 'Time-Off Review' : 'Schedule Editor')}
+                                        </div>
                                         <h4 className="section-title mt-1">{isSelectingDayEmployee ? formatFullDate(selectedDraft.date) : selectedDraft.name}</h4>
                                         <p className="section-subtitle mt-1">
-                                            {isSelectingDayEmployee ? 'Choose who you want to schedule for this day.' : formatFullDate(selectedDraft.date)}
+                                            {isSelectingDayEmployee
+                                                ? 'Choose who you want to schedule for this day.'
+                                                : formatFullDate(selectedDraft.date)}
                                         </p>
                                     </div>
                                     <button
@@ -3056,20 +3837,27 @@
                                         <div className="card-grid mt-4">
                                             {sortedEmployees.map(employee => {
                                                 const employeeState = getWeekGridCellState(employee.name, selectedDraft.date);
-                                                const alreadyScheduled = employeeState.hasAssignedShift || employeeState.draft.clearSchedule;
+                                                const alreadyScheduled = employeeState.timeOffRow || employeeState.hasAssignedShift || employeeState.draft.clearSchedule;
+                                                const selectionCardClass = employeeState.timeOffRow
+                                                    ? (isApprovedTimeOffRow(employeeState.timeOffRow) ? 'bg-[#fee2e2]' : 'bg-[#fff7ed]')
+                                                    : alreadyScheduled
+                                                        ? 'bg-[#dbeafe]'
+                                                        : 'bg-white hover:bg-[#f8fafc]';
                                                 return (
                                                     <button
                                                         key={`${selectedDraft.date}-${employee.id}`}
                                                         type="button"
                                                         onClick={() => onSelectCell(employee.name, selectedDraft.date)}
-                                                        className={`brutal-btn card-frame card-size-1x1 p-3 text-left flex flex-col justify-between ${alreadyScheduled ? 'bg-[#dbeafe]' : 'bg-white hover:bg-[#f8fafc]'}`}
+                                                        className={`brutal-btn card-frame card-size-1x1 p-3 text-left flex flex-col justify-between ${selectionCardClass}`}
                                                     >
                                                         <div>
                                                             <div className="card-title text-sm">{employee.name}</div>
                                                             <div className="card-meta mt-1">{employee.department || 'Team'}</div>
                                                         </div>
                                                         <div className="card-meta mt-3 text-[#060606]">
-                                                            {employeeState.hasAssignedShift
+                                                            {employeeState.timeOffRow
+                                                                ? `${getTimeOffStatusLabel(employeeState.timeOffRow)} - ${getTimeOffRangeLabel(employeeState.timeOffRow, employeeState.timeOffMeta)}`
+                                                                : employeeState.hasAssignedShift
                                                                 ? `${employeeState.cellFormattedIn} - ${employeeState.cellFormattedOut}`
                                                                 : (employeeState.draft.clearSchedule ? 'Clearing on save' : 'Add shift')}
                                                         </div>
@@ -3078,6 +3866,75 @@
                                             })}
                                         </div>
                                     </div>
+                                ) : isReviewingTimeOff ? (
+                                    <>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                                            <div className="section-card bg-[#f8fafc] px-4 py-3">
+                                                <div className="card-eyebrow">Requested Block</div>
+                                                <div className="card-title mt-2">{getTimeOffRangeLabel(selectedTimeOffRow, selectedTimeOffMeta)}</div>
+                                            </div>
+                                            <div className="section-card bg-[#f8fafc] px-4 py-3">
+                                                <div className="card-eyebrow">Status</div>
+                                                <div className="card-title mt-2">
+                                                    {isApprovedTimeOffRow(selectedTimeOffRow) ? 'Approved block' : 'Awaiting approval'}
+                                                </div>
+                                                {selectedTimeOffMeta?.approvedBy ? (
+                                                    <div className="card-meta mt-1">Approved by {selectedTimeOffMeta.approvedBy}</div>
+                                                ) : selectedTimeOffMeta?.requestedAt ? (
+                                                    <div className="card-meta mt-1">Requested {formatHistoryTimestamp(selectedTimeOffMeta.requestedAt)}</div>
+                                                ) : null}
+                                            </div>
+                                        </div>
+
+                                        {(selectedFormattedIn && selectedFormattedOut) && (
+                                            <div className="section-card bg-[#eff6ff] p-4 mt-4">
+                                                <div className="card-title">Existing Scheduled Shift</div>
+                                                <p className="section-subtitle mt-1">
+                                                    This shift is still on the board until you approve the request or remove the block.
+                                                </p>
+                                                <div className="card-title mt-3">{selectedFormattedIn} - {selectedFormattedOut}</div>
+                                            </div>
+                                        )}
+
+                                        <div className="section-card bg-white p-4 mt-4">
+                                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                                <div>
+                                                    <h5 className="card-title">{isApprovedTimeOffRow(selectedTimeOffRow) ? 'Approved Time Off' : 'Time-Off Request'}</h5>
+                                                    <p className="section-subtitle mt-1">
+                                                        {isApprovedTimeOffRow(selectedTimeOffRow)
+                                                            ? 'This employee is currently blocked on the schedule for this day.'
+                                                            : 'Approve this request to block the day for the employee.'}
+                                                    </p>
+                                                </div>
+                                                <div className={`status-chip ${isApprovedTimeOffRow(selectedTimeOffRow) ? 'bg-[#fecaca]' : 'bg-[#fde68a]'}`}>
+                                                    {getTimeOffStatusLabel(selectedTimeOffRow)}
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-4 flex flex-col md:flex-row gap-3 md:justify-end">
+                                                {!isApprovedTimeOffRow(selectedTimeOffRow) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onApproveTimeOff && onApproveTimeOff(selectedTimeOffRow)}
+                                                        disabled={isSubmittingTimeOff}
+                                                        className="brutal-btn bg-[#4ade80] hover:bg-[#22c55e] px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2"
+                                                    >
+                                                        <i className={`fas ${isSubmittingTimeOff ? 'fa-circle-notch spinner' : 'fa-check'}`}></i>
+                                                        <span>{isSubmittingTimeOff ? 'Saving...' : 'Approve Request'}</span>
+                                                    </button>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onClearTimeOff && onClearTimeOff(selectedTimeOffRow)}
+                                                    disabled={isSubmittingTimeOff}
+                                                    className="brutal-btn bg-white px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2"
+                                                >
+                                                    <i className="fas fa-trash-can text-[#f43f5e]"></i>
+                                                    <span>{isApprovedTimeOffRow(selectedTimeOffRow) ? 'Remove Block' : 'Clear Request'}</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </>
                                 ) : (
                                     <>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
@@ -3264,7 +4121,7 @@
 
         function App() {
             // Updated API URL to your current endpoint
-            const scriptUrl = "https://script.google.com/macros/s/AKfycbzPAIaXEZZPamrYn24IAZBr4C2GPf0hcWvxCXUMU_diUPBlGKn0mZsOJM7O8AaeFOAK/exec";
+            const scriptUrl = "https://script.google.com/macros/s/AKfycbzKABOopu4uyWkJEzyYbDpe8ydz--I9USoJE_Vytf2KAxrsyV7D_4J_tBm2VHahSJjb-w/exec";
             const employeeFetchErrorMessage = "Could not load employees. Please check the Google Sheet setup.";
 
             const [currentTime, setCurrentTime] = useState(new Date());
@@ -3281,6 +4138,7 @@
                 oldReason: '',
                 newReason: ''
             });
+            const [employeeTimeOffDraft, setEmployeeTimeOffDraft] = useState(null);
             const [directoryMode, setDirectoryMode] = useState('employee');
             const [adminUser, setAdminUser] = useState(null);
             const [adminWeekStart, setAdminWeekStart] = useState(getWeekStartDate(new Date()));
@@ -3299,17 +4157,22 @@
             const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
             const [isFetchingLogs, setIsFetchingLogs] = useState(false);
             const [isFetchingInventory, setIsFetchingInventory] = useState(false);
+            const [isFetchingMessages, setIsFetchingMessages] = useState(false);
             const [isSubmittingAction, setIsSubmittingAction] = useState(false);
             const [isSubmittingInventory, setIsSubmittingInventory] = useState(false);
             const [isSubmittingAdminSchedule, setIsSubmittingAdminSchedule] = useState(false);
             const [isSavingShiftTemplates, setIsSavingShiftTemplates] = useState(false);
             const [isSubmittingPayroll, setIsSubmittingPayroll] = useState(false);
+            const [isSubmittingTimeOff, setIsSubmittingTimeOff] = useState(false);
+            const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
             const [fetchError, setFetchError] = useState(null);
 
             // Dynamic Data State
             const [employees, setEmployees] = useState([]);
             const [sheetData, setSheetData] = useState([]);
             const [inventoryRows, setInventoryRows] = useState([]);
+            const [messages, setMessages] = useState([]);
+            const [messageDraft, setMessageDraft] = useState('');
             
             // Settings State (Branding)
             const [settings, setSettings] = useState({
@@ -3385,19 +4248,39 @@
                 }
             };
 
+            const refreshMessages = async ({ showSpinner = true } = {}) => {
+                if (showSpinner) setIsFetchingMessages(true);
+                try {
+                    const response = await fetch(buildApiUrl('messages'), { cache: 'no-store' });
+                    if (!response.ok) throw new Error('Failed to fetch messages');
+                    const messageData = await response.json();
+                    const rows = Array.isArray(messageData) ? messageData : [];
+                    setMessages(rows);
+                    return rows;
+                } catch (error) {
+                    console.error("Error refreshing messages:", error);
+                    return null;
+                } finally {
+                    if (showSpinner) setIsFetchingMessages(false);
+                }
+            };
+
             const refreshSheetData = async (showToast = false, { showSpinner = true, isInitialLoad = false } = {}) => {
                 const hadEmployees = employees.length > 0;
                 if (showSpinner) setIsFetchingLogs(true);
                 if (showSpinner) setIsFetchingInventory(true);
+                if (showSpinner) setIsFetchingMessages(true);
 
                 let rows = null;
                 let inventory = null;
+                let messageRows = null;
                 try {
-                    const [employeesResult, settingsResult, logsResult, inventoryResult] = await Promise.allSettled([
+                    const [employeesResult, settingsResult, logsResult, inventoryResult, messagesResult] = await Promise.allSettled([
                         refreshEmployees(),
                         refreshSettings(),
                         refreshLogs({ showSpinner: false }),
                         refreshInventory({ showSpinner: false }),
+                        refreshMessages({ showSpinner: false }),
                     ]);
 
                     if (employeesResult.status === 'rejected') {
@@ -3411,21 +4294,27 @@
                         console.error("Error refreshing settings:", settingsResult.reason);
                     }
 
+                    if (messagesResult.status === 'rejected') {
+                        console.error("Error refreshing messages:", messagesResult.reason);
+                    }
+
                     rows = logsResult.status === 'fulfilled' ? logsResult.value : null;
                     inventory = inventoryResult.status === 'fulfilled' ? inventoryResult.value : null;
+                    messageRows = messagesResult.status === 'fulfilled' ? messagesResult.value : null;
                 } finally {
                     if (showSpinner) setIsFetchingLogs(false);
                     if (showSpinner) setIsFetchingInventory(false);
+                    if (showSpinner) setIsFetchingMessages(false);
                     if (isInitialLoad) setIsLoadingEmployees(false);
                 }
 
                 if (showToast) {
-                    setNotification((rows || inventory)
+                    setNotification((rows || inventory || messageRows)
                         ? { type: 'info', message: "Latest spreadsheet updates loaded" }
                         : { type: 'error', message: "Could not pull the latest spreadsheet updates." }
                     );
                 }
-                return { rows, inventory };
+                return { rows, inventory, messages: messageRows };
             };
 
             const getBaseAdminScheduleDraft = (employeeName, dateValue, rows = sheetData) => {
@@ -3634,6 +4523,8 @@
                 setAdminUser(null);
                 setViewMode('PINPAD');
                 setEditTarget(null);
+                setEmployeeTimeOffDraft(null);
+                setMessageDraft('');
                 setReasonValidationTriggered(false);
                 setShowTimeoutWarning(false);
                 lastActivityRef.current = Date.now();
@@ -3714,6 +4605,7 @@
 
             const selectedUser = employees.find(e => e.id === selectedId) || null;
             const selectedEmployee = selectedUser && !isAdminRole(selectedUser.role) ? selectedUser : null;
+            const activeMessageViewer = adminUser || selectedEmployee || null;
             const publicEmployees = employees
                 .filter(emp => !isAdminRole(emp.role))
                 .slice()
@@ -3726,9 +4618,13 @@
             const personalData = selectedEmployee 
                 ? sheetData.filter(row => row.name === selectedEmployee.name) 
                 : [];
+            const activeEmployeeTimeOffRow = selectedEmployee && employeeTimeOffDraft
+                ? getTimeOffRowForEmployeeDate(sheetData, selectedEmployee.name, employeeTimeOffDraft.date)
+                : null;
             const todayKey = normalizeDate(new Date());
             const savedWeekOptions = Object.values(
                 sheetData.reduce((acc, row) => {
+                    if (isTimeOffRow(row)) return acc;
                     if (!hasTimeValue(row.schedIn) && !hasTimeValue(row.schedOut)) return acc;
                     if (normalizeDate(row.date) < todayKey) return acc;
 
@@ -3751,7 +4647,7 @@
             const stagedScheduleChangeCount = Object.keys(adminScheduleDrafts).length;
             const inventoryOpenRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
             const inventoryAwaitingRows = inventoryOpenRows.filter(row => Number(row.awaitingApproval || 0) > 0);
-            const isAdminWorkspaceOpen = Boolean(isAuthenticated && adminUser && ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PAYROLL'].includes(viewMode));
+            const isAdminWorkspaceOpen = Boolean(isAuthenticated && adminUser && ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PAYROLL', 'ADMIN_MESSAGES'].includes(viewMode));
             const editableRows = filterTimesheetRowsUpToToday(personalData)
                 .filter(row => !isEntryLocked(row))
                 .slice()
@@ -3821,8 +4717,15 @@
             };
 
             const handleOpenEmployeeInventory = async () => {
+                setEmployeeTimeOffDraft(null);
                 setViewMode('INVENTORY');
                 await refreshInventory({ showSpinner: false });
+            };
+
+            const handleOpenEmployeeMessages = async () => {
+                setEmployeeTimeOffDraft(null);
+                setViewMode('MESSAGES');
+                await refreshMessages({ showSpinner: false });
             };
 
             const handleOpenEmployeeSchedule = async () => {
@@ -3831,18 +4734,219 @@
             };
 
             const handleOpenEmployeeTimesheet = async () => {
+                setEmployeeTimeOffDraft(null);
                 setViewMode('TIMESHEET');
                 await refreshLogs({ showSpinner: false });
             };
 
             const handleOpenAdminInventory = async () => {
+                setEmployeeTimeOffDraft(null);
                 setViewMode('ADMIN_INVENTORY');
                 await refreshInventory({ showSpinner: false });
             };
 
             const handleOpenAdminPayroll = async () => {
+                setEmployeeTimeOffDraft(null);
                 setViewMode('ADMIN_PAYROLL');
                 await refreshLogs({ showSpinner: false });
+            };
+
+            const handleOpenAdminMessages = async () => {
+                setEmployeeTimeOffDraft(null);
+                setViewMode('ADMIN_MESSAGES');
+                await refreshMessages({ showSpinner: false });
+            };
+
+            const openEmployeeTimeOffRequest = (dateValue) => {
+                if (!selectedEmployee) return;
+                const existingRow = getTimeOffRowForEmployeeDate(sheetData, selectedEmployee.name, dateValue);
+                setEmployeeTimeOffDraft(
+                    existingRow
+                        ? buildTimeOffRequestDraftFromRow(existingRow, dateValue)
+                        : buildEmptyTimeOffRequestDraft(dateValue)
+                );
+            };
+
+            const closeEmployeeTimeOffRequest = () => {
+                setEmployeeTimeOffDraft(null);
+            };
+
+            const submitEmployeeTimeOffRequest = async () => {
+                if (!selectedEmployee || !employeeTimeOffDraft || isSubmittingTimeOff) return false;
+
+                const formattedIn = employeeTimeOffDraft.fullDay
+                    ? ''
+                    : formatTimeField(employeeTimeOffDraft.schedIn, employeeTimeOffDraft.schedInPeriod);
+                const formattedOut = employeeTimeOffDraft.fullDay
+                    ? ''
+                    : formatTimeField(employeeTimeOffDraft.schedOut, employeeTimeOffDraft.schedOutPeriod);
+                const isValidRange = employeeTimeOffDraft.fullDay
+                    ? true
+                    : Boolean(formattedIn && formattedOut && calculateWorkedMinutes(formattedIn, formattedOut));
+
+                if (isPastScheduleDate(employeeTimeOffDraft.date)) {
+                    setNotification({ type: 'error', message: "Time off can only be requested for today or a future date." });
+                    return false;
+                }
+
+                if (!isValidRange) {
+                    setNotification({ type: 'error', message: "Enter a valid blocked time range before sending this request." });
+                    return false;
+                }
+
+                lastActivityRef.current = Date.now();
+                setIsSubmittingTimeOff(true);
+
+                try {
+                    const latestRows = await refreshLogs({ showSpinner: false });
+                    const latestRequestRow = getTimeOffRowForEmployeeDate(latestRows || sheetData, selectedEmployee.name, employeeTimeOffDraft.date);
+                    const timestamp = buildActionTimestamp();
+                    const result = await sendToSheet({
+                        action: "REQUEST_TIME_OFF",
+                        name: selectedEmployee.name,
+                        date: normalizeDate(employeeTimeOffDraft.date),
+                        fullDay: Boolean(employeeTimeOffDraft.fullDay),
+                        schedIn: employeeTimeOffDraft.fullDay ? '' : formattedIn,
+                        schedOut: employeeTimeOffDraft.fullDay ? '' : formattedOut,
+                        editorName: selectedEmployee.name,
+                        editorRole: selectedEmployee.role || 'employee',
+                        submittedAt: timestamp.isoTimestamp,
+                        timezone: timestamp.timezone,
+                        timezoneOffsetMinutes: timestamp.timezoneOffsetMinutes,
+                        ...buildRowContextPayload(latestRequestRow),
+                    });
+
+                    if (!result.ok) {
+                        setNotification({ type: 'error', message: result.error || "Could not save the time-off request." });
+                        return false;
+                    }
+
+                    const refreshedRows = await refreshLogs({ showSpinner: false });
+                    if (refreshedRows) {
+                        setNotification({ type: 'success', message: `Time-off request sent for ${formatFullDate(employeeTimeOffDraft.date)}.` });
+                    } else {
+                        setNotification({ type: 'info', message: "The request was sent, but the latest schedule rows could not be reloaded automatically." });
+                    }
+                    setEmployeeTimeOffDraft(null);
+                    return true;
+                } catch (err) {
+                    console.error("Time-off request failed:", err);
+                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted the time-off request." });
+                    return false;
+                } finally {
+                    setIsSubmittingTimeOff(false);
+                }
+            };
+
+            const submitAdminTimeOffAction = async (action, row, successMessage) => {
+                if (!adminUser || !row || isSubmittingTimeOff) return false;
+
+                lastActivityRef.current = Date.now();
+                setIsSubmittingTimeOff(true);
+
+                try {
+                    const latestRows = await refreshLogs({ showSpinner: false });
+                    const latestRequestRow = getTimeOffRowForEmployeeDate(latestRows || sheetData, row.name, row.date);
+                    const timestamp = buildActionTimestamp();
+                    const result = await sendToSheet({
+                        action,
+                        name: row.name,
+                        date: normalizeDate(row.date),
+                        editorName: adminUser.name,
+                        editorRole: adminUser.role || 'admin',
+                        submittedAt: timestamp.isoTimestamp,
+                        timezone: timestamp.timezone,
+                        timezoneOffsetMinutes: timestamp.timezoneOffsetMinutes,
+                        ...buildRowContextPayload(latestRequestRow || row),
+                    });
+
+                    if (!result.ok) {
+                        setNotification({ type: 'error', message: result.error || "Could not update that time-off request." });
+                        return false;
+                    }
+
+                    const refreshedRows = await refreshLogs({ showSpinner: false });
+                    if (refreshedRows) {
+                        setNotification({ type: 'success', message: successMessage });
+                    } else {
+                        setNotification({ type: 'info', message: `${successMessage} The latest schedule rows could not be reloaded automatically.` });
+                    }
+                    setSelectedAdminCell(null);
+                    return true;
+                } catch (err) {
+                    console.error("Admin time-off action failed:", err);
+                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted the time-off update." });
+                    return false;
+                } finally {
+                    setIsSubmittingTimeOff(false);
+                }
+            };
+
+            const handleApproveTimeOff = async (row) => {
+                return submitAdminTimeOffAction(
+                    "ADMIN_APPROVE_TIME_OFF",
+                    row,
+                    `${row.name}'s time off was approved for ${formatFullDate(row.date)}.`
+                );
+            };
+
+            const handleClearTimeOff = async (row) => {
+                return submitAdminTimeOffAction(
+                    "ADMIN_CLEAR_TIME_OFF",
+                    row,
+                    `Time off was cleared for ${row.name} on ${formatFullDate(row.date)}.`
+                );
+            };
+
+            const submitMessage = async () => {
+                const activeUser = adminUser || selectedEmployee;
+                const messageText = normalizeMessageText(messageDraft);
+                if (!activeUser || isSubmittingMessage) return false;
+
+                if (!messageText) {
+                    setNotification({ type: 'error', message: "Enter a note before sending it." });
+                    return false;
+                }
+                if (messageText.length > MESSAGE_MAX_LENGTH) {
+                    setNotification({ type: 'error', message: `Notes must be ${MESSAGE_MAX_LENGTH} characters or less.` });
+                    return false;
+                }
+
+                lastActivityRef.current = Date.now();
+                setIsSubmittingMessage(true);
+
+                try {
+                    const timestamp = buildActionTimestamp();
+                    const result = await sendToSheet({
+                        action: "POST_MESSAGE",
+                        editorName: activeUser.name,
+                        editorRole: activeUser.role || (adminUser ? 'admin' : 'employee'),
+                        message: messageText,
+                        submittedAt: timestamp.isoTimestamp,
+                        timezone: timestamp.timezone,
+                        timezoneOffsetMinutes: timestamp.timezoneOffsetMinutes,
+                    });
+
+                    if (!result.ok) {
+                        setNotification({ type: 'error', message: result.error || "Could not post that note." });
+                        return false;
+                    }
+
+                    const refreshedMessages = await refreshMessages({ showSpinner: false });
+                    if (refreshedMessages) {
+                        setNotification({ type: 'success', message: "Note posted to the shared board." });
+                    } else {
+                        setNotification({ type: 'info', message: "The note was posted, but the latest board could not be refreshed automatically." });
+                    }
+                    setMessageDraft('');
+                    return true;
+                } catch (err) {
+                    console.error("Message post failed:", err);
+                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted the note." });
+                    return false;
+                } finally {
+                    setIsSubmittingMessage(false);
+                }
             };
 
             const handleInventoryStart = async (row, quantity) => {
@@ -3984,6 +5088,7 @@
                 setIsAuthenticated(false);
                 setAdminUser(null);
                 setViewMode('PINPAD');
+                setEmployeeTimeOffDraft(null);
                 lastActivityRef.current = Date.now(); // Reset activity when interacting
 
                 await refreshSheetData(false);
@@ -4552,6 +5657,15 @@
                                             <span>Inventory</span>
                                         </button>
                                         <button
+                                            onClick={handleOpenEmployeeMessages}
+                                            className={`brutal-btn py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
+                                                viewMode === 'MESSAGES' ? 'bg-[#f9a8d4] hover:bg-[#f472b6]' : 'bg-white hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <i className="fas fa-comments text-[#db2777]"></i>
+                                            <span>Messages</span>
+                                        </button>
+                                        <button
                                             onClick={handleLogout}
                                             className="brutal-btn py-3 md:py-4 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
                                         >
@@ -4569,9 +5683,11 @@
                                     <p className="text-sm font-bold text-gray-600 mb-5">
                                         {viewMode === 'ADMIN_INVENTORY'
                                             ? `${inventoryAwaitingRows.length} inventory row${inventoryAwaitingRows.length === 1 ? '' : 's'} currently need approval.`
+                                            : viewMode === 'ADMIN_MESSAGES'
+                                                ? `${messages.length} note${messages.length === 1 ? '' : 's'} are visible on the shared board.`
                                             : viewMode === 'ADMIN_PAYROLL'
                                                 ? 'Review biweekly payroll totals and mark the period complete from here.'
-                                                : 'Open the schedule studio, payroll, or the inventory request board from here.'}
+                                                : 'Open the schedule studio, payroll, message board, or the inventory request board from here.'}
                                     </p>
                                     <div className="grid grid-cols-2 gap-3 shadow-safe-4">
                                         <button
@@ -4602,6 +5718,15 @@
                                             <span>Payroll</span>
                                         </button>
                                         <button
+                                            onClick={handleOpenAdminMessages}
+                                            className={`brutal-btn py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 ${
+                                                viewMode === 'ADMIN_MESSAGES' ? 'bg-[#f9a8d4] hover:bg-[#f472b6]' : 'bg-white hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <i className="fas fa-comments text-[#db2777]"></i>
+                                            <span>Messages</span>
+                                        </button>
+                                        <button
                                             onClick={handleLogout}
                                             className="brutal-btn py-3 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
                                         >
@@ -4617,7 +5742,7 @@
                         <div className={`right-panel transition-all duration-300 ${!selectedId && directoryMode === 'admin' && !isAdminWorkspaceOpen ? 'hidden lg:block' : 'block'}`}>
                             
                             {/* Adding relative positioning so absolute children (toast) anchor exactly here */}
-                            <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-220px)] lg:max-h-[860px]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PAYROLL'].includes(viewMode) ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
+                            <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-220px)] lg:max-h-[860px]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PAYROLL', 'ADMIN_MESSAGES'].includes(viewMode) ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
                                 
                                 {/* TIMEOUT WARNING OVERLAY */}
                                 {showTimeoutWarning && (
@@ -4650,7 +5775,7 @@
                                             </p>
                                         </div>
                                     ) : (
-                                        <PublicOverviewPanel sheetData={sheetData} inventoryRows={inventoryRows} />
+                                        <PublicOverviewPanel sheetData={sheetData} inventoryRows={inventoryRows} messages={messages} />
                                     )
                                 ) : (
                                     <div className="flex-1 min-h-0 overflow-hidden">
@@ -4668,11 +5793,25 @@
                                             />
                                         )}
                                         {viewMode === 'SCHEDULE' && (
-                                            <PublishedSchedulePanel
-                                                sheetData={sheetData}
-                                                title="Schedule"
-                                                highlightName={selectedEmployee?.name || ''}
-                                            />
+                                            <>
+                                                <PublishedSchedulePanel
+                                                    sheetData={sheetData}
+                                                    title="Schedule"
+                                                    highlightName={selectedEmployee?.name || ''}
+                                                    allowTimeOffRequests={Boolean(selectedEmployee)}
+                                                    onSelectDate={openEmployeeTimeOffRequest}
+                                                    isSubmittingTimeOff={isSubmittingTimeOff}
+                                                />
+                                                <EmployeeTimeOffModal
+                                                    employeeName={selectedEmployee?.name || ''}
+                                                    draft={employeeTimeOffDraft}
+                                                    setDraft={setEmployeeTimeOffDraft}
+                                                    existingRow={activeEmployeeTimeOffRow}
+                                                    onClose={closeEmployeeTimeOffRequest}
+                                                    onSubmit={submitEmployeeTimeOffRequest}
+                                                    isSubmitting={isSubmittingTimeOff}
+                                                />
+                                            </>
                                         )}
                                         {viewMode === 'INVENTORY' && (
                                             <EmployeeInventoryPanel
@@ -4685,11 +5824,28 @@
                                                 onMessage={setNotification}
                                             />
                                         )}
+                                        {viewMode === 'MESSAGES' && (
+                                            <MessageBoardPanel
+                                                messages={messages}
+                                                title="Messages"
+                                                eyebrow="Notes To Admin"
+                                                subtitle="Leave updates about time off, inventory, supplies, or anything else the admin team should see."
+                                                viewerName={activeMessageViewer?.name || ''}
+                                                draft={messageDraft}
+                                                onDraftChange={setMessageDraft}
+                                                onSend={submitMessage}
+                                                onRefresh={() => refreshMessages({ showSpinner: true })}
+                                                canCompose={Boolean(activeMessageViewer)}
+                                                isFetching={isFetchingMessages}
+                                                isSubmitting={isSubmittingMessage}
+                                            />
+                                        )}
                                         {viewMode === 'EDIT' && <EditForm editTarget={editTarget} editForm={editForm} setEditForm={setEditForm} saveEdit={saveEdit} reasonValidationTriggered={reasonValidationTriggered} onPrev={handleEditPrev} onNext={handleEditNext} canPrev={canEditPrev} canNext={canEditNext} onClose={() => { setReasonValidationTriggered(false); setViewMode('TIMESHEET'); }} isSubmitting={isSubmittingAction} />}
                                         {viewMode === 'ADMIN' && (
                                             <AdminScheduleWorkspace
                                                 adminUser={adminUser}
                                                 employees={employees}
+                                                sheetData={sheetData}
                                                 weekStart={adminWeekStart}
                                                 onPrevWeek={() => setAdminWeekStart(prev => {
                                                     const next = new Date(prev);
@@ -4717,7 +5873,10 @@
                                                 dirtyCount={stagedScheduleChangeCount}
                                                 isRefreshing={isFetchingLogs}
                                                 isSubmitting={isSubmittingAdminSchedule}
+                                                isSubmittingTimeOff={isSubmittingTimeOff}
                                                 isSavingTemplates={isSavingShiftTemplates}
+                                                onApproveTimeOff={handleApproveTimeOff}
+                                                onClearTimeOff={handleClearTimeOff}
                                                 onSignOut={handleLogout}
                                             />
                                         )}
@@ -4735,6 +5894,22 @@
                                                 onOpenScheduler={() => setViewMode('ADMIN')}
                                                 onSignOut={handleLogout}
                                                 onMessage={setNotification}
+                                            />
+                                        )}
+                                        {viewMode === 'ADMIN_MESSAGES' && (
+                                            <MessageBoardPanel
+                                                messages={messages}
+                                                title="Team Messages"
+                                                eyebrow="Admin Message Board"
+                                                subtitle="Review employee notes and reply in the same shared chat thread."
+                                                viewerName={activeMessageViewer?.name || ''}
+                                                draft={messageDraft}
+                                                onDraftChange={setMessageDraft}
+                                                onSend={submitMessage}
+                                                onRefresh={() => refreshMessages({ showSpinner: true })}
+                                                canCompose={Boolean(activeMessageViewer)}
+                                                isFetching={isFetchingMessages}
+                                                isSubmitting={isSubmittingMessage}
                                             />
                                         )}
                                         {viewMode === 'ADMIN_PAYROLL' && (
