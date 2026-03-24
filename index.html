@@ -3867,13 +3867,6 @@
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <button
-                                onClick={onOpenScheduler}
-                                className="brutal-btn bg-[#38bdf8] hover:bg-[#0ea5e9] px-4 py-2 text-sm flex items-center gap-2"
-                            >
-                                <i className="fas fa-calendar-week"></i>
-                                <span>Schedule</span>
-                            </button>
-                            <button
                                 onClick={onRefresh}
                                 disabled={isFetchingInventory || isSubmittingInventory}
                                 className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
@@ -3881,17 +3874,10 @@
                                 <i className={`fas ${isFetchingInventory ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#38bdf8]`}></i>
                                 <span>{isFetchingInventory ? 'Refreshing...' : 'Refresh'}</span>
                             </button>
-                            <button
-                                onClick={onSignOut}
-                                className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
-                            >
-                                <i className="fas fa-user-lock text-[#f43f5e]"></i>
-                                <span>Sign Out</span>
-                            </button>
                         </div>
                     </div>
 
-                    <div className="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-4 min-h-0 flex-1">
+                    <div className="grid lg:grid-cols-[506px_278px] lg:justify-start gap-4 min-h-0 flex-1">
                         <div className="min-h-0 overflow-y-auto no-scrollbar pr-1 space-y-4">
                             {openRows.length === 0 ? (
                                 <div className="p-10 text-center text-gray-400 font-bold text-sm md:text-lg border-2 border-dashed border-gray-300 rounded-xl bg-white">
@@ -3899,137 +3885,108 @@
                                 </div>
                             ) : openRows.map(row => (
                                 <div key={row.rowNumber} className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000]">
-                                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <div className="text-[10px] uppercase font-bold text-gray-500">SKU</div>
-                                            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7] mt-1">{getInventorySkuText(row)}</div>
-                                            <div className="text-[10px] uppercase font-bold text-gray-500 mt-3">Name</div>
-                                            <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1">{getInventoryNameText(row)}</h4>
-                                            <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 mt-2">Updated {formatInventoryTimestamp(row.lastUpdated)}</div>
+                                    <div className="min-w-0">
+                                        <div className="text-[10px] uppercase font-bold text-gray-500">SKU</div>
+                                        <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7] mt-1">{getInventorySkuText(row)}</div>
+                                        <div className="text-[10px] uppercase font-bold text-gray-500 mt-3">Name</div>
+                                        <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1">{getInventoryNameText(row)}</h4>
+                                        <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 mt-2">Updated {formatInventoryTimestamp(row.lastUpdated)}</div>
+                                    </div>
+
+                                    <div className="grid grid-cols-5 gap-2.5 mt-4">
+                                        <div className="rounded-xl border-2 border-black bg-[#f5f3ff] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
+                                            <div className="text-[9px] uppercase font-bold text-gray-500 leading-tight">Needed</div>
+                                            <div className="text-2xl font-bold font-poppins text-[#060606] leading-none">{row.needed}</div>
                                         </div>
-                                        <div className="flex flex-wrap items-center gap-2 lg:justify-end shrink-0">
-                                            <div className="inline-flex items-center rounded-full border-2 border-black bg-[#fef3c7] px-3 py-1 text-xs font-bold uppercase tracking-wide">
-                                                {row.status}
-                                            </div>
-                                            {Number(row.awaitingApproval || 0) > 0 && (
-                                                <div className="inline-flex items-center rounded-full border-2 border-black bg-[#fff7ed] px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-[#7c2d12]">
-                                                    {row.awaitingApproval} waiting
-                                                </div>
-                                            )}
+                                        <div className="rounded-xl border-2 border-black bg-[#ecfccb] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
+                                            <div className="text-[9px] uppercase font-bold text-gray-500 leading-tight">In Process</div>
+                                            <div className="text-2xl font-bold font-poppins text-[#060606] leading-none">{row.inProcess}</div>
+                                        </div>
+                                        <div className="rounded-xl border-2 border-black bg-[#fef3c7] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
+                                            <div className="text-[9px] uppercase font-bold text-gray-500 leading-tight">Awaiting Approval</div>
+                                            <div className="text-2xl font-bold font-poppins text-[#060606] leading-none">{row.awaitingApproval}</div>
+                                        </div>
+                                        <div className="rounded-xl border-2 border-black bg-[#d1fae5] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
+                                            <div className="text-[9px] uppercase font-bold text-gray-500 leading-tight">Approved</div>
+                                            <div className="text-2xl font-bold font-poppins text-[#060606] leading-none">{row.addedToStore}</div>
+                                        </div>
+                                        <div className="rounded-xl border-2 border-black bg-[#fee2e2] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
+                                            <div className="text-[9px] uppercase font-bold text-gray-500 leading-tight">Still Needed</div>
+                                            <div className="text-2xl font-bold font-poppins text-[#060606] leading-none">{row.stillNeeded}</div>
                                         </div>
                                     </div>
 
-                                    <div className="grid xl:grid-cols-[minmax(0,1fr)_320px] gap-4 mt-4 items-start">
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
-                                            <div className="rounded-xl border-2 border-black bg-[#f5f3ff] px-3 py-3">
-                                                <div className="text-[10px] uppercase font-bold text-gray-500">Needed</div>
-                                                <div className="text-xl font-bold font-poppins text-[#060606] mt-2">{row.needed}</div>
+                                    <div className="grid md:grid-cols-3 gap-2.5 mt-3">
+                                        <div className="rounded-xl border-2 border-black bg-[#eff6ff] p-2.5 flex flex-col gap-2.5">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="text-sm font-bold font-poppins text-[#060606]">Adjust Needed</div>
+                                                <div className="text-[10px] uppercase font-bold text-gray-500 text-right leading-tight">Use -2 or +5</div>
                                             </div>
-                                            <div className="rounded-xl border-2 border-black bg-[#ecfccb] px-3 py-3">
-                                                <div className="text-[10px] uppercase font-bold text-gray-500">In Process</div>
-                                                <div className="text-xl font-bold font-poppins text-[#060606] mt-2">{row.inProcess}</div>
-                                            </div>
-                                            <div className="rounded-xl border-2 border-black bg-[#fef3c7] px-3 py-3">
-                                                <div className="text-[10px] uppercase font-bold text-gray-500">Awaiting</div>
-                                                <div className="text-xl font-bold font-poppins text-[#060606] mt-2">{row.awaitingApproval}</div>
-                                            </div>
-                                            <div className="rounded-xl border-2 border-black bg-[#d1fae5] px-3 py-3">
-                                                <div className="text-[10px] uppercase font-bold text-gray-500">Approved</div>
-                                                <div className="text-xl font-bold font-poppins text-[#060606] mt-2">{row.addedToStore}</div>
-                                            </div>
-                                            <div className="rounded-xl border-2 border-black bg-[#fee2e2] px-3 py-3">
-                                                <div className="text-[10px] uppercase font-bold text-gray-500">Still Needed</div>
-                                                <div className="text-xl font-bold font-poppins text-[#060606] mt-2">{row.stillNeeded}</div>
-                                            </div>
+                                            <input
+                                                type="number"
+                                                step="1"
+                                                value={drafts[row.rowNumber]?.adjust || ''}
+                                                onChange={e => updateDraft(row.rowNumber, 'adjust', e.target.value)}
+                                                className="brutal-input w-full px-3 py-2 text-sm"
+                                                placeholder="0"
+                                            />
+                                            <button
+                                                onClick={() => submitRowAction(row, 'adjust', onAdjustNeed, { allowNegative: true, invalidMessage: "Enter a whole-number adjustment like 5 or -2." })}
+                                                disabled={isSubmittingInventory}
+                                                className="brutal-btn bg-[#60a5fa] hover:bg-[#3b82f6] w-full px-4 py-2 text-sm"
+                                            >
+                                                Save
+                                            </button>
                                         </div>
 
-                                        <div className="rounded-2xl border-2 border-black bg-[#f8fafc] p-3 md:p-4">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <div className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#0284c7]">Actions</div>
-                                                <div className="text-[10px] uppercase font-bold tracking-wide text-gray-500">
-                                                    {row.stillNeeded} open
+                                        <div className="rounded-xl border-2 border-black bg-[#f0fdf4] p-2.5 flex flex-col gap-2.5">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="text-sm font-bold font-poppins text-[#060606]">Approve</div>
+                                                <div className="text-[10px] uppercase font-bold text-gray-500 text-right leading-tight">
+                                                    {row.awaitingApproval > 0 ? `${row.awaitingApproval} waiting` : 'Nothing waiting'}
                                                 </div>
                                             </div>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                value={drafts[row.rowNumber]?.approve || ''}
+                                                onChange={e => updateDraft(row.rowNumber, 'approve', e.target.value)}
+                                                className="brutal-input w-full px-3 py-2 text-sm"
+                                                placeholder="Qty"
+                                            />
+                                            <button
+                                                onClick={() => submitRowAction(row, 'approve', onApprove)}
+                                                disabled={isSubmittingInventory || row.awaitingApproval <= 0}
+                                                className="brutal-btn bg-[#4ade80] hover:bg-[#22c55e] w-full px-4 py-2 text-sm"
+                                            >
+                                                Approve
+                                            </button>
+                                        </div>
 
-                                            <div className="space-y-2.5 mt-3">
-                                                <div className="rounded-xl border-2 border-black bg-white p-2.5">
-                                                    <div className="flex items-center justify-between gap-2 mb-2">
-                                                        <div className="text-sm font-bold font-poppins text-[#060606]">Adjust Needed</div>
-                                                        <div className="text-[10px] uppercase font-bold text-gray-500">Use -2 or +5</div>
-                                                    </div>
-                                                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-center">
-                                                        <input
-                                                            type="number"
-                                                            step="1"
-                                                            value={drafts[row.rowNumber]?.adjust || ''}
-                                                            onChange={e => updateDraft(row.rowNumber, 'adjust', e.target.value)}
-                                                            className="brutal-input w-full px-3 py-2 text-sm"
-                                                            placeholder="0"
-                                                        />
-                                                        <button
-                                                            onClick={() => submitRowAction(row, 'adjust', onAdjustNeed, { allowNegative: true, invalidMessage: "Enter a whole-number adjustment like 5 or -2." })}
-                                                            disabled={isSubmittingInventory}
-                                                            className="brutal-btn bg-[#60a5fa] hover:bg-[#3b82f6] min-w-[96px] px-4 py-2 text-sm whitespace-nowrap"
-                                                        >
-                                                            Save
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-                                                <div className="rounded-xl border-2 border-black bg-white p-2.5">
-                                                    <div className="flex items-center justify-between gap-2 mb-2">
-                                                        <div className="text-sm font-bold font-poppins text-[#060606]">Approve</div>
-                                                        <div className="text-[10px] uppercase font-bold text-gray-500">
-                                                            {row.awaitingApproval > 0 ? `${row.awaitingApproval} waiting` : 'Nothing waiting'}
-                                                        </div>
-                                                    </div>
-                                                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-center">
-                                                        <input
-                                                            type="number"
-                                                            min="1"
-                                                            step="1"
-                                                            value={drafts[row.rowNumber]?.approve || ''}
-                                                            onChange={e => updateDraft(row.rowNumber, 'approve', e.target.value)}
-                                                            className="brutal-input w-full px-3 py-2 text-sm"
-                                                            placeholder="Qty"
-                                                        />
-                                                        <button
-                                                            onClick={() => submitRowAction(row, 'approve', onApprove)}
-                                                            disabled={isSubmittingInventory || row.awaitingApproval <= 0}
-                                                            className="brutal-btn bg-[#4ade80] hover:bg-[#22c55e] min-w-[96px] px-4 py-2 text-sm whitespace-nowrap"
-                                                        >
-                                                            Approve
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-                                                <div className="rounded-xl border-2 border-black bg-white p-2.5">
-                                                    <div className="flex items-center justify-between gap-2 mb-2">
-                                                        <div className="text-sm font-bold font-poppins text-[#060606]">Send Back</div>
-                                                        <div className="text-[10px] uppercase font-bold text-gray-500">
-                                                            {row.awaitingApproval > 0 ? `${row.awaitingApproval} waiting` : 'Nothing waiting'}
-                                                        </div>
-                                                    </div>
-                                                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-center">
-                                                        <input
-                                                            type="number"
-                                                            min="1"
-                                                            step="1"
-                                                            value={drafts[row.rowNumber]?.reject || ''}
-                                                            onChange={e => updateDraft(row.rowNumber, 'reject', e.target.value)}
-                                                            className="brutal-input w-full px-3 py-2 text-sm"
-                                                            placeholder="Qty"
-                                                        />
-                                                        <button
-                                                            onClick={() => submitRowAction(row, 'reject', onReject)}
-                                                            disabled={isSubmittingInventory || row.awaitingApproval <= 0}
-                                                            className="brutal-btn bg-[#fb923c] hover:bg-[#f97316] min-w-[96px] px-4 py-2 text-sm whitespace-nowrap"
-                                                        >
-                                                            Send Back
-                                                        </button>
-                                                    </div>
+                                        <div className="rounded-xl border-2 border-black bg-[#fff7ed] p-2.5 flex flex-col gap-2.5">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="text-sm font-bold font-poppins text-[#060606]">Send Back</div>
+                                                <div className="text-[10px] uppercase font-bold text-gray-500 text-right leading-tight">
+                                                    {row.awaitingApproval > 0 ? `${row.awaitingApproval} waiting` : 'Nothing waiting'}
                                                 </div>
                                             </div>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                value={drafts[row.rowNumber]?.reject || ''}
+                                                onChange={e => updateDraft(row.rowNumber, 'reject', e.target.value)}
+                                                className="brutal-input w-full px-3 py-2 text-sm"
+                                                placeholder="Qty"
+                                            />
+                                            <button
+                                                onClick={() => submitRowAction(row, 'reject', onReject)}
+                                                disabled={isSubmittingInventory || row.awaitingApproval <= 0}
+                                                className="brutal-btn bg-[#fb923c] hover:bg-[#f97316] w-full px-4 py-2 text-sm"
+                                            >
+                                                Send Back
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
