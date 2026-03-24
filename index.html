@@ -585,13 +585,102 @@
             border-radius: 1rem;
             box-shadow: 2px 2px 0px 0px #000000;
         }
-        .admin-week-board-grid {
+        .admin-studio-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            align-items: stretch;
+            gap: 0.75rem;
+        }
+        .admin-studio-control-shell {
+            display: flex;
+            align-items: center;
+            min-height: 3.25rem;
+            min-width: 0;
+            border: var(--surface-border);
+            border-radius: 1rem;
+            box-shadow: 4px 4px 0px 0px #000000;
+            background: #ffffff;
+            color: #060606;
+        }
+        .admin-studio-nav-shell {
+            gap: 0.25rem;
+            padding: 0.25rem;
+        }
+        .admin-studio-nav-button {
+            width: 2.5rem;
+            height: 2.5rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.75rem;
+            color: #060606;
+            transition: background-color 0.12s ease;
+        }
+        .admin-studio-nav-button:hover {
+            background: #f3f4f6;
+        }
+        .admin-studio-range-label {
+            min-width: 170px;
+            padding: 0 0.55rem;
+            text-align: center;
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.92rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .admin-studio-select-shell {
+            gap: 0.65rem;
+            padding: 0 0.9rem;
+            min-width: 240px;
+        }
+        .admin-studio-select {
+            flex: 1;
+            min-width: 0;
+            height: 100%;
+            border: 0;
+            outline: none;
+            background: transparent;
+            appearance: none;
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: #060606;
+            cursor: pointer;
+        }
+        .admin-studio-action {
+            min-height: 3.25rem;
+            padding: 0.75rem 1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-size: 0.92rem;
+            line-height: 1.2;
+        }
+        .admin-studio-save-button {
+            min-width: 200px;
+        }
+        .admin-studio-signout-button {
+            min-width: 144px;
+        }
+        .schedule-week-grid.admin-week-board-grid {
+            grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 0.88fr);
             gap: 0.625rem;
             align-items: start;
         }
         .admin-week-board-day-card {
             min-width: 0;
             align-self: start;
+        }
+        .admin-week-board-weekend-column {
+            display: flex;
+            flex-direction: column;
+            gap: 0.625rem;
+            min-width: 0;
+        }
+        .admin-week-board-weekend-day-card {
+            flex: 1 1 0;
         }
         .admin-week-board-day-button {
             padding: 0.75rem 0.75rem 0.7rem;
@@ -632,6 +721,9 @@
         }
         .admin-week-board-shift-duration {
             font-size: 0.68rem;
+        }
+        .admin-week-board-weekend-day-card .admin-week-board-scroll {
+            min-height: 3.5rem;
         }
         .editor-modal-backdrop {
             position: fixed;
@@ -675,9 +767,22 @@
             .admin-action-button {
                 font-size: 0.875rem;
             }
+            .admin-studio-range-label {
+                min-width: 210px;
+                font-size: 1rem;
+            }
+            .admin-studio-select {
+                font-size: 1rem;
+            }
+            .admin-studio-action {
+                font-size: 1rem;
+            }
         }
         @media (max-width: 1023px) {
             .schedule-week-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .schedule-week-grid.admin-week-board-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
             .public-overview-masonry {
@@ -714,6 +819,20 @@
             .card-grid,
             .schedule-week-grid {
                 grid-template-columns: minmax(0, 1fr);
+            }
+            .schedule-week-grid.admin-week-board-grid {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .admin-studio-toolbar {
+                justify-content: stretch;
+            }
+            .admin-studio-control-shell,
+            .admin-studio-action {
+                width: 100%;
+            }
+            .admin-studio-range-label,
+            .admin-studio-select-shell {
+                min-width: 0;
             }
             .card-size-1x1,
             .card-size-1x2,
@@ -3753,6 +3872,16 @@
                 return parseLocalDate(dateValue).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             };
 
+            const weekdayDays = weekDays.filter(dayObj => {
+                const dayOfWeek = parseLocalDate(dayObj).getDay();
+                return dayOfWeek >= 1 && dayOfWeek <= 5;
+            });
+
+            const weekendDays = weekDays.filter(dayObj => {
+                const dayOfWeek = parseLocalDate(dayObj).getDay();
+                return dayOfWeek === 0 || dayOfWeek === 6;
+            });
+
             const selectedDraft = selectedCell ? getCellDraft(selectedCell.name, selectedCell.date) : null;
             const isSelectingDayEmployee = Boolean(selectedDraft && !String(selectedDraft.name || '').trim());
             const selectedTimeOffRow = selectedCell && String(selectedCell.name || '').trim()
@@ -3910,6 +4039,100 @@
                 };
             };
 
+            const renderWeekBoardDay = (dayObj, extraClassName = '') => {
+                const dayKey = normalizeDate(dayObj);
+                const isToday = dayKey === normalizeDate(new Date());
+                const dayEntries = sortedEmployees
+                    .map(emp => ({
+                        employee: emp,
+                        ...getWeekGridCellState(emp.name, dayKey),
+                    }))
+                    .filter(entry => entry.timeOffRow || entry.hasAssignedShift || entry.draft.clearSchedule || entry.isSelected);
+
+                return (
+                    <div
+                        key={dayKey}
+                        className={[
+                            'section-card admin-week-board-day-card overflow-hidden bg-white',
+                            extraClassName,
+                            isToday ? 'ring-4 ring-[#bae6fd]' : '',
+                        ].filter(Boolean).join(' ')}
+                    >
+                        <button
+                            type="button"
+                            onClick={() => onSelectCell('', dayKey)}
+                            className={`w-full admin-week-board-day-button border-b-2 border-black text-left ${isToday ? 'bg-[#38bdf8] text-[#060606]' : 'bg-[#bae6fd] text-[#060606]'}`}
+                        >
+                            <div className="card-eyebrow text-[#060606]">{dayObj.toLocaleDateString('en-US', { weekday: 'long' })}</div>
+                            <div className="card-title mt-1">{formatShortDate(dayObj)}</div>
+                        </button>
+
+                        <div className="admin-week-board-scroll no-scrollbar space-y-2">
+                            {dayEntries.map(({ employee, draft, timeOffRow, timeOffMeta, cellFormattedIn, cellFormattedOut, cellMinutes, hasAssignedShift, cellStateClass, isSelected }, index) => {
+                                const isTimeOffApproved = isApprovedTimeOffRow(timeOffRow);
+                                const surfaceClass = timeOffRow
+                                    ? (isTimeOffApproved ? 'bg-[#fee2e2]' : 'bg-[#fff7ed]')
+                                    : draft.clearSchedule
+                                        ? 'bg-[#fee2e2]'
+                                        : isSelected
+                                            ? 'bg-[#dbeafe]'
+                                            : cellStateClass;
+                                const outlineClass = isSelected ? 'ring-2 ring-[#0284c7]' : '';
+
+                                return (
+                                    <button
+                                        key={`${dayKey}-${employee.id}-${index}`}
+                                        type="button"
+                                        onClick={() => onSelectCell(employee.name, dayKey)}
+                                        className={`schedule-shift-card admin-week-board-shift-card w-full text-left transition-colors ${surfaceClass} ${outlineClass}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <div className="card-title truncate">{employee.name}</div>
+                                                <div className="card-meta mt-1 truncate">{employee.department || 'Team'}</div>
+                                            </div>
+                                            {(timeOffRow || draft.clearSchedule || isSelected) && (
+                                                <div className="card-eyebrow text-gray-500">
+                                                    {timeOffRow
+                                                        ? (isTimeOffApproved ? 'Blocked' : 'Request')
+                                                        : (draft.clearSchedule ? 'Clearing' : 'Editing')}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {timeOffRow ? (
+                                            <>
+                                                <div className="card-meta text-[#060606] mt-2.5">
+                                                    {getTimeOffRangeLabel(timeOffRow, timeOffMeta)}
+                                                </div>
+                                                <div className="card-meta mt-1">
+                                                    {isTimeOffApproved ? 'Approved block on the schedule' : 'Awaiting admin approval'}
+                                                </div>
+                                                {hasAssignedShift && (
+                                                    <div className="card-meta mt-1 text-gray-500">
+                                                        Current shift: {cellFormattedIn} - {cellFormattedOut}
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : draft.clearSchedule ? (
+                                            <div className="card-meta text-[#060606] mt-2.5">Schedule will be removed</div>
+                                        ) : hasAssignedShift ? (
+                                            <div className="admin-week-board-shift-time mt-2.5">{cellFormattedIn} - {cellFormattedOut}</div>
+                                        ) : null}
+
+                                        {!timeOffRow && (draft.clearSchedule || hasAssignedShift) && (
+                                            <div className="card-meta admin-week-board-shift-duration mt-1">
+                                                {draft.clearSchedule ? 'Removal staged' : formatWorkedDurationForDisplay(cellMinutes)}
+                                            </div>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            };
+
             if (!adminUser) return null;
 
             return (
@@ -3919,98 +4142,86 @@
                             <div className="card-eyebrow text-[#0284c7]">Admin Schedule Builder</div>
                             <h3 className="page-title">Weekly Schedule Studio</h3>
                         </div>
-                        <div className="flex flex-col gap-3 xl:items-end">
-                            <div className="flex flex-wrap items-center gap-3">
-                                <div className="flex items-center gap-2 bg-white border-2 border-black rounded-xl p-1 shadow-[2px_2px_0px_0px_#000000]">
-                                    <button onClick={onPrevWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
-                                        <i className="fas fa-chevron-left"></i>
-                                    </button>
-                                    <span className="font-bold font-poppins text-[#060606] min-w-[170px] md:min-w-[210px] text-center text-sm md:text-base px-2">
-                                        {formatWeekRangeLabel(weekStart)}
-                                    </span>
-                                    <button onClick={onNextWeek} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-[#060606] transition-colors font-bold font-poppins text-lg">
-                                        <i className="fas fa-chevron-right"></i>
-                                    </button>
-                                </div>
+                        <div className="admin-studio-toolbar">
+                            <div className="admin-studio-control-shell admin-studio-nav-shell">
+                                <button onClick={onPrevWeek} className="admin-studio-nav-button font-bold font-poppins text-lg">
+                                    <i className="fas fa-chevron-left"></i>
+                                </button>
+                                <span className="admin-studio-range-label">
+                                    {formatWeekRangeLabel(weekStart)}
+                                </span>
+                                <button onClick={onNextWeek} className="admin-studio-nav-button font-bold font-poppins text-lg">
+                                    <i className="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
 
-                                <div className="h-12 flex items-center gap-2 rounded-xl border-2 border-black bg-white px-3 shadow-[2px_2px_0px_0px_#000000]">
-                                    <i className="fas fa-folder-open text-[#0284c7]"></i>
-                                    <select
-                                        value={weekJumpValue}
-                                        onChange={e => {
-                                            const nextWeek = e.target.value;
-                                            setWeekJumpValue(nextWeek);
-                                            if (nextWeek) {
-                                                onJumpToWeek(nextWeek);
-                                                setWeekJumpValue('');
-                                            }
-                                        }}
-                                        className="h-full bg-transparent outline-none font-bold text-sm md:text-base min-w-[180px]"
-                                        disabled={savedWeekOptions.length === 0}
-                                    >
-                                        <option value="">
-                                            {savedWeekOptions.length === 0 ? 'No saved weeks yet' : 'Load saved week'}
+                            <div className="admin-studio-control-shell admin-studio-select-shell">
+                                <i className="fas fa-folder-open text-[#0284c7]"></i>
+                                <select
+                                    value={weekJumpValue}
+                                    onChange={e => {
+                                        const nextWeek = e.target.value;
+                                        setWeekJumpValue(nextWeek);
+                                        if (nextWeek) {
+                                            onJumpToWeek(nextWeek);
+                                            setWeekJumpValue('');
+                                        }
+                                    }}
+                                    className="admin-studio-select"
+                                    disabled={savedWeekOptions.length === 0}
+                                >
+                                    <option value="">
+                                        {savedWeekOptions.length === 0 ? 'No saved weeks yet' : 'Load saved week'}
+                                    </option>
+                                    {savedWeekOptions.map(option => (
+                                        <option key={option.weekKey} value={option.weekKey}>
+                                            {option.label} ({option.shiftCount} shift{option.shiftCount === 1 ? '' : 's'})
                                         </option>
-                                        {savedWeekOptions.map(option => (
-                                            <option key={option.weekKey} value={option.weekKey}>
-                                                {option.label} ({option.shiftCount} shift{option.shiftCount === 1 ? '' : 's'})
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <button
-                                    onClick={saveWeekSchedules}
-                                    disabled={isSubmitting || dirtyCount === 0}
-                                    className="brutal-btn bg-[#4ade80] hover:bg-[#22c55e] px-4 py-3 text-sm md:text-base text-[#060606] flex items-center justify-center gap-2 min-w-[200px]"
-                                >
-                                    <i className={`fas ${isSubmitting ? 'fa-circle-notch spinner' : 'fa-save'}`}></i>
-                                    <span>{isSubmitting ? 'Saving Week...' : `Save ${dirtyCount} Change${dirtyCount === 1 ? '' : 's'}`}</span>
-                                </button>
+                                    ))}
+                                </select>
+                                <i className="fas fa-chevron-down text-xs text-gray-500"></i>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-3">
-                                <button
-                                    onClick={onSignOut}
-                                    className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm md:text-base flex items-center gap-2"
-                                >
-                                    <i className="fas fa-user-lock text-[#f43f5e]"></i>
-                                    <span>Sign Out</span>
-                                </button>
-                            </div>
+                            <button
+                                onClick={saveWeekSchedules}
+                                disabled={isSubmitting || dirtyCount === 0}
+                                className="brutal-btn admin-studio-action admin-studio-save-button bg-[#4ade80] hover:bg-[#22c55e] text-[#060606]"
+                            >
+                                <i className={`fas ${isSubmitting ? 'fa-circle-notch spinner' : 'fa-save'}`}></i>
+                                <span>{isSubmitting ? 'Saving Week...' : `Save ${dirtyCount} Change${dirtyCount === 1 ? '' : 's'}`}</span>
+                            </button>
+
+                            <button
+                                onClick={onSignOut}
+                                className="brutal-btn admin-studio-action admin-studio-signout-button bg-white hover:bg-gray-50"
+                            >
+                                <i className="fas fa-user-lock text-[#f43f5e]"></i>
+                                <span>Sign Out</span>
+                            </button>
                         </div>
                     </div>
 
                     <div className="section-card p-3 md:p-4 overflow-hidden flex flex-col flex-1 min-h-[520px] lg:min-h-0">
-                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0">
-                            <div>
-                                <div className="card-eyebrow text-[#0284c7]">Weekly Schedule</div>
-                                <h4 className="section-title mt-1">Week Board</h4>
-                                <p className="section-subtitle mt-1">
-                                    Click a date to add shifts, or open a card to edit shifts and time-off requests.
-                                </p>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                                {selectedDraft ? (
-                                    <div className={`status-chip ${
-                                        isSelectingDayEmployee
-                                            ? 'bg-[#fde68a]'
-                                            : selectedTimeOffRow
-                                                ? (isApprovedTimeOffRow(selectedTimeOffRow) ? 'bg-[#fecaca]' : 'bg-[#fde68a]')
-                                                : (selectedDraft.sourceRow ? 'bg-[#bae6fd]' : 'bg-[#fde68a]')
-                                    }`}>
-                                        {isSelectingDayEmployee
-                                            ? `Choose employee - ${formatMonthDayDate(selectedDraft.date)}`
-                                            : selectedTimeOffRow
-                                                ? `${selectedDraft.name} - ${getTimeOffStatusLabel(selectedTimeOffRow)}`
-                                                : `${selectedDraft.name} - ${formatMonthDayDate(selectedDraft.date)}`}
-                                    </div>
-                                ) : (
-                                    <div className="status-chip bg-[#fff7ed]">Click a date to add shifts</div>
-                                )}
-                                <div className="status-chip bg-[#f8fafc]">
-                                    {isRefreshing ? 'Syncing latest schedule rows...' : `${sortedEmployees.length} active team member${sortedEmployees.length === 1 ? '' : 's'} in view`}
+                        <div className="flex flex-wrap items-center gap-2 mb-3 shrink-0">
+                            {selectedDraft ? (
+                                <div className={`status-chip ${
+                                    isSelectingDayEmployee
+                                        ? 'bg-[#fde68a]'
+                                        : selectedTimeOffRow
+                                            ? (isApprovedTimeOffRow(selectedTimeOffRow) ? 'bg-[#fecaca]' : 'bg-[#fde68a]')
+                                            : (selectedDraft.sourceRow ? 'bg-[#bae6fd]' : 'bg-[#fde68a]')
+                                }`}>
+                                    {isSelectingDayEmployee
+                                        ? `Choose employee - ${formatMonthDayDate(selectedDraft.date)}`
+                                        : selectedTimeOffRow
+                                            ? `${selectedDraft.name} - ${getTimeOffStatusLabel(selectedTimeOffRow)}`
+                                            : `${selectedDraft.name} - ${formatMonthDayDate(selectedDraft.date)}`}
                                 </div>
+                            ) : (
+                                <div className="status-chip bg-[#fff7ed]">Click a date to add shifts</div>
+                            )}
+                            <div className="status-chip bg-[#f8fafc]">
+                                {isRefreshing ? 'Syncing latest schedule rows...' : `${sortedEmployees.length} active team member${sortedEmployees.length === 1 ? '' : 's'} in view`}
                             </div>
                         </div>
 
@@ -4021,92 +4232,10 @@
                                 </div>
                             ) : (
                                 <div className="schedule-week-grid admin-week-board-grid">
-                                    {weekDays.map(dayObj => {
-                                        const dayKey = normalizeDate(dayObj);
-                                        const isToday = dayKey === normalizeDate(new Date());
-                                        const dayEntries = sortedEmployees
-                                            .map(emp => ({
-                                                employee: emp,
-                                                ...getWeekGridCellState(emp.name, dayKey),
-                                            }))
-                                            .filter(entry => entry.timeOffRow || entry.hasAssignedShift || entry.draft.clearSchedule || entry.isSelected);
-
-                                        return (
-                                            <div key={dayKey} className={`section-card admin-week-board-day-card overflow-hidden bg-white ${isToday ? 'ring-4 ring-[#bae6fd]' : ''}`}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => onSelectCell('', dayKey)}
-                                                    className={`w-full admin-week-board-day-button border-b-2 border-black text-left ${isToday ? 'bg-[#38bdf8] text-[#060606]' : 'bg-[#bae6fd] text-[#060606]'}`}
-                                                >
-                                                    <div className="card-eyebrow text-[#060606]">{dayObj.toLocaleDateString('en-US', { weekday: 'long' })}</div>
-                                                    <div className="card-title mt-1">{formatShortDate(dayObj)}</div>
-                                                </button>
-
-                                                <div className="admin-week-board-scroll no-scrollbar space-y-2">
-                                                    {dayEntries.map(({ employee, draft, timeOffRow, timeOffMeta, cellFormattedIn, cellFormattedOut, cellMinutes, hasAssignedShift, cellStateClass, isSelected }, index) => {
-                                                        const isTimeOffApproved = isApprovedTimeOffRow(timeOffRow);
-                                                        const surfaceClass = timeOffRow
-                                                            ? (isTimeOffApproved ? 'bg-[#fee2e2]' : 'bg-[#fff7ed]')
-                                                            : draft.clearSchedule
-                                                                ? 'bg-[#fee2e2]'
-                                                                : isSelected
-                                                                    ? 'bg-[#dbeafe]'
-                                                                    : cellStateClass;
-                                                        const outlineClass = isSelected ? 'ring-2 ring-[#0284c7]' : '';
-
-                                                        return (
-                                                            <button
-                                                                key={`${dayKey}-${employee.id}-${index}`}
-                                                                type="button"
-                                                                onClick={() => onSelectCell(employee.name, dayKey)}
-                                                                className={`schedule-shift-card admin-week-board-shift-card w-full text-left transition-colors ${surfaceClass} ${outlineClass}`}
-                                                            >
-                                                                <div className="flex items-start justify-between gap-3">
-                                                                    <div className="min-w-0">
-                                                                        <div className="card-title truncate">{employee.name}</div>
-                                                                        <div className="card-meta mt-1 truncate">{employee.department || 'Team'}</div>
-                                                                    </div>
-                                                                    {(timeOffRow || draft.clearSchedule || isSelected) && (
-                                                                        <div className="card-eyebrow text-gray-500">
-                                                                            {timeOffRow
-                                                                                ? (isTimeOffApproved ? 'Blocked' : 'Request')
-                                                                                : (draft.clearSchedule ? 'Clearing' : 'Editing')}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-
-                                                                {timeOffRow ? (
-                                                                    <>
-                                                                        <div className="card-meta text-[#060606] mt-2.5">
-                                                                            {getTimeOffRangeLabel(timeOffRow, timeOffMeta)}
-                                                                        </div>
-                                                                        <div className="card-meta mt-1">
-                                                                            {isTimeOffApproved ? 'Approved block on the schedule' : 'Awaiting admin approval'}
-                                                                        </div>
-                                                                        {hasAssignedShift && (
-                                                                            <div className="card-meta mt-1 text-gray-500">
-                                                                                Current shift: {cellFormattedIn} - {cellFormattedOut}
-                                                                            </div>
-                                                                        )}
-                                                                    </>
-                                                                ) : draft.clearSchedule ? (
-                                                                    <div className="card-meta text-[#060606] mt-2.5">Schedule will be removed</div>
-                                                                ) : hasAssignedShift ? (
-                                                                    <div className="admin-week-board-shift-time mt-2.5">{cellFormattedIn} - {cellFormattedOut}</div>
-                                                                ) : null}
-
-                                                                {!timeOffRow && (draft.clearSchedule || hasAssignedShift) && (
-                                                                    <div className="card-meta admin-week-board-shift-duration mt-1">
-                                                                        {draft.clearSchedule ? 'Removal staged' : formatWorkedDurationForDisplay(cellMinutes)}
-                                                                    </div>
-                                                                )}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                                    {weekdayDays.map(dayObj => renderWeekBoardDay(dayObj))}
+                                    <div className="admin-week-board-weekend-column">
+                                        {weekendDays.map(dayObj => renderWeekBoardDay(dayObj, 'admin-week-board-weekend-day-card'))}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -6041,16 +6170,7 @@
                             {/* Admin Actions */}
                             {isAuthenticated && adminUser && (
                                 <div className="brutal-card left-panel-card left-panel-card-padding animate-fade-in bg-white">
-                                    <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-2 truncate">Hi, {adminUser.name}</h2>
-                                    <p className="text-sm font-bold text-gray-600 mb-5">
-                                        {viewMode === 'ADMIN_INVENTORY'
-                                            ? `${inventoryAwaitingRows.length} inventory row${inventoryAwaitingRows.length === 1 ? '' : 's'} currently need approval.`
-                                            : viewMode === 'ADMIN_MESSAGES'
-                                                ? 'Review employee notes and reply in the shared chat thread.'
-                                            : viewMode === 'ADMIN_PAYROLL'
-                                                ? 'Review current pay period hours from here.'
-                                                : 'Open the schedule studio, payroll, message board, or the inventory request board from here.'}
-                                    </p>
+                                    <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mb-5 truncate">Hi, {adminUser.name}</h2>
                                     <div className="standard-two-up-grid shadow-safe-4">
                                         <button
                                             onClick={() => setViewMode('ADMIN')}
