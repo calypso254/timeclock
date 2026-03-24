@@ -166,6 +166,7 @@
             width: 100%;
             min-height: var(--size-unit-1);
         }
+        .stacked-action-button,
         .admin-action-button {
             display: flex;
             flex-direction: column;
@@ -178,13 +179,16 @@
             line-height: 1.1;
             font-size: 0.78rem;
         }
+        .stacked-action-button i,
         .admin-action-button i {
             font-size: 1rem;
             line-height: 1;
         }
+        .stacked-action-button span,
         .admin-action-button span {
             display: block;
             max-width: 100%;
+            overflow-wrap: anywhere;
         }
         .card-grid {
             --active-card-column-width: var(--card-grid-column-width);
@@ -935,6 +939,52 @@
             { key: 'heart', icon: 'fa-heart', label: 'Support' },
             { key: 'star', icon: 'fa-star', label: 'Important' },
         ];
+        const PEN_HOSPITAL_STATUS = {
+            DIAGNOSED: 'Diagnosed',
+            ADMITTED: 'Admitted',
+            IN_SURGERY: 'In Surgery',
+            IN_RECOVERY: 'In Recovery',
+            READY_FOR_RELEASE: 'Ready For Release',
+            DISCHARGED: 'Discharged',
+        };
+        const PEN_HOSPITAL_STATUS_OPTIONS = [
+            { value: PEN_HOSPITAL_STATUS.DIAGNOSED, label: 'Diagnosed' },
+            { value: PEN_HOSPITAL_STATUS.ADMITTED, label: 'Admitted' },
+            { value: PEN_HOSPITAL_STATUS.IN_SURGERY, label: 'In Surgery' },
+            { value: PEN_HOSPITAL_STATUS.IN_RECOVERY, label: 'In Recovery' },
+            { value: PEN_HOSPITAL_STATUS.READY_FOR_RELEASE, label: 'Ready For Release' },
+            { value: PEN_HOSPITAL_STATUS.DISCHARGED, label: 'Discharged' },
+        ];
+        const PEN_HOSPITAL_BOARD_SECTIONS = [
+            {
+                key: 'inbound',
+                title: 'Inbound',
+                subtitle: 'Diagnosed and admitted returns waiting for bench time.',
+                countClass: 'bg-[#ccfbf1]',
+                cardClass: 'bg-[#f0fdfa]',
+            },
+            {
+                key: 'in_process',
+                title: 'In Process',
+                subtitle: 'Pens actively moving through surgery and recovery.',
+                countClass: 'bg-[#dbeafe]',
+                cardClass: 'bg-[#eff6ff]',
+            },
+            {
+                key: 'ready',
+                title: 'Ready To Ship',
+                subtitle: 'Repaired pens that are ready for release back to the customer.',
+                countClass: 'bg-[#dcfce7]',
+                cardClass: 'bg-[#f0fdf4]',
+            },
+            {
+                key: 'completed',
+                title: 'Discharged',
+                subtitle: 'Completed repairs that have already gone back out.',
+                countClass: 'bg-[#f3e8ff]',
+                cardClass: 'bg-[#faf5ff]',
+            },
+        ];
         const STANDARD_SIZE_UNIT = 103;
         const STANDARD_SIZE_GAP = 16;
 
@@ -1451,6 +1501,107 @@
 
         const formatInventoryTimestamp = (value) => {
             return value ? String(value) : 'Not yet updated';
+        };
+
+        const normalizePenHospitalStatus = (value) => {
+            const normalized = String(value || '').trim().toLowerCase();
+            const match = PEN_HOSPITAL_STATUS_OPTIONS.find(option => option.value.toLowerCase() === normalized);
+            return match?.value || PEN_HOSPITAL_STATUS.DIAGNOSED;
+        };
+
+        const getPenHospitalStatusWeight = (status) => {
+            switch (normalizePenHospitalStatus(status)) {
+                case PEN_HOSPITAL_STATUS.DIAGNOSED:
+                    return 0;
+                case PEN_HOSPITAL_STATUS.ADMITTED:
+                    return 1;
+                case PEN_HOSPITAL_STATUS.IN_SURGERY:
+                    return 2;
+                case PEN_HOSPITAL_STATUS.IN_RECOVERY:
+                    return 3;
+                case PEN_HOSPITAL_STATUS.READY_FOR_RELEASE:
+                    return 4;
+                case PEN_HOSPITAL_STATUS.DISCHARGED:
+                    return 5;
+                default:
+                    return 6;
+            }
+        };
+
+        const getPenHospitalBoardKey = (status) => {
+            switch (normalizePenHospitalStatus(status)) {
+                case PEN_HOSPITAL_STATUS.DIAGNOSED:
+                case PEN_HOSPITAL_STATUS.ADMITTED:
+                    return 'inbound';
+                case PEN_HOSPITAL_STATUS.IN_SURGERY:
+                case PEN_HOSPITAL_STATUS.IN_RECOVERY:
+                    return 'in_process';
+                case PEN_HOSPITAL_STATUS.READY_FOR_RELEASE:
+                    return 'ready';
+                case PEN_HOSPITAL_STATUS.DISCHARGED:
+                    return 'completed';
+                default:
+                    return 'inbound';
+            }
+        };
+
+        const sortPenHospitalCases = (cases) => {
+            return (Array.isArray(cases) ? cases : []).slice().sort((a, b) => {
+                const statusDelta = getPenHospitalStatusWeight(a?.status) - getPenHospitalStatusWeight(b?.status);
+                if (statusDelta !== 0) return statusDelta;
+
+                const aTime = new Date(a?.lastUpdatedIso || a?.lastUpdated || a?.createdAtIso || a?.createdAt || 0).getTime();
+                const bTime = new Date(b?.lastUpdatedIso || b?.lastUpdated || b?.createdAtIso || b?.createdAt || 0).getTime();
+                if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) {
+                    return bTime - aTime;
+                }
+
+                return (b?.rowNumber || 0) - (a?.rowNumber || 0);
+            });
+        };
+
+        const buildPenHospitalSummary = (cases) => {
+            const safeCases = Array.isArray(cases) ? cases : [];
+            return PEN_HOSPITAL_BOARD_SECTIONS.map(section => ({
+                ...section,
+                count: safeCases.filter(caseRow => getPenHospitalBoardKey(caseRow?.status) === section.key).length,
+            }));
+        };
+
+        const formatPenHospitalTimestamp = (value, isoTimestamp = '') => {
+            return formatMessageTimestamp(value, isoTimestamp) || 'Not yet updated';
+        };
+
+        const canUserSetPenHospitalStatus = (role, nextStatus) => {
+            const normalizedStatus = normalizePenHospitalStatus(nextStatus);
+            if (isAdminRole(role)) return true;
+            return normalizedStatus !== PEN_HOSPITAL_STATUS.DIAGNOSED &&
+                normalizedStatus !== PEN_HOSPITAL_STATUS.DISCHARGED;
+        };
+
+        const getPenHospitalStatusChipClasses = (status) => {
+            switch (normalizePenHospitalStatus(status)) {
+                case PEN_HOSPITAL_STATUS.DIAGNOSED:
+                    return 'bg-[#fde68a]';
+                case PEN_HOSPITAL_STATUS.ADMITTED:
+                    return 'bg-[#ccfbf1]';
+                case PEN_HOSPITAL_STATUS.IN_SURGERY:
+                    return 'bg-[#bfdbfe]';
+                case PEN_HOSPITAL_STATUS.IN_RECOVERY:
+                    return 'bg-[#ddd6fe]';
+                case PEN_HOSPITAL_STATUS.READY_FOR_RELEASE:
+                    return 'bg-[#bbf7d0]';
+                case PEN_HOSPITAL_STATUS.DISCHARGED:
+                    return 'bg-[#f5d0fe]';
+                default:
+                    return 'bg-[#f3f4f6]';
+            }
+        };
+
+        const formatPenHospitalExpectedLabel = (caseRow) => {
+            const expectedCount = Number(caseRow?.expectedCount || 0);
+            if (!expectedCount) return 'No expected pen count';
+            return `${expectedCount} pen${expectedCount === 1 ? '' : 's'} expected`;
         };
 
         const getTodayPublishedShifts = (sheetData) => {
@@ -3250,6 +3401,358 @@
             );
         };
 
+        const PenHospitalCaseCard = ({
+            caseRow,
+            currentUser,
+            isSubmitting = false,
+            onUpdateStatus,
+        }) => {
+            const currentRole = currentUser?.role || 'employee';
+            const currentStatus = normalizePenHospitalStatus(caseRow?.status);
+            const penNames = String(caseRow?.penNames || '').trim();
+            const canEditStatuses = Boolean(currentUser && typeof onUpdateStatus === 'function');
+            const availableStatuses = PEN_HOSPITAL_STATUS_OPTIONS.filter(option => canUserSetPenHospitalStatus(currentRole, option.value));
+
+            return (
+                <div className="rounded-2xl border-2 border-black bg-white p-4 shadow-[4px_4px_0px_0px_#000000]">
+                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-3">
+                        <div className="min-w-0">
+                            <div className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#0f766e]">Customer</div>
+                            <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1 break-words">
+                                {String(caseRow?.customerName || '').trim() || 'Unnamed customer'}
+                            </h4>
+                            <div className="text-sm font-bold text-gray-600 mt-2">
+                                {formatPenHospitalExpectedLabel(caseRow)}
+                            </div>
+                        </div>
+                        <div className={`inline-flex items-center rounded-full border-2 border-black px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#060606] ${getPenHospitalStatusChipClasses(currentStatus)}`}>
+                            {currentStatus}
+                        </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-3 mt-4">
+                        <div className="rounded-xl border-2 border-black bg-[#f8fafc] px-3 py-3">
+                            <div className="text-[10px] uppercase font-bold tracking-wide text-gray-500">Pen Names</div>
+                            <div className="text-sm md:text-base font-bold font-poppins text-[#060606] mt-1 break-words">
+                                {penNames || 'Pen names were not listed for this return.'}
+                            </div>
+                        </div>
+                        <div className="rounded-xl border-2 border-black bg-[#f8fafc] px-3 py-3">
+                            <div className="text-[10px] uppercase font-bold tracking-wide text-gray-500">Activity</div>
+                            <div className="space-y-1.5 mt-1 text-xs md:text-sm font-bold text-gray-600">
+                                <div>Created {formatPenHospitalTimestamp(caseRow?.createdAt, caseRow?.createdAtIso)}</div>
+                                <div>Updated {formatPenHospitalTimestamp(caseRow?.lastUpdated, caseRow?.lastUpdatedIso)}</div>
+                                {caseRow?.createdBy && <div>Opened by {caseRow.createdBy}</div>}
+                                {caseRow?.diagnosedBy && <div>Diagnosed by {caseRow.diagnosedBy}</div>}
+                                {caseRow?.dischargedBy && <div>Discharged by {caseRow.dischargedBy}</div>}
+                            </div>
+                        </div>
+                    </div>
+
+                    {canEditStatuses && availableStatuses.length > 0 && (
+                        <div className="mt-4">
+                            <div className="text-[10px] uppercase font-bold tracking-wide text-gray-500">Update Status</div>
+                            <div className="grid grid-cols-2 xl:grid-cols-3 gap-2 mt-2">
+                                {availableStatuses.map(option => {
+                                    const isActive = currentStatus === option.value;
+                                    return (
+                                        <button
+                                            key={`${caseRow?.rowNumber || 'case'}-${option.value}`}
+                                            type="button"
+                                            onClick={() => !isActive && onUpdateStatus?.(caseRow, option.value)}
+                                            disabled={isSubmitting || isActive}
+                                            className={`brutal-btn px-3 py-2 text-[11px] md:text-xs leading-tight ${
+                                                isActive
+                                                    ? `${getPenHospitalStatusChipClasses(option.value)} text-[#060606]`
+                                                    : 'bg-white hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const PenHospitalBoard = ({
+            penHospitalCases,
+            currentUser,
+            isSubmitting = false,
+            onUpdateStatus,
+            emptyMessage = 'No Pen Hospital cases yet.',
+        }) => {
+            const sortedCases = sortPenHospitalCases(penHospitalCases);
+            const summary = buildPenHospitalSummary(sortedCases);
+
+            if (sortedCases.length === 0) {
+                return (
+                    <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-10 text-center text-sm md:text-base font-bold text-gray-400">
+                        {emptyMessage}
+                    </div>
+                );
+            }
+
+            return (
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5">
+                        {summary.map(section => (
+                            <div key={section.key} className={`public-summary-row ${section.countClass}`}>
+                                <div className="text-[9px] uppercase font-bold text-gray-500">{section.title}</div>
+                                <div className="font-bold font-poppins text-lg text-[#060606] mt-1">{section.count}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="space-y-4">
+                        {PEN_HOSPITAL_BOARD_SECTIONS.map(section => {
+                            const sectionCases = sortedCases.filter(caseRow => getPenHospitalBoardKey(caseRow?.status) === section.key);
+                            return (
+                                <div key={section.key} className={`brutal-card ${section.cardClass} p-4 md:p-5`}>
+                                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+                                        <div>
+                                            <div className="card-eyebrow text-[#0f766e]">{section.title}</div>
+                                            <h4 className="card-title mt-1">{section.title}</h4>
+                                            <p className="section-subtitle mt-1">{section.subtitle}</p>
+                                        </div>
+                                        <div className={`status-chip self-start ${section.countClass}`}>
+                                            {sectionCases.length} case{sectionCases.length === 1 ? '' : 's'}
+                                        </div>
+                                    </div>
+
+                                    {sectionCases.length === 0 ? (
+                                        <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-6 text-center text-sm font-bold text-gray-400">
+                                            No cases in this lane.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {sectionCases.map(caseRow => (
+                                                <PenHospitalCaseCard
+                                                    key={caseRow.rowNumber}
+                                                    caseRow={caseRow}
+                                                    currentUser={currentUser}
+                                                    isSubmitting={isSubmitting}
+                                                    onUpdateStatus={onUpdateStatus}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        };
+
+        const EmployeePenHospitalPanel = ({
+            penHospitalCases,
+            currentUser,
+            isFetchingPenHospital,
+            isSubmittingPenHospital,
+            onRefresh,
+            onUpdateStatus,
+        }) => {
+            return (
+                <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4 shrink-0">
+                        <div>
+                            <div className="card-eyebrow text-[#0f766e]">Repair Tracking</div>
+                            <h3 className="section-title mt-1">Pen Hospital</h3>
+                            <p className="section-subtitle mt-1">
+                                Track inbound repairs, bench status, and what is ready to head back to the customer.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={onRefresh}
+                                disabled={isFetchingPenHospital || isSubmittingPenHospital}
+                                className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
+                            >
+                                <i className={`fas ${isFetchingPenHospital ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#0f766e]`}></i>
+                                <span>{isFetchingPenHospital ? 'Refreshing...' : 'Refresh'}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {!isAdminRole(currentUser?.role) && (
+                        <div className="rounded-xl border-2 border-black bg-[#f0fdfa] px-4 py-3 text-sm font-bold text-gray-600 mb-4 shrink-0">
+                            Admins open and discharge cases. Staff can move cases through admitted, surgery, recovery, and ready-for-release.
+                        </div>
+                    )}
+
+                    <div className="flex-1 overflow-y-auto no-scrollbar pr-1 pb-4">
+                        <PenHospitalBoard
+                            penHospitalCases={penHospitalCases}
+                            currentUser={currentUser}
+                            isSubmitting={isSubmittingPenHospital}
+                            onUpdateStatus={onUpdateStatus}
+                            emptyMessage="No Pen Hospital cases are active yet."
+                        />
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminPenHospitalWorkspace = ({
+            adminUser,
+            penHospitalCases,
+            isFetchingPenHospital,
+            isSubmittingPenHospital,
+            onRefresh,
+            onCreateCase,
+            onUpdateStatus,
+            onOpenScheduler,
+            onSignOut,
+            onMessage,
+        }) => {
+            const [createForm, setCreateForm] = useState({
+                customerName: '',
+                expectedCount: '',
+                penNames: '',
+            });
+
+            const submitCreate = async () => {
+                const customerName = String(createForm.customerName || '').trim();
+                const expectedCount = parseWholeNumber(createForm.expectedCount);
+                const penNames = String(createForm.penNames || '').trim();
+
+                if (!customerName || !expectedCount) {
+                    onMessage?.({ type: 'error', message: "Enter the customer name and a whole-number expected pen count." });
+                    return;
+                }
+
+                const didSucceed = await onCreateCase(customerName, expectedCount, penNames);
+                if (didSucceed) {
+                    setCreateForm({
+                        customerName: '',
+                        expectedCount: '',
+                        penNames: '',
+                    });
+                }
+            };
+
+            return (
+                <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
+                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
+                        <div>
+                            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0f766e]">Admin Repair Desk</div>
+                            <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606] mt-1">Pen Hospital</h3>
+                            <p className="text-sm font-bold text-gray-600 mt-1">Hi, {adminUser?.name}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={onOpenScheduler}
+                                className="brutal-btn bg-[#38bdf8] hover:bg-[#0ea5e9] px-4 py-2 text-sm flex items-center gap-2"
+                            >
+                                <i className="fas fa-calendar-week"></i>
+                                <span>Schedule</span>
+                            </button>
+                            <button
+                                onClick={onRefresh}
+                                disabled={isFetchingPenHospital || isSubmittingPenHospital}
+                                className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
+                            >
+                                <i className={`fas ${isFetchingPenHospital ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#0f766e]`}></i>
+                                <span>{isFetchingPenHospital ? 'Refreshing...' : 'Refresh'}</span>
+                            </button>
+                            <button
+                                onClick={onSignOut}
+                                className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
+                            >
+                                <i className="fas fa-user-lock text-[#f43f5e]"></i>
+                                <span>Sign Out</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid lg:grid-cols-[360px_minmax(0,1fr)] gap-4 min-h-0 flex-1">
+                        <div className="space-y-4">
+                            <div className="brutal-card bg-white p-4 md:p-5">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h4 className="text-lg font-bold font-poppins text-[#060606]">Open A Case</h4>
+                                        <p className="text-xs font-bold text-gray-500 mt-1">Admins start each repair case here. New cases begin as diagnosed.</p>
+                                    </div>
+                                    <div className="rounded-full border-2 border-black bg-[#ccfbf1] px-3 py-1 text-xs font-bold uppercase">
+                                        {penHospitalCases.length} total
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 mt-4">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Customer Name</label>
+                                        <input
+                                            type="text"
+                                            value={createForm.customerName}
+                                            onChange={e => setCreateForm(prev => ({ ...prev, customerName: e.target.value }))}
+                                            className="brutal-input w-full px-3 py-2 text-sm"
+                                            placeholder="Who sent the pens in?"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Pens Expected</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            value={createForm.expectedCount}
+                                            onChange={e => setCreateForm(prev => ({ ...prev, expectedCount: e.target.value }))}
+                                            className="brutal-input w-full px-3 py-2 text-sm"
+                                            placeholder="How many pens are coming in?"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Pen Names (Optional)</label>
+                                        <textarea
+                                            value={createForm.penNames}
+                                            onChange={e => setCreateForm(prev => ({ ...prev, penNames: String(e.target.value || '').slice(0, 600) }))}
+                                            rows={5}
+                                            className="brutal-input w-full px-3 py-2 text-sm resize-none"
+                                            placeholder="List pen names, one per line or separated by commas."
+                                        />
+                                    </div>
+
+                                    <button
+                                        onClick={submitCreate}
+                                        disabled={isSubmittingPenHospital}
+                                        className="brutal-btn w-full bg-[#2dd4bf] hover:bg-[#14b8a6] px-4 py-3 text-sm flex items-center justify-center gap-2"
+                                    >
+                                        <i className={`fas ${isSubmittingPenHospital ? 'fa-circle-notch spinner' : 'fa-suitcase-medical'}`}></i>
+                                        <span>{isSubmittingPenHospital ? 'Saving...' : 'Create Case'}</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="brutal-card bg-white p-4 md:p-5">
+                                <h4 className="text-lg font-bold font-poppins text-[#060606]">Status Rules</h4>
+                                <div className="space-y-2 mt-4 text-sm font-bold text-gray-600">
+                                    <div>`Diagnosed` and `Discharged` are admin-only steps.</div>
+                                    <div>`Admitted`, `In Surgery`, `In Recovery`, and `Ready For Release` can be updated by the team.</div>
+                                    <div>Use the lane counts on the right to see what is inbound, active on the bench, and ready to head home.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="min-h-0 overflow-y-auto no-scrollbar pr-1 pb-4">
+                            <PenHospitalBoard
+                                penHospitalCases={penHospitalCases}
+                                currentUser={adminUser}
+                                isSubmitting={isSubmittingPenHospital}
+                                onUpdateStatus={onUpdateStatus}
+                                emptyMessage="No Pen Hospital cases have been created yet."
+                            />
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const PublicOverviewPanel = ({ sheetData, inventoryRows, messages }) => {
             return (
                 <div className="flex flex-col h-full animate-fade-in overflow-hidden">
@@ -4600,12 +5103,14 @@
             const [isFetchingLogs, setIsFetchingLogs] = useState(false);
             const [isFetchingInventory, setIsFetchingInventory] = useState(false);
             const [isFetchingMessages, setIsFetchingMessages] = useState(false);
+            const [isFetchingPenHospital, setIsFetchingPenHospital] = useState(false);
             const [isSubmittingAction, setIsSubmittingAction] = useState(false);
             const [isSubmittingInventory, setIsSubmittingInventory] = useState(false);
             const [isSubmittingAdminSchedule, setIsSubmittingAdminSchedule] = useState(false);
             const [isSavingShiftTemplates, setIsSavingShiftTemplates] = useState(false);
             const [isSubmittingTimeOff, setIsSubmittingTimeOff] = useState(false);
             const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
+            const [isSubmittingPenHospital, setIsSubmittingPenHospital] = useState(false);
             const [reactingMessageRowNumber, setReactingMessageRowNumber] = useState(null);
             const [fetchError, setFetchError] = useState(null);
 
@@ -4614,6 +5119,7 @@
             const [sheetData, setSheetData] = useState([]);
             const [inventoryRows, setInventoryRows] = useState([]);
             const [messages, setMessages] = useState([]);
+            const [penHospitalCases, setPenHospitalCases] = useState([]);
             const [messageDraft, setMessageDraft] = useState('');
             
             // Settings State (Branding)
@@ -4710,22 +5216,42 @@
                 }
             };
 
+            const refreshPenHospital = async ({ showSpinner = true } = {}) => {
+                if (showSpinner) setIsFetchingPenHospital(true);
+                try {
+                    const response = await fetch(buildApiUrl('pen_hospital'), { cache: 'no-store' });
+                    if (!response.ok) throw new Error('Failed to fetch Pen Hospital rows');
+                    const penHospitalData = await response.json();
+                    const rows = sortPenHospitalCases(Array.isArray(penHospitalData) ? penHospitalData : []);
+                    setPenHospitalCases(rows);
+                    return rows;
+                } catch (error) {
+                    console.error("Error refreshing Pen Hospital:", error);
+                    return null;
+                } finally {
+                    if (showSpinner) setIsFetchingPenHospital(false);
+                }
+            };
+
             const refreshSheetData = async (showToast = false, { showSpinner = true, isInitialLoad = false } = {}) => {
                 const hadEmployees = employees.length > 0;
                 if (showSpinner) setIsFetchingLogs(true);
                 if (showSpinner) setIsFetchingInventory(true);
                 if (showSpinner) setIsFetchingMessages(true);
+                if (showSpinner) setIsFetchingPenHospital(true);
 
                 let rows = null;
                 let inventory = null;
                 let messageRows = null;
+                let penHospital = null;
                 try {
-                    const [employeesResult, settingsResult, logsResult, inventoryResult, messagesResult] = await Promise.allSettled([
+                    const [employeesResult, settingsResult, logsResult, inventoryResult, messagesResult, penHospitalResult] = await Promise.allSettled([
                         refreshEmployees(),
                         refreshSettings(),
                         refreshLogs({ showSpinner: false }),
                         refreshInventory({ showSpinner: false }),
                         refreshMessages({ showSpinner: false }),
+                        refreshPenHospital({ showSpinner: false }),
                     ]);
 
                     if (employeesResult.status === 'rejected') {
@@ -4743,23 +5269,29 @@
                         console.error("Error refreshing messages:", messagesResult.reason);
                     }
 
+                    if (penHospitalResult.status === 'rejected') {
+                        console.error("Error refreshing Pen Hospital:", penHospitalResult.reason);
+                    }
+
                     rows = logsResult.status === 'fulfilled' ? logsResult.value : null;
                     inventory = inventoryResult.status === 'fulfilled' ? inventoryResult.value : null;
                     messageRows = messagesResult.status === 'fulfilled' ? messagesResult.value : null;
+                    penHospital = penHospitalResult.status === 'fulfilled' ? penHospitalResult.value : null;
                 } finally {
                     if (showSpinner) setIsFetchingLogs(false);
                     if (showSpinner) setIsFetchingInventory(false);
                     if (showSpinner) setIsFetchingMessages(false);
+                    if (showSpinner) setIsFetchingPenHospital(false);
                     if (isInitialLoad) setIsLoadingEmployees(false);
                 }
 
                 if (showToast) {
-                    setNotification((rows || inventory || messageRows)
+                    setNotification((rows || inventory || messageRows || penHospital)
                         ? { type: 'info', message: "Latest spreadsheet updates loaded" }
                         : { type: 'error', message: "Could not pull the latest spreadsheet updates." }
                     );
                 }
-                return { rows, inventory, messages: messageRows };
+                return { rows, inventory, messages: messageRows, penHospital };
             };
 
             const getBaseAdminScheduleDraft = (employeeName, dateValue, rows = sheetData) => {
@@ -5051,6 +5583,7 @@
 
             const selectedUser = employees.find(e => e.id === selectedId) || null;
             const selectedEmployee = selectedUser && !isAdminRole(selectedUser.role) ? selectedUser : null;
+            const activeSessionUser = adminUser || selectedEmployee || null;
             const activeMessageViewer = adminUser || selectedEmployee || null;
             const publicEmployees = employees
                 .filter(emp => !isAdminRole(emp.role))
@@ -5093,7 +5626,7 @@
             const stagedScheduleChangeCount = Object.keys(adminScheduleDrafts).length;
             const inventoryOpenRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
             const inventoryAwaitingRows = inventoryOpenRows.filter(row => Number(row.awaitingApproval || 0) > 0);
-            const isAdminWorkspaceOpen = Boolean(isAuthenticated && adminUser && ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PAYROLL', 'ADMIN_MESSAGES'].includes(viewMode));
+            const isAdminWorkspaceOpen = Boolean(isAuthenticated && adminUser && ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PEN_HOSPITAL', 'ADMIN_PAYROLL', 'ADMIN_MESSAGES'].includes(viewMode));
             const editableRows = filterTimesheetRowsUpToToday(personalData)
                 .filter(row => !isEntryLocked(row))
                 .slice()
@@ -5162,10 +5695,58 @@
                 }
             };
 
+            const submitPenHospitalAction = async (payload, successMessage, fallbackSuccessMessage = null) => {
+                if (isSubmittingPenHospital) return false;
+
+                lastActivityRef.current = Date.now();
+                setIsSubmittingPenHospital(true);
+
+                try {
+                    const timestamp = buildActionTimestamp();
+                    const result = await sendToSheet({
+                        ...payload,
+                        submittedAt: timestamp.isoTimestamp,
+                        timezone: timestamp.timezone,
+                        timezoneOffsetMinutes: timestamp.timezoneOffsetMinutes,
+                    });
+
+                    if (!result.ok) {
+                        setNotification({ type: 'error', message: result.error || "Could not save the Pen Hospital update." });
+                        return false;
+                    }
+
+                    const refreshedCases = await refreshPenHospital({ showSpinner: false });
+                    if (refreshedCases) {
+                        setNotification({ type: 'success', message: successMessage });
+                    } else {
+                        setNotification({
+                            type: 'info',
+                            message: fallbackSuccessMessage || `${successMessage}. The latest Pen Hospital board could not be reloaded automatically.`
+                        });
+                    }
+                    return true;
+                } catch (err) {
+                    console.error("Pen Hospital action failed:", err);
+                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted the Pen Hospital update." });
+                    return false;
+                } finally {
+                    setIsSubmittingPenHospital(false);
+                }
+            };
+
             const handleOpenEmployeeInventory = async () => {
                 setEmployeeTimeOffDraft(null);
                 setViewMode('INVENTORY');
                 await refreshInventory({ showSpinner: false });
+            };
+
+            const handleOpenEmployeePenHospital = async () => {
+                setEmployeeTimeOffDraft(null);
+                setViewMode('PEN_HOSPITAL');
+                const rows = await refreshPenHospital({ showSpinner: false });
+                if (rows === null) {
+                    setNotification({ type: 'error', message: "Could not load the Pen Hospital board right now." });
+                }
             };
 
             const handleOpenEmployeeMessages = async () => {
@@ -5192,6 +5773,15 @@
                 setEmployeeTimeOffDraft(null);
                 setViewMode('ADMIN_INVENTORY');
                 await refreshInventory({ showSpinner: false });
+            };
+
+            const handleOpenAdminPenHospital = async () => {
+                setEmployeeTimeOffDraft(null);
+                setViewMode('ADMIN_PEN_HOSPITAL');
+                const rows = await refreshPenHospital({ showSpinner: false });
+                if (rows === null) {
+                    setNotification({ type: 'error', message: "Could not load the Pen Hospital board right now." });
+                }
             };
 
             const handleOpenAdminPayroll = async () => {
@@ -5556,6 +6146,37 @@
                         editorRole: adminUser.role || 'admin',
                     },
                     `${quantity} ${quantity === 1 ? 'item was' : 'items were'} sent back from Awaiting Approval for ${row.sku}.`
+                );
+            };
+
+            const handleCreatePenHospitalCase = async (customerName, expectedCount, penNames = '') => {
+                if (!adminUser) return false;
+                return submitPenHospitalAction(
+                    {
+                        action: "PEN_HOSPITAL_CREATE_CASE",
+                        customerName,
+                        expectedCount,
+                        penNames,
+                        editorName: adminUser.name,
+                        editorRole: adminUser.role || 'admin',
+                    },
+                    `Pen Hospital case created for ${customerName}.`
+                );
+            };
+
+            const handleUpdatePenHospitalStatus = async (caseRow, nextStatus) => {
+                const activeUser = adminUser || selectedEmployee;
+                if (!activeUser || !caseRow?.rowNumber || !nextStatus) return false;
+
+                return submitPenHospitalAction(
+                    {
+                        action: "PEN_HOSPITAL_UPDATE_STATUS",
+                        rowNumber: caseRow.rowNumber,
+                        status: nextStatus,
+                        editorName: activeUser.name,
+                        editorRole: activeUser.role || (adminUser ? 'admin' : 'employee'),
+                    },
+                    `${String(caseRow.customerName || 'This case').trim() || 'This case'} moved to ${nextStatus}.`
                 );
             };
 
@@ -6122,7 +6743,7 @@
                                     <div className="standard-two-up-grid shadow-safe-4">
                                         <button
                                             onClick={handleOpenEmployeeTimesheet}
-                                            className={`brutal-btn standard-unit-button py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button stacked-action-button py-3 text-[#060606] ${
                                                 ['TIMESHEET', 'EDIT'].includes(viewMode) ? 'bg-[#38bdf8] hover:bg-[#0ea5e9]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -6131,7 +6752,7 @@
                                         </button>
                                         <button
                                             onClick={handleOpenEmployeeSchedule}
-                                            className={`brutal-btn standard-unit-button py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button stacked-action-button py-3 text-[#060606] ${
                                                 viewMode === 'SCHEDULE' ? 'bg-[#38bdf8] hover:bg-[#0ea5e9]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -6140,7 +6761,7 @@
                                         </button>
                                         <button
                                             onClick={handleOpenEmployeeInventory}
-                                            className={`brutal-btn standard-unit-button py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button stacked-action-button py-3 text-[#060606] ${
                                                 viewMode === 'INVENTORY' ? 'bg-[#fef3c7] hover:bg-[#fde68a]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -6148,8 +6769,17 @@
                                             <span>Inventory</span>
                                         </button>
                                         <button
+                                            onClick={handleOpenEmployeePenHospital}
+                                            className={`brutal-btn standard-unit-button stacked-action-button py-3 text-[#060606] ${
+                                                viewMode === 'PEN_HOSPITAL' ? 'bg-[#ccfbf1] hover:bg-[#99f6e4]' : 'bg-white hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <i className="fas fa-suitcase-medical text-[#0f766e]"></i>
+                                            <span>Pen Hospital</span>
+                                        </button>
+                                        <button
                                             onClick={handleOpenEmployeeMessages}
-                                            className={`brutal-btn standard-unit-button py-3 md:py-4 text-sm md:text-base flex items-center justify-center gap-2 ${
+                                            className={`brutal-btn standard-unit-button stacked-action-button py-3 text-[#060606] ${
                                                 viewMode === 'MESSAGES' ? 'bg-[#f9a8d4] hover:bg-[#f472b6]' : 'bg-white hover:bg-gray-50'
                                             }`}
                                         >
@@ -6158,7 +6788,7 @@
                                         </button>
                                         <button
                                             onClick={handleLogout}
-                                            className="brutal-btn standard-unit-button py-3 md:py-4 text-sm md:text-base bg-white hover:bg-gray-50 text-[#060606] flex items-center justify-center gap-2"
+                                            className="brutal-btn standard-unit-button stacked-action-button py-3 bg-white hover:bg-gray-50 text-[#060606]"
                                         >
                                             <i className="fas fa-user-lock text-[#f43f5e]"></i>
                                             <span>Sign Out</span>
@@ -6189,6 +6819,15 @@
                                         >
                                             <i className="fas fa-boxes-stacked text-[#f97316]"></i>
                                             <span>Inventory</span>
+                                        </button>
+                                        <button
+                                            onClick={handleOpenAdminPenHospital}
+                                            className={`brutal-btn standard-unit-button admin-action-button py-3 text-[#060606] ${
+                                                viewMode === 'ADMIN_PEN_HOSPITAL' ? 'bg-[#ccfbf1] hover:bg-[#99f6e4]' : 'bg-white hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <i className="fas fa-suitcase-medical text-[#0f766e]"></i>
+                                            <span>Pen Hospital</span>
                                         </button>
                                         <button
                                             onClick={handleOpenAdminPayroll}
@@ -6224,7 +6863,7 @@
                         <div className={`right-panel transition-all duration-300 ${!selectedId && directoryMode === 'admin' && !isAdminWorkspaceOpen ? 'hidden lg:block' : 'block'}`}>
                             
                             {/* Adding relative positioning so absolute children (toast) anchor exactly here */}
-                            <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-220px)] lg:max-h-[860px]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PAYROLL', 'ADMIN_MESSAGES'].includes(viewMode) ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
+                            <div className={`brutal-card ${isAdminWorkspaceOpen ? 'min-h-[520px] lg:h-[calc(100vh-220px)] lg:max-h-[860px]' : 'min-h-[400px] lg:h-[calc(100vh-220px)] lg:max-h-[800px]'} mb-4 md:mb-8 lg:sticky lg:top-8 flex flex-col relative overflow-hidden ${viewMode === 'EDIT' ? 'p-0' : ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PEN_HOSPITAL', 'ADMIN_PAYROLL', 'ADMIN_MESSAGES'].includes(viewMode) ? 'p-3 md:p-4' : 'p-3 md:p-6'}`}>
                                 
                                 {/* TIMEOUT WARNING OVERLAY */}
                                 {showTimeoutWarning && (
@@ -6306,6 +6945,16 @@
                                                 onMessage={setNotification}
                                             />
                                         )}
+                                        {viewMode === 'PEN_HOSPITAL' && (
+                                            <EmployeePenHospitalPanel
+                                                penHospitalCases={penHospitalCases}
+                                                currentUser={activeSessionUser}
+                                                isFetchingPenHospital={isFetchingPenHospital}
+                                                isSubmittingPenHospital={isSubmittingPenHospital}
+                                                onRefresh={() => refreshPenHospital({ showSpinner: true })}
+                                                onUpdateStatus={handleUpdatePenHospitalStatus}
+                                            />
+                                        )}
                                         {viewMode === 'MESSAGES' && (
                                             <MessageBoardPanel
                                                 messages={messages}
@@ -6376,6 +7025,20 @@
                                                 onAdjustNeed={handleInventoryAdjustNeed}
                                                 onApprove={handleInventoryApprove}
                                                 onReject={handleInventoryRejectAwaiting}
+                                                onOpenScheduler={() => setViewMode('ADMIN')}
+                                                onSignOut={handleLogout}
+                                                onMessage={setNotification}
+                                            />
+                                        )}
+                                        {viewMode === 'ADMIN_PEN_HOSPITAL' && (
+                                            <AdminPenHospitalWorkspace
+                                                adminUser={adminUser}
+                                                penHospitalCases={penHospitalCases}
+                                                isFetchingPenHospital={isFetchingPenHospital}
+                                                isSubmittingPenHospital={isSubmittingPenHospital}
+                                                onRefresh={() => refreshPenHospital({ showSpinner: true })}
+                                                onCreateCase={handleCreatePenHospitalCase}
+                                                onUpdateStatus={handleUpdatePenHospitalStatus}
                                                 onOpenScheduler={() => setViewMode('ADMIN')}
                                                 onSignOut={handleLogout}
                                                 onMessage={setNotification}

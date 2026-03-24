@@ -5,6 +5,7 @@ var SETTINGS_SHEET_NAME = "Settings";
 var INVENTORY_SHEET_NAME = "Inventory";
 var INVENTORY_LOG_SHEET_NAME = "Inventory Log";
 var MESSAGES_SHEET_NAME = "Messages";
+var PEN_HOSPITAL_SHEET_NAME = "Pen Hospital";
 var SHOPIFY_API_VERSION = "2025-10";
 
 /*
@@ -85,6 +86,21 @@ var MESSAGE_COL = {
   REACTIONS: 5
 };
 
+var PEN_HOSPITAL_COL = {
+  CREATED_AT: 1,
+  CUSTOMER_NAME: 2,
+  EXPECTED_COUNT: 3,
+  PEN_NAMES: 4,
+  STATUS: 5,
+  LAST_UPDATED: 6,
+  CREATED_BY: 7,
+  LAST_UPDATED_BY: 8,
+  DIAGNOSED_AT: 9,
+  DIAGNOSED_BY: 10,
+  DISCHARGED_AT: 11,
+  DISCHARGED_BY: 12
+};
+
 var MESSAGE_FETCH_LIMIT = 120;
 
 var INVENTORY_STATUS = {
@@ -92,6 +108,15 @@ var INVENTORY_STATUS = {
   IN_PROCESS: "In Process",
   AWAITING_APPROVAL: "Awaiting Approval",
   COMPLETED: "Completed"
+};
+
+var PEN_HOSPITAL_STATUS = {
+  DIAGNOSED: "Diagnosed",
+  ADMITTED: "Admitted",
+  IN_SURGERY: "In Surgery",
+  IN_RECOVERY: "In Recovery",
+  READY_FOR_RELEASE: "Ready For Release",
+  DISCHARGED: "Discharged"
 };
 
 function doGet(e) {
@@ -111,6 +136,10 @@ function doGet(e) {
 
   if (type === "messages") {
     return getMessages_();
+  }
+
+  if (type === "pen_hospital") {
+    return getPenHospital_();
   }
 
   return getEmployees_();
@@ -171,6 +200,14 @@ function doPost(e) {
 
     if (data.action === "TOGGLE_MESSAGE_REACTION") {
       return handleToggleMessageReaction_(data);
+    }
+
+    if (data.action === "PEN_HOSPITAL_CREATE_CASE") {
+      return handleCreatePenHospitalCase_(data);
+    }
+
+    if (data.action === "PEN_HOSPITAL_UPDATE_STATUS") {
+      return handleUpdatePenHospitalStatus_(data);
     }
 
     if (data.action === "SAVE_SHIFT_TEMPLATES") {
@@ -384,6 +421,12 @@ function getMessages_() {
   return jsonResponse_(getMessageRecords_(sheet));
 }
 
+function getPenHospital_() {
+  var sheet = getOrCreatePenHospitalSheet_();
+  ensurePenHospitalSheetStructure_(sheet);
+  return jsonResponse_(getPenHospitalRecords_(sheet));
+}
+
 function handlePostMessage_(data) {
   validateRequiredFields_(data, ["editorName", "editorRole", "message"]);
 
@@ -471,6 +514,108 @@ function handleToggleMessageReaction_(data) {
     status: "success",
     action: "TOGGLE_MESSAGE_REACTION",
     messageRow: getMessageRecordByRowNumber_(sheet, rowNumber)
+  });
+}
+
+function handleCreatePenHospitalCase_(data) {
+  validateRequiredFields_(data, ["customerName", "expectedCount", "editorName", "editorRole"]);
+
+  if (!isAdminRole_(data.editorRole)) {
+    throw new Error("Unauthorized. Only admin-capable accounts can create Pen Hospital cases.");
+  }
+
+  var editorName = String(data.editorName || "").trim();
+  var customerName = sanitizePenHospitalCustomerName_(data.customerName);
+  var expectedCount = parseIntegerQuantity_(data.expectedCount, "expectedCount", false);
+  var penNames = sanitizePenHospitalPenNames_(data.penNames);
+  if (!editorName) {
+    throw new Error("Missing required field: editorName");
+  }
+  if (!customerName) {
+    throw new Error("Enter a customer name for this Pen Hospital case.");
+  }
+
+  var sheet = getOrCreatePenHospitalSheet_();
+  ensurePenHospitalSheetStructure_(sheet);
+  var nextRow = Math.max(sheet.getLastRow(), 1) + 1;
+  var submittedAt = toValidDateOrBlank_(data.submittedAt);
+  if (!submittedAt) {
+    submittedAt = new Date();
+  }
+
+  var savedRecord = writePenHospitalRecord_(sheet, nextRow, {
+    rowNumber: nextRow,
+    createdAt: submittedAt,
+    customerName: customerName,
+    expectedCount: expectedCount,
+    penNames: penNames,
+    status: PEN_HOSPITAL_STATUS.DIAGNOSED,
+    lastUpdated: submittedAt,
+    createdBy: editorName,
+    lastUpdatedBy: editorName,
+    diagnosedAt: submittedAt,
+    diagnosedBy: editorName,
+    dischargedAt: "",
+    dischargedBy: ""
+  });
+
+  return jsonResponse_({
+    status: "success",
+    action: "PEN_HOSPITAL_CREATE_CASE",
+    rowNumber: savedRecord.rowNumber,
+    penHospitalCase: savedRecord
+  });
+}
+
+function handleUpdatePenHospitalStatus_(data) {
+  validateRequiredFields_(data, ["rowNumber", "status", "editorName", "editorRole"]);
+
+  var rowNumber = parsePenHospitalRowNumber_(data.rowNumber);
+  var editorName = String(data.editorName || "").trim();
+  var nextStatus = sanitizePenHospitalStatus_(data.status);
+  if (!editorName) {
+    throw new Error("Missing required field: editorName");
+  }
+  if (!nextStatus) {
+    throw new Error("Choose a valid Pen Hospital status.");
+  }
+  if (!canEditorSetPenHospitalStatus_(data.editorRole, nextStatus)) {
+    throw new Error("Unauthorized. Only admin-capable accounts can set that Pen Hospital status.");
+  }
+
+  var sheet = getOrCreatePenHospitalSheet_();
+  ensurePenHospitalSheetStructure_(sheet);
+  var record = getPenHospitalRecordByRowNumber_(sheet, rowNumber);
+  if (!record) {
+    throw new Error("That Pen Hospital case could not be found.");
+  }
+
+  var submittedAt = toValidDateOrBlank_(data.submittedAt);
+  if (!submittedAt) {
+    submittedAt = new Date();
+  }
+
+  record.status = nextStatus;
+  record.lastUpdated = submittedAt;
+  record.lastUpdatedBy = editorName;
+  if (nextStatus === PEN_HOSPITAL_STATUS.DIAGNOSED) {
+    record.diagnosedAt = submittedAt;
+    record.diagnosedBy = editorName;
+  }
+  if (nextStatus === PEN_HOSPITAL_STATUS.DISCHARGED) {
+    record.dischargedAt = submittedAt;
+    record.dischargedBy = editorName;
+  } else {
+    record.dischargedAt = "";
+    record.dischargedBy = "";
+  }
+
+  var savedRecord = writePenHospitalRecord_(sheet, rowNumber, record);
+  return jsonResponse_({
+    status: "success",
+    action: "PEN_HOSPITAL_UPDATE_STATUS",
+    rowNumber: savedRecord.rowNumber,
+    penHospitalCase: savedRecord
   });
 }
 
@@ -768,6 +913,11 @@ function getOrCreateMessagesSheet_() {
   return spreadsheet.getSheetByName(MESSAGES_SHEET_NAME) || spreadsheet.insertSheet(MESSAGES_SHEET_NAME);
 }
 
+function getOrCreatePenHospitalSheet_() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  return spreadsheet.getSheetByName(PEN_HOSPITAL_SHEET_NAME) || spreadsheet.insertSheet(PEN_HOSPITAL_SHEET_NAME);
+}
+
 function ensureMessagesSheetStructure_(sheet) {
   var headers = [[
     "Timestamp",
@@ -783,6 +933,49 @@ function ensureMessagesSheetStructure_(sheet) {
 
   sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
   sheet.setFrozenRows(1);
+}
+
+function ensurePenHospitalSheetStructure_(sheet) {
+  var headers = [[
+    "Created At",
+    "Customer Name",
+    "Expected Count",
+    "Pen Names",
+    "Status",
+    "Last Updated",
+    "Created By",
+    "Last Updated By",
+    "Diagnosed At",
+    "Diagnosed By",
+    "Discharged At",
+    "Discharged By"
+  ]];
+
+  if (sheet.getMaxColumns() < headers[0].length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers[0].length - sheet.getMaxColumns());
+  }
+
+  sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
+  sheet.setFrozenRows(1);
+  ensurePenHospitalStatusValidation_(sheet);
+}
+
+function ensurePenHospitalStatusValidation_(sheet) {
+  var validStatuses = [
+    PEN_HOSPITAL_STATUS.DIAGNOSED,
+    PEN_HOSPITAL_STATUS.ADMITTED,
+    PEN_HOSPITAL_STATUS.IN_SURGERY,
+    PEN_HOSPITAL_STATUS.IN_RECOVERY,
+    PEN_HOSPITAL_STATUS.READY_FOR_RELEASE,
+    PEN_HOSPITAL_STATUS.DISCHARGED
+  ];
+  var rowCount = Math.max(sheet.getMaxRows() - 1, 1);
+  var statusRange = sheet.getRange(2, PEN_HOSPITAL_COL.STATUS, rowCount, 1);
+  var validationRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(validStatuses, true)
+    .setAllowInvalid(false)
+    .build();
+  statusRange.setDataValidation(validationRule);
 }
 
 function getMessageRecords_(sheet) {
@@ -944,6 +1137,27 @@ function getInventoryRecords_(sheet) {
   return records;
 }
 
+function getPenHospitalRecords_(sheet) {
+  var lastRow = sheet.getLastRow();
+  var records = [];
+
+  if (lastRow < 2) {
+    return records;
+  }
+
+  var rawValues = sheet.getRange(2, 1, lastRow - 1, PEN_HOSPITAL_COL.DISCHARGED_BY).getValues();
+  var displayValues = sheet.getRange(2, 1, lastRow - 1, PEN_HOSPITAL_COL.DISCHARGED_BY).getDisplayValues();
+  for (var i = 0; i < displayValues.length; i++) {
+    if (!hasValue_(displayValues[i][PEN_HOSPITAL_COL.CUSTOMER_NAME - 1]) &&
+        !hasValue_(displayValues[i][PEN_HOSPITAL_COL.EXPECTED_COUNT - 1])) {
+      continue;
+    }
+    records.push(buildPenHospitalRecord_(rawValues[i], displayValues[i], i + 2));
+  }
+
+  return records;
+}
+
 function buildInventoryRecord_(row, rowNumber) {
   var needed = parseSheetNumber_(row[INVENTORY_COL.NEEDED - 1]);
   var inProcess = parseSheetNumber_(row[INVENTORY_COL.IN_PROCESS - 1]);
@@ -964,6 +1178,29 @@ function buildInventoryRecord_(row, rowNumber) {
     lastUpdated: row[INVENTORY_COL.LAST_UPDATED - 1] || "",
     inventoryItemId: String(row[INVENTORY_COL.INVENTORY_ITEM_ID - 1] || "").trim(),
     variantId: String(row[INVENTORY_COL.VARIANT_ID - 1] || "").trim()
+  };
+}
+
+function buildPenHospitalRecord_(rawRow, displayRow, rowNumber) {
+  var status = sanitizePenHospitalStatus_(displayRow[PEN_HOSPITAL_COL.STATUS - 1]) || PEN_HOSPITAL_STATUS.DIAGNOSED;
+  return {
+    rowNumber: rowNumber,
+    createdAt: displayRow[PEN_HOSPITAL_COL.CREATED_AT - 1] || "",
+    createdAtIso: dateValueToIsoString_(rawRow[PEN_HOSPITAL_COL.CREATED_AT - 1]),
+    customerName: sanitizePenHospitalCustomerName_(displayRow[PEN_HOSPITAL_COL.CUSTOMER_NAME - 1]),
+    expectedCount: parseSheetNumber_(displayRow[PEN_HOSPITAL_COL.EXPECTED_COUNT - 1]),
+    penNames: sanitizePenHospitalPenNames_(displayRow[PEN_HOSPITAL_COL.PEN_NAMES - 1]),
+    status: status,
+    lastUpdated: displayRow[PEN_HOSPITAL_COL.LAST_UPDATED - 1] || "",
+    lastUpdatedIso: dateValueToIsoString_(rawRow[PEN_HOSPITAL_COL.LAST_UPDATED - 1]),
+    createdBy: String(displayRow[PEN_HOSPITAL_COL.CREATED_BY - 1] || "").trim(),
+    lastUpdatedBy: String(displayRow[PEN_HOSPITAL_COL.LAST_UPDATED_BY - 1] || "").trim(),
+    diagnosedAt: displayRow[PEN_HOSPITAL_COL.DIAGNOSED_AT - 1] || "",
+    diagnosedAtIso: dateValueToIsoString_(rawRow[PEN_HOSPITAL_COL.DIAGNOSED_AT - 1]),
+    diagnosedBy: String(displayRow[PEN_HOSPITAL_COL.DIAGNOSED_BY - 1] || "").trim(),
+    dischargedAt: displayRow[PEN_HOSPITAL_COL.DISCHARGED_AT - 1] || "",
+    dischargedAtIso: dateValueToIsoString_(rawRow[PEN_HOSPITAL_COL.DISCHARGED_AT - 1]),
+    dischargedBy: String(displayRow[PEN_HOSPITAL_COL.DISCHARGED_BY - 1] || "").trim()
   };
 }
 
@@ -1023,6 +1260,42 @@ function writeInventoryRecord_(sheet, rowNumber, record) {
   return record;
 }
 
+function writePenHospitalRecord_(sheet, rowNumber, record) {
+  var createdAt = toValidDateOrBlank_(record.createdAt);
+  var lastUpdated = toValidDateOrBlank_(record.lastUpdated);
+  var diagnosedAt = toValidDateOrBlank_(record.diagnosedAt);
+  var dischargedAt = toValidDateOrBlank_(record.dischargedAt);
+  var status = sanitizePenHospitalStatus_(record.status) || PEN_HOSPITAL_STATUS.DIAGNOSED;
+  var values = [[
+    createdAt || new Date(),
+    sanitizePenHospitalCustomerName_(record.customerName),
+    parseSheetNumber_(record.expectedCount),
+    sanitizePenHospitalPenNames_(record.penNames),
+    status,
+    lastUpdated || new Date(),
+    String(record.createdBy || "").trim(),
+    String(record.lastUpdatedBy || "").trim(),
+    diagnosedAt || "",
+    String(record.diagnosedBy || "").trim(),
+    dischargedAt || "",
+    String(record.dischargedBy || "").trim()
+  ]];
+
+  sheet.getRange(rowNumber, 1, 1, values[0].length).setValues(values);
+  sheet.getRange(rowNumber, PEN_HOSPITAL_COL.CREATED_AT).setNumberFormat("m/d/yyyy h:mm:ss am/pm");
+  sheet.getRange(rowNumber, PEN_HOSPITAL_COL.LAST_UPDATED).setNumberFormat("m/d/yyyy h:mm:ss am/pm");
+  if (diagnosedAt) {
+    sheet.getRange(rowNumber, PEN_HOSPITAL_COL.DIAGNOSED_AT).setNumberFormat("m/d/yyyy h:mm:ss am/pm");
+  }
+  if (dischargedAt) {
+    sheet.getRange(rowNumber, PEN_HOSPITAL_COL.DISCHARGED_AT).setNumberFormat("m/d/yyyy h:mm:ss am/pm");
+  }
+
+  var rawRow = sheet.getRange(rowNumber, 1, 1, PEN_HOSPITAL_COL.DISCHARGED_BY).getValues()[0];
+  var displayRow = sheet.getRange(rowNumber, 1, 1, PEN_HOSPITAL_COL.DISCHARGED_BY).getDisplayValues()[0];
+  return buildPenHospitalRecord_(rawRow, displayRow, rowNumber);
+}
+
 function getInventoryRecordByRowNumber_(sheet, rowNumberValue) {
   var rowNumber = parseRowNumber_(rowNumberValue);
   if (rowNumber < 2 || rowNumber > sheet.getLastRow()) {
@@ -1037,6 +1310,22 @@ function getInventoryRecordByRowNumber_(sheet, rowNumberValue) {
   }
 
   return buildInventoryRecord_(values, rowNumber);
+}
+
+function getPenHospitalRecordByRowNumber_(sheet, rowNumberValue) {
+  var rowNumber = parsePenHospitalRowNumber_(rowNumberValue);
+  if (rowNumber < 2 || rowNumber > sheet.getLastRow()) {
+    return null;
+  }
+
+  var rawRow = sheet.getRange(rowNumber, 1, 1, PEN_HOSPITAL_COL.DISCHARGED_BY).getValues()[0];
+  var displayRow = sheet.getRange(rowNumber, 1, 1, PEN_HOSPITAL_COL.DISCHARGED_BY).getDisplayValues()[0];
+  if (!hasValue_(displayRow[PEN_HOSPITAL_COL.CUSTOMER_NAME - 1]) &&
+      !hasValue_(displayRow[PEN_HOSPITAL_COL.EXPECTED_COUNT - 1])) {
+    return null;
+  }
+
+  return buildPenHospitalRecord_(rawRow, displayRow, rowNumber);
 }
 
 function findOpenInventoryRecordBySku_(records, sku) {
@@ -1102,6 +1391,14 @@ function parseMessageRowNumber_(value) {
   var rowNumber = Number(String(value || "").trim());
   if (isNaN(rowNumber) || !isFinite(rowNumber) || Math.floor(rowNumber) !== rowNumber) {
     throw new Error("Invalid message row number.");
+  }
+  return rowNumber;
+}
+
+function parsePenHospitalRowNumber_(value) {
+  var rowNumber = Number(String(value || "").trim());
+  if (isNaN(rowNumber) || !isFinite(rowNumber) || Math.floor(rowNumber) !== rowNumber) {
+    throw new Error("Invalid Pen Hospital row number.");
   }
   return rowNumber;
 }
@@ -2203,6 +2500,52 @@ function normalizeMessageSenderRole_(role) {
   return isAdminRole_(normalized) ? "admin" : (normalized || "employee");
 }
 
+function sanitizePenHospitalStatus_(value) {
+  var normalized = String(value || "").trim().toLowerCase();
+  if (normalized === PEN_HOSPITAL_STATUS.DIAGNOSED.toLowerCase()) {
+    return PEN_HOSPITAL_STATUS.DIAGNOSED;
+  }
+  if (normalized === PEN_HOSPITAL_STATUS.ADMITTED.toLowerCase()) {
+    return PEN_HOSPITAL_STATUS.ADMITTED;
+  }
+  if (normalized === PEN_HOSPITAL_STATUS.IN_SURGERY.toLowerCase()) {
+    return PEN_HOSPITAL_STATUS.IN_SURGERY;
+  }
+  if (normalized === PEN_HOSPITAL_STATUS.IN_RECOVERY.toLowerCase()) {
+    return PEN_HOSPITAL_STATUS.IN_RECOVERY;
+  }
+  if (normalized === PEN_HOSPITAL_STATUS.READY_FOR_RELEASE.toLowerCase()) {
+    return PEN_HOSPITAL_STATUS.READY_FOR_RELEASE;
+  }
+  if (normalized === PEN_HOSPITAL_STATUS.DISCHARGED.toLowerCase()) {
+    return PEN_HOSPITAL_STATUS.DISCHARGED;
+  }
+  return "";
+}
+
+function sanitizePenHospitalCustomerName_(value) {
+  return String(value || "").trim().slice(0, 200);
+}
+
+function sanitizePenHospitalPenNames_(value) {
+  return String(value || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim()
+    .slice(0, 600);
+}
+
+function canEditorSetPenHospitalStatus_(role, status) {
+  var nextStatus = sanitizePenHospitalStatus_(status);
+  if (!nextStatus) {
+    return false;
+  }
+  if (nextStatus === PEN_HOSPITAL_STATUS.DIAGNOSED || nextStatus === PEN_HOSPITAL_STATUS.DISCHARGED) {
+    return isAdminRole_(role);
+  }
+  return true;
+}
+
 function sanitizeMessageReactionKey_(value) {
   var normalized = String(value || "").trim().toLowerCase();
   if (normalized === "thumbs_up" || normalized === "heart" || normalized === "star") {
@@ -2532,6 +2875,25 @@ function hasValue_(value) {
 
   var normalized = String(value).trim().toLowerCase();
   return normalized !== "" && normalized !== "-" && normalized !== "n/a";
+}
+
+function toValidDateOrBlank_(value) {
+  if (!hasValue_(value)) {
+    return "";
+  }
+
+  var dateValue = Object.prototype.toString.call(value) === "[object Date]"
+    ? value
+    : new Date(value);
+  if (Object.prototype.toString.call(dateValue) !== "[object Date]" || isNaN(dateValue.getTime())) {
+    return "";
+  }
+  return dateValue;
+}
+
+function dateValueToIsoString_(value) {
+  var dateValue = toValidDateOrBlank_(value);
+  return dateValue ? dateValue.toISOString() : "";
 }
 
 function pad2_(value) {
