@@ -42,6 +42,7 @@
                 --card-grid-gap: var(--size-gap);
                 --surface-shadow: 4px 4px 0px 0px #000000;
                 --surface-border: 2px solid #000000;
+                --surface-radius: 1rem;
             }
         body {
             /* Creamy pastel yellow background */
@@ -54,13 +55,13 @@
         .brutal-card {
             background-color: #ffffff;
             border: 3px solid #000000;
-            border-radius: 1.5rem;
+            border-radius: var(--surface-radius);
             box-shadow: 6px 6px 0px 0px #000000;
         }
         
         .brutal-btn {
             border: 2px solid #000000;
-            border-radius: 1rem;
+            border-radius: var(--surface-radius);
             box-shadow: 4px 4px 0px 0px #000000;
             transition: transform 0.1s ease, box-shadow 0.1s ease;
             font-family: 'Poppins', sans-serif;
@@ -82,7 +83,7 @@
 
         .brutal-input {
             border: 2px solid #000000;
-            border-radius: 0.75rem;
+            border-radius: var(--surface-radius);
             background-color: #ffffff;
             transition: all 0.2s ease;
             font-family: 'Roboto', sans-serif;
@@ -272,7 +273,7 @@
             align-items: center;
             gap: 0.35rem;
             border: var(--surface-border);
-            border-radius: 999px;
+            border-radius: var(--surface-radius);
             padding: 0.35rem 0.75rem;
             font-size: 0.72rem;
             font-weight: 700;
@@ -283,7 +284,7 @@
         }
         .section-card {
             border: var(--surface-border);
-            border-radius: 1.5rem;
+            border-radius: var(--surface-radius);
             box-shadow: var(--surface-shadow);
             background: #ffffff;
         }
@@ -315,6 +316,7 @@
             padding: 0.2rem 0.5rem;
             line-height: 1.1;
             white-space: nowrap;
+            border-radius: var(--surface-radius);
         }
         .public-overview-masonry {
             display: grid;
@@ -337,6 +339,9 @@
         .public-overview-card {
             min-width: 0;
             min-height: 0;
+        }
+        .surface-rounded {
+            border-radius: var(--surface-radius) !important;
         }
         .public-overview-schedule-card {
             width: 100%;
@@ -1044,6 +1049,16 @@
         const normalizeMessageRole = (role) => {
             const normalized = String(role || '').trim().toLowerCase();
             return isAdminRole(normalized) ? 'admin' : (normalized || 'employee');
+        };
+
+        const formatRoleLabel = (role, fallback = 'Employee') => {
+            const normalized = String(role || '').trim();
+            if (!normalized) return fallback;
+            return normalized
+                .split(/[\s_-]+/)
+                .filter(Boolean)
+                .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+                .join(' ');
         };
 
         const normalizeMessageText = (value) => {
@@ -2213,6 +2228,7 @@
             canClockIn,
             canClockOut,
             isSubmittingAction,
+            roleLabel = 'Employee',
         }) => {
             const visibleData = filterTimesheetRowsUpToToday(personalData);
 
@@ -2220,7 +2236,7 @@
                 <div className="section-width flex flex-col h-full animate-fade-in relative overflow-hidden">
                     <div className="content-safe-padding flex justify-between items-center mb-4 md:mb-6 shrink-0 pt-1">
                         <div>
-                            <div className="card-eyebrow text-[#0284c7]">Employee View</div>
+                            <div className="card-eyebrow text-[#0284c7]">{roleLabel}</div>
                             <h3 className="section-title mt-1">My Timesheet</h3>
                         </div>
                         <div className="flex items-center gap-4">
@@ -2539,7 +2555,7 @@
                 <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 md:mb-6 shrink-0">
                         <div>
-                            <div className="card-eyebrow text-[#f97316]">Inventory Section</div>
+                            <div className="card-eyebrow text-[#f97316]">Employee</div>
                             <h3 className="section-title mt-1">Inventory Board</h3>
                             <p className="section-subtitle mt-1">Start work here, then move finished pieces into Awaiting Approval.</p>
                         </div>
@@ -2655,6 +2671,7 @@
 
         const PublishedSchedulePanel = ({
             sheetData,
+            eyebrow = '',
             title = 'Published Schedule',
             subtitle = '',
             highlightName = '',
@@ -2700,7 +2717,8 @@
                 <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4 shrink-0 px-1 pt-1">
                         <div>
-                            <h3 className="section-title">{title}</h3>
+                            {eyebrow && <div className="card-eyebrow text-[#0284c7]">{eyebrow}</div>}
+                            <h3 className={`section-title ${eyebrow ? 'mt-1' : ''}`}>{title}</h3>
                             {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
@@ -3556,11 +3574,13 @@
             onRefresh,
             onUpdateStatus,
         }) => {
+            const roleLabel = formatRoleLabel(currentUser?.role, 'Employee');
+
             return (
                 <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4 shrink-0">
                         <div>
-                            <div className="card-eyebrow text-[#0f766e]">Repair Tracking</div>
+                            <div className="card-eyebrow text-[#0f766e]">{roleLabel}</div>
                             <h3 className="section-title mt-1">Pen Hospital</h3>
                             <p className="section-subtitle mt-1">
                                 Track inbound repairs, bench status, and what is ready to head back to the customer.
@@ -3635,13 +3655,14 @@
                 }
             };
 
+            const roleLabel = formatRoleLabel(adminUser?.role, 'Admin');
+
             return (
                 <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
                         <div>
-                            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0f766e]">Admin Repair Desk</div>
+                            <div className="card-eyebrow text-[#0f766e]">{roleLabel}</div>
                             <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606] mt-1">Pen Hospital</h3>
-                            <p className="text-sm font-bold text-gray-600 mt-1">Hi, {adminUser?.name}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <button
@@ -3669,6 +3690,15 @@
                         </div>
                     </div>
 
+                    <div className="mb-4 shrink-0 px-1">
+                        <div className="card-eyebrow text-[#0f766e]">Status Rules</div>
+                        <div className="space-y-1 mt-2 text-sm font-bold text-gray-600">
+                            <div>`Diagnosed` and `Discharged` are admin-only steps.</div>
+                            <div>`Admitted`, `In Surgery`, `In Recovery`, and `Ready For Release` can be updated by the team.</div>
+                            <div>Use the lane counts on the right to see what is inbound, active on the bench, and ready to head home.</div>
+                        </div>
+                    </div>
+
                     <div className="grid lg:grid-cols-[360px_minmax(0,1fr)] gap-4 min-h-0 flex-1">
                         <div className="space-y-4">
                             <div className="brutal-card bg-white p-4 md:p-5">
@@ -3677,7 +3707,7 @@
                                         <h4 className="text-lg font-bold font-poppins text-[#060606]">Open A Case</h4>
                                         <p className="text-xs font-bold text-gray-500 mt-1">Admins start each repair case here. New cases begin as diagnosed.</p>
                                     </div>
-                                    <div className="rounded-full border-2 border-black bg-[#ccfbf1] px-3 py-1 text-xs font-bold uppercase">
+                                    <div className="surface-rounded border-2 border-black bg-[#ccfbf1] px-3 py-1 text-xs font-bold uppercase">
                                         {penHospitalCases.length} total
                                     </div>
                                 </div>
@@ -3728,15 +3758,6 @@
                                     </button>
                                 </div>
                             </div>
-
-                            <div className="brutal-card bg-white p-4 md:p-5">
-                                <h4 className="text-lg font-bold font-poppins text-[#060606]">Status Rules</h4>
-                                <div className="space-y-2 mt-4 text-sm font-bold text-gray-600">
-                                    <div>`Diagnosed` and `Discharged` are admin-only steps.</div>
-                                    <div>`Admitted`, `In Surgery`, `In Recovery`, and `Ready For Release` can be updated by the team.</div>
-                                    <div>Use the lane counts on the right to see what is inbound, active on the bench, and ready to head home.</div>
-                                </div>
-                            </div>
                         </div>
 
                         <div className="min-h-0 overflow-y-auto no-scrollbar pr-1 pb-4">
@@ -3757,6 +3778,7 @@
             return (
                 <div className="flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="mb-4 md:mb-6 shrink-0">
+                        <div className="card-eyebrow text-[#0284c7]">Public</div>
                         <h2 className="page-title">Today at a Glance</h2>
                     </div>
 
@@ -3809,6 +3831,7 @@
             const [drafts, setDrafts] = useState({});
             const openRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
             const awaitingCount = openRows.filter(row => Number(row.awaitingApproval || 0) > 0).length;
+            const roleLabel = formatRoleLabel(adminUser?.role, 'Admin');
 
             const updateDraft = (rowNumber, field, value) => {
                 setDrafts(prev => ({
@@ -3862,7 +3885,7 @@
                 <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
                         <div>
-                            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin</div>
+                            <div className="card-eyebrow text-[#0284c7]">{roleLabel}</div>
                             <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606] mt-1">Inventory Management</h3>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -3884,40 +3907,50 @@
                                     No active inventory rows are open.
                                 </div>
                             ) : openRows.map(row => (
-                                <div key={row.rowNumber} className="rounded-2xl border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000]">
-                                    <div className="min-w-0">
-                                        <div className="text-[10px] uppercase font-bold text-gray-500">SKU</div>
-                                        <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7] mt-1">{getInventorySkuText(row)}</div>
-                                        <div className="text-[10px] uppercase font-bold text-gray-500 mt-3">Name</div>
-                                        <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1">{getInventoryNameText(row)}</h4>
-                                        <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 mt-2">Updated {formatInventoryTimestamp(row.lastUpdated)}</div>
+                                <div key={row.rowNumber} className="surface-rounded border-2 border-black bg-white p-4 md:p-5 shadow-[4px_4px_0px_0px_#000000]">
+                                    <div className="grid gap-3 md:grid-cols-[140px_minmax(0,1fr)] md:items-end">
+                                        <div className="min-w-0">
+                                            <div className="text-[10px] uppercase font-bold text-gray-500">SKU</div>
+                                            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7] mt-1 break-words">{getInventorySkuText(row)}</div>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                                                <div className="min-w-0">
+                                                    <div className="text-[10px] uppercase font-bold text-gray-500">Name</div>
+                                                    <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1 break-words">{getInventoryNameText(row)}</h4>
+                                                </div>
+                                                <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 md:text-right shrink-0">
+                                                    Updated {formatInventoryTimestamp(row.lastUpdated)}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="grid grid-cols-5 gap-2.5 mt-4">
-                                        <div className="rounded-xl border-2 border-black bg-[#f5f3ff] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
+                                        <div className="surface-rounded border-2 border-black bg-[#f5f3ff] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
                                             <div className="text-[9px] uppercase font-bold text-gray-500 leading-tight">Needed</div>
                                             <div className="text-2xl font-bold font-poppins text-[#060606] leading-none">{row.needed}</div>
                                         </div>
-                                        <div className="rounded-xl border-2 border-black bg-[#ecfccb] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
+                                        <div className="surface-rounded border-2 border-black bg-[#ecfccb] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
                                             <div className="text-[9px] uppercase font-bold text-gray-500 leading-tight">In Process</div>
                                             <div className="text-2xl font-bold font-poppins text-[#060606] leading-none">{row.inProcess}</div>
                                         </div>
-                                        <div className="rounded-xl border-2 border-black bg-[#fef3c7] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
+                                        <div className="surface-rounded border-2 border-black bg-[#fef3c7] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
                                             <div className="text-[9px] uppercase font-bold text-gray-500 leading-tight">Awaiting Approval</div>
                                             <div className="text-2xl font-bold font-poppins text-[#060606] leading-none">{row.awaitingApproval}</div>
                                         </div>
-                                        <div className="rounded-xl border-2 border-black bg-[#d1fae5] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
+                                        <div className="surface-rounded border-2 border-black bg-[#d1fae5] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
                                             <div className="text-[9px] uppercase font-bold text-gray-500 leading-tight">Approved</div>
                                             <div className="text-2xl font-bold font-poppins text-[#060606] leading-none">{row.addedToStore}</div>
                                         </div>
-                                        <div className="rounded-xl border-2 border-black bg-[#fee2e2] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
+                                        <div className="surface-rounded border-2 border-black bg-[#fee2e2] px-2.5 py-2.5 min-h-[88px] flex flex-col justify-between">
                                             <div className="text-[9px] uppercase font-bold text-gray-500 leading-tight">Still Needed</div>
                                             <div className="text-2xl font-bold font-poppins text-[#060606] leading-none">{row.stillNeeded}</div>
                                         </div>
                                     </div>
 
-                                    <div className="grid md:grid-cols-3 gap-2.5 mt-3">
-                                        <div className="rounded-xl border-2 border-black bg-[#eff6ff] p-2.5 flex flex-col gap-2.5">
+                                    <div className="grid md:grid-cols-3 gap-2.5 mt-3 items-stretch">
+                                        <div className="surface-rounded border-2 border-black bg-[#eff6ff] p-2.5 flex flex-col min-h-[154px]">
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="text-sm font-bold font-poppins text-[#060606]">Adjust Needed</div>
                                                 <div className="text-[10px] uppercase font-bold text-gray-500 text-right leading-tight">Use -2 or +5</div>
@@ -3927,19 +3960,19 @@
                                                 step="1"
                                                 value={drafts[row.rowNumber]?.adjust || ''}
                                                 onChange={e => updateDraft(row.rowNumber, 'adjust', e.target.value)}
-                                                className="brutal-input w-full px-3 py-2 text-sm"
+                                                className="brutal-input w-full px-3 py-2 text-sm mt-2.5"
                                                 placeholder="0"
                                             />
                                             <button
                                                 onClick={() => submitRowAction(row, 'adjust', onAdjustNeed, { allowNegative: true, invalidMessage: "Enter a whole-number adjustment like 5 or -2." })}
                                                 disabled={isSubmittingInventory}
-                                                className="brutal-btn bg-[#60a5fa] hover:bg-[#3b82f6] w-full px-4 py-2 text-sm"
+                                                className="brutal-btn bg-[#60a5fa] hover:bg-[#3b82f6] w-full px-4 py-2 text-sm mt-auto"
                                             >
                                                 Save
                                             </button>
                                         </div>
 
-                                        <div className="rounded-xl border-2 border-black bg-[#f0fdf4] p-2.5 flex flex-col gap-2.5">
+                                        <div className="surface-rounded border-2 border-black bg-[#f0fdf4] p-2.5 flex flex-col min-h-[154px]">
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="text-sm font-bold font-poppins text-[#060606]">Approve</div>
                                                 <div className="text-[10px] uppercase font-bold text-gray-500 text-right leading-tight">
@@ -3952,19 +3985,19 @@
                                                 step="1"
                                                 value={drafts[row.rowNumber]?.approve || ''}
                                                 onChange={e => updateDraft(row.rowNumber, 'approve', e.target.value)}
-                                                className="brutal-input w-full px-3 py-2 text-sm"
-                                                placeholder="Qty"
+                                                className="brutal-input w-full px-3 py-2 text-sm mt-2.5"
+                                                placeholder="0"
                                             />
                                             <button
                                                 onClick={() => submitRowAction(row, 'approve', onApprove)}
                                                 disabled={isSubmittingInventory || row.awaitingApproval <= 0}
-                                                className="brutal-btn bg-[#4ade80] hover:bg-[#22c55e] w-full px-4 py-2 text-sm"
+                                                className="brutal-btn bg-[#4ade80] hover:bg-[#22c55e] w-full px-4 py-2 text-sm mt-auto"
                                             >
                                                 Approve
                                             </button>
                                         </div>
 
-                                        <div className="rounded-xl border-2 border-black bg-[#fff7ed] p-2.5 flex flex-col gap-2.5">
+                                        <div className="surface-rounded border-2 border-black bg-[#fff7ed] p-2.5 flex flex-col min-h-[154px]">
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="text-sm font-bold font-poppins text-[#060606]">Send Back</div>
                                                 <div className="text-[10px] uppercase font-bold text-gray-500 text-right leading-tight">
@@ -3977,13 +4010,13 @@
                                                 step="1"
                                                 value={drafts[row.rowNumber]?.reject || ''}
                                                 onChange={e => updateDraft(row.rowNumber, 'reject', e.target.value)}
-                                                className="brutal-input w-full px-3 py-2 text-sm"
-                                                placeholder="Qty"
+                                                className="brutal-input w-full px-3 py-2 text-sm mt-2.5"
+                                                placeholder="0"
                                             />
                                             <button
                                                 onClick={() => submitRowAction(row, 'reject', onReject)}
                                                 disabled={isSubmittingInventory || row.awaitingApproval <= 0}
-                                                className="brutal-btn bg-[#fb923c] hover:bg-[#f97316] w-full px-4 py-2 text-sm"
+                                                className="brutal-btn bg-[#fb923c] hover:bg-[#f97316] w-full px-4 py-2 text-sm mt-auto"
                                             >
                                                 Send Back
                                             </button>
@@ -3997,25 +4030,15 @@
                             <div className="brutal-card bg-white p-4 md:p-5">
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
-                                        <h4 className="text-lg font-bold font-poppins text-[#060606]">Add Inventory Need</h4>
-                                        <p className="text-xs font-bold text-gray-500 mt-1">Add a new SKU or increase an open row.</p>
+                                        <h4 className="text-lg font-bold font-poppins text-[#060606]">Start Inventory Request</h4>
+                                        <p className="text-xs font-bold text-gray-500 mt-1">Start a new SKU request or increase an open row.</p>
                                     </div>
-                                    <div className="rounded-full border-2 border-black bg-[#fef3c7] px-3 py-1 text-xs font-bold uppercase">
+                                    <div className="surface-rounded border-2 border-black bg-[#fef3c7] px-3 py-1 text-xs font-bold uppercase">
                                         {awaitingCount} awaiting
                                     </div>
                                 </div>
                                 <div className="space-y-3 mt-4">
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Name</label>
-                                        <input
-                                            type="text"
-                                            value={createForm.product}
-                                            onChange={e => setCreateForm(prev => ({ ...prev, product: e.target.value }))}
-                                            className="brutal-input w-full px-3 py-2 text-sm"
-                                            placeholder="Enter product name"
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-3">
+                                    <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3">
                                         <div>
                                             <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">SKU</label>
                                             <input
@@ -4026,6 +4049,18 @@
                                                 placeholder="SKU"
                                             />
                                         </div>
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Name</label>
+                                            <input
+                                                type="text"
+                                                value={createForm.product}
+                                                onChange={e => setCreateForm(prev => ({ ...prev, product: e.target.value }))}
+                                                className="brutal-input w-full px-3 py-2 text-sm"
+                                                placeholder="Name"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 items-end">
                                         <div>
                                             <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Qty</label>
                                             <input
@@ -4038,15 +4073,15 @@
                                                 placeholder="0"
                                             />
                                         </div>
+                                        <button
+                                            onClick={submitCreate}
+                                            disabled={isSubmittingInventory}
+                                            className="brutal-btn w-full bg-[#4ade80] hover:bg-[#22c55e] px-4 py-3 text-sm flex items-center justify-center gap-2"
+                                        >
+                                            <i className={`fas ${isSubmittingInventory ? 'fa-circle-notch spinner' : 'fa-plus'}`}></i>
+                                            <span>{isSubmittingInventory ? 'Saving...' : 'Start Inventory Request'}</span>
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={submitCreate}
-                                        disabled={isSubmittingInventory}
-                                        className="brutal-btn w-full bg-[#4ade80] hover:bg-[#22c55e] px-4 py-3 text-sm flex items-center justify-center gap-2"
-                                    >
-                                        <i className={`fas ${isSubmittingInventory ? 'fa-circle-notch spinner' : 'fa-plus'}`}></i>
-                                        <span>{isSubmittingInventory ? 'Saving...' : 'Add Need'}</span>
-                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -4114,14 +4149,14 @@
 
             const totalWorkedMinutes = employeeSummaries.reduce((sum, summary) => sum + summary.totalMinutes, 0);
             const employeesWithHoursCount = employeeSummaries.filter(summary => summary.totalMinutes > 0).length;
+            const roleLabel = formatRoleLabel(adminUser?.role, 'Admin');
 
             return (
                 <div className="section-width flex flex-col h-full min-h-0 animate-fade-in overflow-hidden">
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
                         <div>
-                            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7]">Admin Payroll</div>
+                            <div className="card-eyebrow text-[#0284c7]">{roleLabel}</div>
                             <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606] mt-1">Current Pay Period Hours</h3>
-                            <p className="text-sm font-bold text-gray-600 mt-1">Hi, {adminUser.name}</p>
                             <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">
                                 Current period: {formatFullDate(currentPeriod.startDate)} through {formatFullDate(currentPeriod.endDate)}.
                             </p>
@@ -4617,12 +4652,13 @@
             };
 
             if (!adminUser) return null;
+            const roleLabel = formatRoleLabel(adminUser?.role, 'Admin');
 
             return (
                 <div className="section-width flex flex-col h-full min-h-0 animate-fade-in overflow-y-auto pr-1">
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 md:mb-6 shrink-0">
                         <div>
-                            <div className="card-eyebrow text-[#0284c7]">Admin Schedule Builder</div>
+                            <div className="card-eyebrow text-[#0284c7]">{roleLabel}</div>
                             <h3 className="page-title">Weekly Schedule Studio</h3>
                         </div>
                         <div className="admin-studio-toolbar">
@@ -6891,12 +6927,14 @@
                                                 canClockIn={canClockIn}
                                                 canClockOut={canClockOut}
                                                 isSubmittingAction={isSubmittingAction}
+                                                roleLabel={formatRoleLabel(selectedEmployee?.role, 'Employee')}
                                             />
                                         )}
                                         {viewMode === 'SCHEDULE' && (
                                             <>
                                                 <PublishedSchedulePanel
                                                     sheetData={sheetData}
+                                                    eyebrow={formatRoleLabel(selectedEmployee?.role, 'Employee')}
                                                     title="Schedule"
                                                     highlightName={selectedEmployee?.name || ''}
                                                     allowTimeOffRequests={Boolean(selectedEmployee)}
@@ -6939,7 +6977,7 @@
                                             <MessageBoardPanel
                                                 messages={messages}
                                                 title="Messages"
-                                                eyebrow="Notes To Admin"
+                                                eyebrow={formatRoleLabel(activeMessageViewer?.role, 'Employee')}
                                                 subtitle="Leave updates about time off, inventory, supplies, or anything else the admin team should see."
                                                 viewerName={activeMessageViewer?.name || ''}
                                                 viewerRole={activeMessageViewer?.role || ''}
@@ -7028,7 +7066,7 @@
                                             <MessageBoardPanel
                                                 messages={messages}
                                                 title="Team Messages"
-                                                eyebrow="Admin Message Board"
+                                                eyebrow={formatRoleLabel(activeMessageViewer?.role || adminUser?.role, 'Admin')}
                                                 subtitle="Review employee notes and reply in the same shared chat thread."
                                                 viewerName={activeMessageViewer?.name || ''}
                                                 viewerRole={activeMessageViewer?.role || ''}
