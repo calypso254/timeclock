@@ -902,7 +902,7 @@
             const scheduleGridWidth = `${(scheduleColumnCount * STANDARD_SIZE_UNIT) + ((scheduleColumnCount - 1) * STANDARD_SIZE_GAP)}px`;
 
             return (
-                <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
+                <div className="section-width flex flex-col h-auto min-h-0 animate-fade-in">
                     <div className="flex items-start justify-between gap-3 mb-3 shrink-0">
                         <div>
                             {eyebrow && <div className="card-eyebrow text-[#0284c7]">{eyebrow}</div>}
@@ -958,7 +958,7 @@
             const inventorySubtitle = subtitle || 'Active needs grouped into one quick summary.';
 
             return (
-                <div className="section-width flex flex-col h-full min-h-0 animate-fade-in">
+                <div className="section-width flex flex-col h-auto min-h-0 animate-fade-in">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 shrink-0">
                         <div>
                             {eyebrow && <div className="card-eyebrow text-[#f97316]">{eyebrow}</div>}
@@ -985,7 +985,7 @@
                         </div>
                     </div>
 
-                    <div className="message-thread-scroll no-scrollbar shadow-safe-2">
+                    <div className="message-thread-scroll-auto no-scrollbar shadow-safe-2">
                         {openRows.length === 0 ? (
                             <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
                                 No open inventory tasks right now.
@@ -1017,6 +1017,46 @@
             );
         };
 
+        const PenHospitalOverviewPanel = ({
+            penHospitalCases,
+            eyebrow = '',
+            title = 'Pen Hospital Overview',
+            subtitle = '',
+        }) => {
+            const summary = buildPenHospitalSummary(penHospitalCases)
+                .filter(section => section.key !== 'completed')
+                .map(section => ({
+                    ...section,
+                    displayTitle: section.key === 'ready' ? 'Ready' : section.title,
+                }));
+            const activeCount = summary.reduce((sum, section) => sum + section.count, 0);
+            const overviewSubtitle = subtitle || 'Repair queue counts by lane.';
+
+            return (
+                <div className="section-width flex flex-col h-auto min-h-0 animate-fade-in">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 shrink-0">
+                        <div>
+                            {eyebrow && <div className="card-eyebrow text-[#0f766e]">{eyebrow}</div>}
+                            <h3 className={`section-title ${eyebrow ? 'mt-1' : ''}`}>{title}</h3>
+                            <p className="section-subtitle mt-1">{overviewSubtitle}</p>
+                        </div>
+                        <div className="status-chip bg-[#ccfbf1] self-start md:self-auto">
+                            {activeCount} active
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2.5">
+                        {summary.map(section => (
+                            <div key={section.key} className={`public-summary-row ${section.countClass}`}>
+                                <div className="text-[9px] uppercase font-bold text-gray-500">{section.displayTitle}</div>
+                                <div className="font-bold font-poppins text-lg text-[#060606] mt-1">{section.count}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
         const MessageBoardPanel = ({
             messages,
             title = 'Messages',
@@ -1035,6 +1075,7 @@
             reactingRowNumber = null,
             readOnly = false,
             newestFirst = false,
+            autoHeight = false,
         }) => {
             const threadEndRef = useRef(null);
             const threadScrollRef = useRef(null);
@@ -1086,7 +1127,7 @@
             };
 
             return (
-                <div className="section-width flex flex-col h-full min-h-0 animate-fade-in pr-2 pb-2">
+                <div className={`section-width flex flex-col min-h-0 animate-fade-in ${autoHeight ? 'h-auto pr-0 pb-0' : 'h-full pr-2 pb-2'}`}>
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0 pr-1 pb-1">
                         <div>
                             {eyebrow && <div className="card-eyebrow text-[#ec4899]">{eyebrow}</div>}
@@ -1108,13 +1149,13 @@
                         </div>
                     </div>
 
-                    <div ref={threadScrollRef} className="message-thread-scroll no-scrollbar shadow-safe-2 pb-2">
+                    <div ref={threadScrollRef} className={`${autoHeight ? 'message-thread-scroll-auto' : 'message-thread-scroll'} no-scrollbar shadow-safe-2 ${autoHeight ? '' : 'pb-2'}`}>
                         {safeMessages.length === 0 ? (
                             <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
                                 No notes yet.
                             </div>
                         ) : (
-                            <div className="message-thread">
+                            <div className={`message-thread ${autoHeight ? 'message-thread-auto' : ''}`}>
                                 {displayedMessages.map((message, index) => {
                                     const senderName = String(message?.senderName || '').trim() || 'Unknown';
                                     const senderRole = normalizeMessageRole(message?.senderRole);
@@ -1569,7 +1610,7 @@
             );
         };
 
-        const PublicOverviewPanel = ({ sheetData, inventoryRows, messages }) => {
+        const PublicOverviewPanel = ({ sheetData, inventoryRows, penHospitalCases, messages }) => {
             return (
                 <div className="flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="mb-4 md:mb-6 shrink-0">
@@ -1590,6 +1631,11 @@
                                 </div>
                             </div>
                             <div className="public-overview-right-column">
+                                <div className="section-card public-overview-card public-overview-pen-hospital-card bg-[#f0fdfa] p-3 md:p-4">
+                                    <PenHospitalOverviewPanel
+                                        penHospitalCases={penHospitalCases}
+                                    />
+                                </div>
                                 <div className="section-card public-overview-card public-overview-message-card bg-[#fdf2f8] p-3 md:p-4">
                                     <MessageBoardPanel
                                         messages={messages}
@@ -1598,6 +1644,7 @@
                                         subtitle="Read-only view of the shared staff notes board."
                                         readOnly={true}
                                         newestFirst={true}
+                                        autoHeight={true}
                                     />
                                 </div>
                             </div>

@@ -1869,7 +1869,7 @@ function App() {
                                             </p>
                                         </div>
                                     ) : (
-                                        <PublicOverviewPanel sheetData={sheetData} inventoryRows={inventoryRows} messages={messages} />
+                                        <PublicOverviewPanel sheetData={sheetData} inventoryRows={inventoryRows} penHospitalCases={penHospitalCases} messages={messages} />
                                     )
                                 ) : (
                                     <div className="flex-1 min-h-0 overflow-hidden">

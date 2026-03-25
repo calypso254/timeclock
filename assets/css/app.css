@@ -445,8 +445,11 @@
             max-width: var(--size-panel-4);
         }
         .public-overview-right-column {
+            display: flex;
+            flex-direction: column;
+            gap: var(--card-grid-gap);
             min-width: 0;
-            align-self: stretch;
+            align-self: start;
             max-width: var(--size-panel-2);
         }
         .public-overview-card {
@@ -463,18 +466,14 @@
         .public-overview-message-card {
             width: 100%;
             max-width: var(--size-panel-2);
-            min-height: 640px;
-            display: flex;
-            flex-direction: column;
-        }
-        .public-overview-message-card > * {
-            flex: 1;
-            min-height: 0;
         }
         .public-overview-inventory-card {
             width: 100%;
             max-width: var(--size-panel-4);
-            min-height: 360px;
+        }
+        .public-overview-pen-hospital-card {
+            width: 100%;
+            max-width: var(--size-panel-2);
         }
         .public-schedule-wrap {
             width: 100%;
@@ -531,11 +530,20 @@
             overflow-y: auto;
             padding-right: 0.25rem;
         }
+        .message-thread-scroll-auto {
+            flex: 0 0 auto;
+            min-height: auto;
+            overflow: visible;
+            padding-right: 0;
+        }
         .message-thread {
             display: flex;
             flex-direction: column;
             gap: 0.75rem;
             min-height: 100%;
+        }
+        .message-thread-auto {
+            min-height: 0;
         }
         .message-row {
             display: flex;
@@ -984,15 +992,13 @@
             .public-overview-right-column,
             .public-overview-schedule-card,
             .public-overview-message-card,
-            .public-overview-inventory-card {
+            .public-overview-inventory-card,
+            .public-overview-pen-hospital-card {
                 max-width: none;
             }
             .public-overview-schedule-card,
             .public-schedule-wrap {
                 width: 100%;
-            }
-            .public-overview-message-card {
-                min-height: 520px;
             }
         }
         @media (min-width: 768px) {
