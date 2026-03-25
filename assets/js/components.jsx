@@ -2223,9 +2223,7 @@
             const [weekJumpValue, setWeekJumpValue] = useState('');
             const [editorDraft, setEditorDraft] = useState(null);
 
-            const sortedEmployees = employees
-                .slice()
-                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+            const sortedEmployees = sortEmployeesForDisplay(employees);
 
             const weekDays = buildWeekDays(weekStart);
 

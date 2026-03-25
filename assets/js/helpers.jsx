@@ -192,6 +192,47 @@ const { useState, useEffect, useRef } = React;
                 .join(' ');
         };
 
+        const getEmployeeDisplayOrderValue = (employee) => {
+            const candidates = [
+                employee?.displayOrder,
+                employee?.sortOrder,
+                employee?.order,
+                employee?.position,
+                employee?.rowNumber,
+            ];
+
+            for (const candidate of candidates) {
+                const numericValue = Number(candidate);
+                if (Number.isFinite(numericValue)) return numericValue;
+            }
+
+            return null;
+        };
+
+        const sortEmployeesForDisplay = (employeeList) => {
+            return (Array.isArray(employeeList) ? employeeList : [])
+                .map((employee, index) => ({
+                    employee,
+                    index,
+                    orderValue: getEmployeeDisplayOrderValue(employee),
+                }))
+                .sort((a, b) => {
+                    const aHasExplicitOrder = a.orderValue !== null;
+                    const bHasExplicitOrder = b.orderValue !== null;
+
+                    if (aHasExplicitOrder && bHasExplicitOrder && a.orderValue !== b.orderValue) {
+                        return a.orderValue - b.orderValue;
+                    }
+
+                    if (aHasExplicitOrder !== bHasExplicitOrder) {
+                        return aHasExplicitOrder ? -1 : 1;
+                    }
+
+                    return a.index - b.index;
+                })
+                .map(({ employee }) => employee);
+        };
+
         const normalizeMessageText = (value) => {
             return String(value || '')
                 .replace(/\r\n/g, '\n')

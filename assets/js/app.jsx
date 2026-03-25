@@ -549,14 +549,12 @@ function App() {
             const selectedEmployee = selectedUser && !isAdminRole(selectedUser.role) ? selectedUser : null;
             const activeSessionUser = adminUser || selectedEmployee || null;
             const activeMessageViewer = adminUser || selectedEmployee || null;
-            const publicEmployees = employees
-                .filter(emp => !isAdminRole(emp.role))
-                .slice()
-                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-            const adminAccounts = employees
-                .filter(emp => isAdminRole(emp.role))
-                .slice()
-                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+            const publicEmployees = sortEmployeesForDisplay(
+                employees.filter(emp => !isAdminRole(emp.role))
+            );
+            const adminAccounts = sortEmployeesForDisplay(
+                employees.filter(emp => isAdminRole(emp.role))
+            );
             const directoryEmployees = directoryMode === 'admin' ? adminAccounts : publicEmployees;
             const personalData = selectedEmployee 
                 ? sheetData.filter(row => row.name === selectedEmployee.name) 
