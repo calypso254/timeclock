@@ -2,8 +2,9 @@ tailwind.config = {
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Roboto', 'Arial', 'sans-serif'],
-                        poppins: ['Poppins', 'sans-serif'],
+                        sans: ['Inter', 'Arial', 'sans-serif'],
+                        poppins: ['Archivo Black', 'Arial Black', 'sans-serif'],
+                        display: ['Archivo Black', 'Arial Black', 'sans-serif'],
                     }
                 }
             }

@@ -50,7 +50,7 @@
                 <div className="section-width flex flex-col h-full animate-fade-in relative overflow-hidden">
                     <div className="content-safe-padding flex justify-between items-center mb-4 md:mb-6 shrink-0 pt-1">
                         <div>
-                            {roleLabel && <div className="card-eyebrow text-[#0284c7]">{roleLabel}</div>}
+                            {roleLabel && <div className="card-eyebrow text-[#38bdf8]">{roleLabel}</div>}
                             <h3 className={`section-title ${roleLabel ? 'mt-1' : ''}`}>My Timesheet</h3>
                         </div>
                         <div className="flex items-center gap-4">
@@ -536,7 +536,7 @@
                 <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4 shrink-0 px-1 pt-1">
                         <div>
-                            {eyebrow && <div className="card-eyebrow text-[#0284c7]">{eyebrow}</div>}
+                            {eyebrow && <div className="card-eyebrow text-[#38bdf8]">{eyebrow}</div>}
                             <h3 className={`section-title ${eyebrow ? 'mt-1' : ''}`}>{title}</h3>
                             {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
@@ -561,7 +561,7 @@
                                 <div key={normalizeDate(week.startDate)} className="section-card panel-content-card bg-[#fffdf5]">
                                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
                                         <div>
-                                            <div className="card-eyebrow text-[#0284c7]">Week {weekIndex + 1}</div>
+                                            <div className="card-eyebrow text-[#38bdf8]">Week {weekIndex + 1}</div>
                                             <h4 className="card-title mt-1">{formatWeekRangeLabel(week.startDate)}</h4>
                                         </div>
                                         <div className="text-left md:text-right">
@@ -569,7 +569,7 @@
                                                 {week.shiftCount} published shift{week.shiftCount === 1 ? '' : 's'}
                                             </div>
                                             {showTimeOffRequestHint && (
-                                                <div className="card-meta mt-1 text-[#0284c7]">
+                                                <div className="card-meta mt-1 text-[#38bdf8]">
                                                     Tap the date to request time off.
                                                 </div>
                                             )}
@@ -905,7 +905,7 @@
                 <div className="section-width flex flex-col h-auto min-h-0 animate-fade-in">
                     <div className="flex items-start justify-between gap-3 mb-3 shrink-0">
                         <div>
-                            {eyebrow && <div className="card-eyebrow text-[#0284c7]">{eyebrow}</div>}
+                            {eyebrow && <div className="card-eyebrow text-[#38bdf8]">{eyebrow}</div>}
                             <h3 className={`section-title ${eyebrow ? 'mt-1' : ''}`}>{title}</h3>
                             {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
@@ -1620,21 +1620,21 @@
                     <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pt-1 pb-4 pr-2">
                         <div className="public-overview-masonry">
                             <div className="public-overview-left-column">
-                                <div className="section-card public-overview-card public-overview-schedule-card bg-[#f8fafc] p-3 md:p-4">
-                                    <TodaySchedulePanel sheetData={sheetData} />
-                                </div>
                                 <div className="section-card public-overview-card public-overview-inventory-card bg-[#fff7ed] p-3 md:p-4">
                                     <InventorySnapshotPanel
                                         inventoryRows={inventoryRows}
                                         title="Inventory Snapshot"
                                     />
                                 </div>
-                            </div>
-                            <div className="public-overview-right-column">
                                 <div className="section-card public-overview-card public-overview-pen-hospital-card bg-[#f0fdfa] p-3 md:p-4">
                                     <PenHospitalOverviewPanel
                                         penHospitalCases={penHospitalCases}
                                     />
+                                </div>
+                            </div>
+                            <div className="public-overview-right-column">
+                                <div className="section-card public-overview-card public-overview-schedule-card bg-[#f8fafc] p-3 md:p-4">
+                                    <TodaySchedulePanel sheetData={sheetData} />
                                 </div>
                                 <div className="section-card public-overview-card public-overview-message-card bg-[#fdf2f8] p-3 md:p-4">
                                     <MessageBoardPanel
@@ -1743,7 +1743,7 @@
                 <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
                         <div>
-                            <div className="card-eyebrow text-[#0284c7]">{roleLabel}</div>
+                            <div className="card-eyebrow text-[#38bdf8]">{roleLabel}</div>
                             <h3 className="section-title mt-1">Inventory Management</h3>
                             {latestInventoryUpdate && (
                                 <p className="section-subtitle mt-1">
@@ -1999,7 +1999,7 @@
                 <div className="section-width flex flex-col h-full min-h-0 animate-fade-in overflow-hidden">
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
                         <div>
-                            <div className="card-eyebrow text-[#0284c7]">{roleLabel}</div>
+                            <div className="card-eyebrow text-[#38bdf8]">{roleLabel}</div>
                             <h3 className="section-title mt-1">Current Pay Period Hours</h3>
                             <p className="section-subtitle mt-1">
                                 Current period: {formatFullDate(currentPeriod.startDate)} through {formatFullDate(currentPeriod.endDate)}.
@@ -2431,7 +2431,7 @@
                                         : isSelected
                                             ? 'bg-[#dbeafe]'
                                             : cellStateClass;
-                                const outlineClass = isSelected ? 'ring-2 ring-[#0284c7]' : '';
+                                const outlineClass = isSelected ? 'ring-2 ring-[#38bdf8]' : '';
 
                                 return (
                                     <button
@@ -2494,7 +2494,7 @@
                 <div className="section-width flex flex-col h-full min-h-0 animate-fade-in overflow-y-auto pr-1">
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 md:mb-6 shrink-0">
                         <div>
-                            <div className="card-eyebrow text-[#0284c7]">{roleLabel}</div>
+                            <div className="card-eyebrow text-[#38bdf8]">{roleLabel}</div>
                             <h3 className="page-title sm:whitespace-nowrap">Schedule Builder</h3>
                             <div className="mt-3 space-y-1">
                                 <div className="text-xs md:text-sm font-bold text-gray-500">
@@ -2525,7 +2525,7 @@
                             </div>
 
                             <div className="admin-studio-control-shell admin-studio-select-shell">
-                                <i className="fas fa-folder-open text-[#0284c7]"></i>
+                                <i className="fas fa-folder-open text-[#38bdf8]"></i>
                                 <select
                                     value={weekJumpValue}
                                     onChange={e => {
@@ -2581,7 +2581,7 @@
                             <div className="brutal-card editor-modal bg-white p-4 md:p-6" onClick={e => e.stopPropagation()}>
                                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                                     <div>
-                                        <div className="card-eyebrow text-[#0284c7]">
+                                        <div className="card-eyebrow text-[#38bdf8]">
                                             {isSelectingDayEmployee ? 'Choose Employee' : (isReviewingTimeOff ? 'Time-Off Review' : 'Schedule Editor')}
                                         </div>
                                         <h4 className="section-title mt-1">{isSelectingDayEmployee ? formatFullDate(selectedDraft.date) : selectedDraft.name}</h4>

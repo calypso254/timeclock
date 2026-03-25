@@ -1620,11 +1620,8 @@ function App() {
                             )}
                             </button>
                             <div className="w-[170px] sm:w-[220px] md:w-[360px] lg:w-[460px] min-w-0">
-                                <div className="flex items-center gap-2 min-w-0">
+                                <div className="min-w-0">
                                     <h1 className="text-lg md:text-3xl font-bold font-poppins text-[#060606] truncate min-h-[1.75rem] md:min-h-[2.25rem]">{settings.companyName || '\u00A0'}</h1>
-                                    <span className="shrink-0 rounded-full border-2 border-black bg-[#fde047] px-2 py-0.5 text-[10px] md:text-xs font-bold font-poppins tracking-[0.2em] text-[#060606]">
-                                        DEV
-                                    </span>
                                 </div>
                                 <p className="text-gray-600 font-bold text-[10px] md:text-base truncate">{currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
                             </div>
@@ -2054,7 +2051,7 @@ function App() {
                                           notification.type === 'error' ? 'bg-[#fecdd3]' : 'bg-[#bae6fd]'}
                                     `}>
                                         <i className={`fas ${notification.type === 'success' ? 'fa-check-circle text-[#059669]' : 
-                                                           notification.type === 'error' ? 'fa-exclamation-triangle text-[#e11d48]' : 'fa-info-circle text-[#0284c7]'}`}></i>
+                                                           notification.type === 'error' ? 'fa-exclamation-triangle text-[#e11d48]' : 'fa-info-circle text-[#38bdf8]'}`}></i>
                                         {notification.message}
                                     </div>
                                 )}

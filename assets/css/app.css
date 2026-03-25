@@ -16,38 +16,60 @@
                 --card-grid-column-width: var(--size-unit-1);
                 --card-grid-row-height: 148px;
                 --card-grid-gap: var(--size-gap);
-                --surface-shadow: 4px 4px 0px 0px #000000;
-                --surface-border: 2px solid #000000;
-                --surface-radius: 1rem;
+                --font-display: 'Archivo Black', 'Arial Black', sans-serif;
+                --font-body: 'Inter', Arial, sans-serif;
+                --color-ink: #000000;
+                --color-paper: #ffffff;
+                --color-canvas: #fef3c7;
+                --color-nav: #38bdf8;
+                --color-pending: #fde047;
+                --color-success: #4ade80;
+                --color-urgent: #f43f5e;
+                --color-secondary: #e9d5ff;
+                --color-muted: rgba(0, 0, 0, 0.68);
+                --surface-shadow: 4px 4px 0px 0px var(--color-ink);
+                --surface-border: 2px solid var(--color-ink);
+                --surface-radius: 12px;
             }
+        html {
+            font-size: 16px;
+        }
         body {
-            /* Creamy pastel yellow background */
-            background-color: #fef3c7; 
-            color: #060606; /* Softer black for high readability */
+            background-color: var(--color-canvas);
+            color: var(--color-ink);
+            font-family: var(--font-body);
+            font-size: 1rem;
+            line-height: 1.5;
             transition: background-color 0.5s ease;
         }
+        button,
+        input,
+        select,
+        textarea {
+            font: inherit;
+        }
         
-        /* Soft Brutalism CSS Classes */
         .brutal-card {
-            background-color: #ffffff;
-            border: 3px solid #000000;
+            background-color: var(--color-paper);
+            border: 3px solid var(--color-ink);
             border-radius: var(--surface-radius);
-            box-shadow: 6px 6px 0px 0px #000000;
+            box-shadow: 6px 6px 0px 0px var(--color-ink);
         }
         
         .brutal-btn {
-            border: 2px solid #000000;
+            border: 2px solid var(--color-ink);
             border-radius: var(--surface-radius);
-            box-shadow: 4px 4px 0px 0px #000000;
+            box-shadow: var(--surface-shadow);
             transition: transform 0.1s ease, box-shadow 0.1s ease;
-            font-family: 'Poppins', sans-serif;
-            font-weight: 700; /* Bold (700) instead of Extrabold */
-            color: #060606;
+            font-family: var(--font-body);
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            color: var(--color-ink);
             cursor: pointer;
         }
         
         .brutal-btn:active:not(:disabled) {
-            box-shadow: 0px 0px 0px 0px #000000;
+            box-shadow: 0px 0px 0px 0px var(--color-ink);
             transform: translate(4px, 4px);
         }
         
@@ -58,16 +80,16 @@
         }
 
         .brutal-input {
-            border: 2px solid #000000;
+            border: 2px solid var(--color-ink);
             border-radius: var(--surface-radius);
-            background-color: #ffffff;
+            background-color: var(--color-paper);
             transition: all 0.2s ease;
-            font-family: 'Roboto', sans-serif;
-            color: #060606;
+            font-family: var(--font-body);
+            color: var(--color-ink);
         }
         .brutal-input:focus {
             outline: none;
-            box-shadow: 4px 4px 0px 0px #000000;
+            box-shadow: var(--surface-shadow);
             background-color: #f0fdf4; /* Light mint focus */
         }
 
@@ -155,8 +177,10 @@
             align-items: center;
             justify-content: center;
             gap: 0.35rem;
-            font-size: 1rem;
-            line-height: 1;
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            font-weight: 700;
+            line-height: 1.15;
             text-align: center;
             white-space: normal;
         }
@@ -183,8 +207,10 @@
             justify-content: center;
             gap: 0.35rem;
             text-align: center;
-            line-height: 1.1;
-            font-size: 0.78rem;
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            font-weight: 700;
+            line-height: 1.15;
         }
         .stacked-action-button i,
         .admin-action-button i {
@@ -220,59 +246,66 @@
         .card-size-3x1 { grid-column: span 3; grid-row: span 1; }
         .card-size-3x2 { grid-column: span 3; grid-row: span 2; }
         .page-title {
-            font-family: 'Poppins', sans-serif;
-            font-size: clamp(1.5rem, 2vw, 2rem);
-            font-weight: 700;
-            line-height: 1.1;
-            color: #060606;
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 2.5vw, 2.25rem);
+            font-weight: 400;
+            line-height: 1.02;
+            letter-spacing: -0.02em;
+            color: var(--color-ink);
         }
         .page-subtitle {
-            font-size: clamp(0.95rem, 1.2vw, 1.05rem);
-            font-weight: 700;
-            line-height: 1.4;
-            color: rgba(6, 6, 6, 0.68);
+            font-family: var(--font-body);
+            font-size: clamp(0.9375rem, 1vw, 1rem);
+            font-weight: 500;
+            line-height: 1.5;
+            color: var(--color-muted);
         }
         .section-title {
-            font-family: 'Poppins', sans-serif;
-            font-size: clamp(1.25rem, 1.7vw, 1.65rem);
-            font-weight: 700;
-            line-height: 1.15;
-            color: #060606;
+            font-family: var(--font-display);
+            font-size: clamp(1.625rem, 2vw, 1.875rem);
+            font-weight: 400;
+            line-height: 1.05;
+            letter-spacing: -0.02em;
+            color: var(--color-ink);
         }
         .section-subtitle {
-            font-size: clamp(0.78rem, 1vw, 0.92rem);
-            font-weight: 700;
-            line-height: 1.45;
-            color: #6b7280;
+            font-family: var(--font-body);
+            font-size: clamp(0.9375rem, 1vw, 1rem);
+            font-weight: 500;
+            line-height: 1.5;
+            color: var(--color-muted);
         }
         .card-eyebrow {
-            font-size: 0.68rem;
+            font-family: var(--font-body);
+            font-size: 0.75rem;
             font-weight: 700;
             line-height: 1.2;
-            letter-spacing: 0.18em;
+            letter-spacing: 0.05em;
             text-transform: uppercase;
-            color: #6b7280;
+            color: var(--color-muted);
         }
         .card-title {
-            font-family: 'Poppins', sans-serif;
+            font-family: var(--font-display);
             font-size: 1rem;
-            font-weight: 700;
-            line-height: 1.2;
-            color: #060606;
+            font-weight: 400;
+            line-height: 1.15;
+            color: var(--color-ink);
         }
         .card-meta {
-            font-size: 0.76rem;
-            font-weight: 700;
-            line-height: 1.35;
-            color: #6b7280;
+            font-family: var(--font-body);
+            font-size: 0.8125rem;
+            font-weight: 600;
+            line-height: 1.4;
+            color: var(--color-muted);
         }
         .field-label {
-            font-size: 0.74rem;
+            font-family: var(--font-body);
+            font-size: 0.75rem;
             font-weight: 700;
             line-height: 1.2;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.05em;
             text-transform: uppercase;
-            color: #060606;
+            color: var(--color-ink);
         }
         .status-chip {
             display: inline-flex;
@@ -281,12 +314,13 @@
             border: var(--surface-border);
             border-radius: var(--surface-radius);
             padding: 0.35rem 0.75rem;
-            font-size: 0.72rem;
+            font-family: var(--font-body);
+            font-size: 0.75rem;
             font-weight: 700;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.05em;
             text-transform: uppercase;
-            background: #ffffff;
-            color: #060606;
+            background: var(--color-paper);
+            color: var(--color-ink);
         }
         .section-card {
             border: var(--surface-border);
@@ -383,45 +417,45 @@
             min-width: 0;
         }
         .inventory-card-label {
-            font-family: 'Poppins', sans-serif;
-            font-size: 0.62rem;
+            font-family: var(--font-body);
+            font-size: 0.75rem;
             font-weight: 700;
             line-height: 1.2;
-            letter-spacing: 0.12em;
+            letter-spacing: 0.05em;
             text-transform: uppercase;
-            color: #6b7280;
+            color: var(--color-muted);
         }
         .inventory-card-sku {
-            font-family: 'Poppins', sans-serif;
-            font-size: 0.72rem;
+            font-family: var(--font-body);
+            font-size: 0.75rem;
             font-weight: 700;
             line-height: 1.25;
             letter-spacing: 0.18em;
             text-transform: uppercase;
-            color: #0284c7;
+            color: var(--color-nav);
             word-break: break-word;
         }
         .inventory-card-name {
-            font-family: 'Poppins', sans-serif;
-            font-size: clamp(1.05rem, 1.6vw, 1.35rem);
-            font-weight: 700;
-            line-height: 1.15;
-            color: #060606;
+            font-family: var(--font-display);
+            font-size: clamp(1.2rem, 1.7vw, 1.45rem);
+            font-weight: 400;
+            line-height: 1.08;
+            color: var(--color-ink);
             word-break: break-word;
         }
         .inventory-stat-label {
-            font-family: 'Poppins', sans-serif;
-            font-size: 0.62rem;
+            font-family: var(--font-body);
+            font-size: 0.75rem;
             font-weight: 700;
             line-height: 1.2;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.05em;
             text-transform: uppercase;
-            color: #6b7280;
+            color: var(--color-muted);
         }
         .inventory-stat-value {
-            font-family: 'Poppins', sans-serif;
-            font-weight: 700;
-            color: #060606;
+            font-family: var(--font-display);
+            font-weight: 400;
+            color: var(--color-ink);
         }
         .inventory-status-chip {
             font-size: 0.5rem;
@@ -461,7 +495,7 @@
         }
         .public-overview-schedule-card {
             width: 100%;
-            max-width: var(--size-panel-4);
+            max-width: var(--size-panel-2);
         }
         .public-overview-message-card {
             width: 100%;
@@ -473,7 +507,7 @@
         }
         .public-overview-pen-hospital-card {
             width: 100%;
-            max-width: var(--size-panel-2);
+            max-width: var(--size-panel-4);
         }
         .public-schedule-wrap {
             width: 100%;
@@ -495,11 +529,11 @@
             min-height: 84px;
         }
         .public-schedule-name {
-            font-family: 'Poppins', sans-serif;
+            font-family: var(--font-display);
             font-size: 0.9rem;
-            font-weight: 700;
+            font-weight: 400;
             line-height: 1.15;
-            color: #060606;
+            color: var(--color-ink);
             word-break: break-word;
         }
         .public-schedule-time-pill {
@@ -754,7 +788,7 @@
             min-width: 170px;
             padding: 0 0.55rem;
             text-align: center;
-            font-family: 'Poppins', sans-serif;
+            font-family: var(--font-body);
             font-size: 0.92rem;
             font-weight: 700;
             line-height: 1.2;
@@ -772,10 +806,10 @@
             outline: none;
             background: transparent;
             appearance: none;
-            font-family: 'Poppins', sans-serif;
+            font-family: var(--font-body);
             font-size: 0.92rem;
             font-weight: 700;
-            color: #060606;
+            color: var(--color-ink);
             cursor: pointer;
         }
         .admin-studio-action {
