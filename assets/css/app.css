@@ -1,0 +1,1048 @@
+:root {
+                --size-unit-1: 103px;
+                --button-unit-width: var(--size-unit-1);
+                --size-gap: 16px;
+                --size-panel-padding: 24px;
+                --size-panel-padding-mobile: 16px;
+                --panel-surface-padding: 1rem;
+                --unit-button-padding: 0.5rem;
+                --action-button-min-height: calc(1rem + (var(--unit-button-padding) * 2));
+                --size-content-2: calc((var(--size-unit-1) * 2) + var(--size-gap));
+                --size-panel-2: calc(var(--size-content-2) + (var(--size-panel-padding) * 2));
+                --size-panel-4: calc((var(--size-panel-2) * 2) + var(--size-gap));
+                --left-panel-width: var(--size-panel-2);
+                --right-panel-width: calc(var(--size-panel-4) + var(--size-panel-2) + var(--size-gap));
+                --page-max-width: calc(var(--left-panel-width) + var(--right-panel-width) + var(--size-gap));
+                --card-grid-column-width: var(--size-unit-1);
+                --card-grid-row-height: 148px;
+                --card-grid-gap: var(--size-gap);
+                --surface-shadow: 4px 4px 0px 0px #000000;
+                --surface-border: 2px solid #000000;
+                --surface-radius: 1rem;
+            }
+        body {
+            /* Creamy pastel yellow background */
+            background-color: #fef3c7; 
+            color: #060606; /* Softer black for high readability */
+            transition: background-color 0.5s ease;
+        }
+        
+        /* Soft Brutalism CSS Classes */
+        .brutal-card {
+            background-color: #ffffff;
+            border: 3px solid #000000;
+            border-radius: var(--surface-radius);
+            box-shadow: 6px 6px 0px 0px #000000;
+        }
+        
+        .brutal-btn {
+            border: 2px solid #000000;
+            border-radius: var(--surface-radius);
+            box-shadow: 4px 4px 0px 0px #000000;
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700; /* Bold (700) instead of Extrabold */
+            color: #060606;
+            cursor: pointer;
+        }
+        
+        .brutal-btn:active:not(:disabled) {
+            box-shadow: 0px 0px 0px 0px #000000;
+            transform: translate(4px, 4px);
+        }
+        
+        .brutal-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: #e5e7eb !important;
+        }
+
+        .brutal-input {
+            border: 2px solid #000000;
+            border-radius: var(--surface-radius);
+            background-color: #ffffff;
+            transition: all 0.2s ease;
+            font-family: 'Roboto', sans-serif;
+            color: #060606;
+        }
+        .brutal-input:focus {
+            outline: none;
+            box-shadow: 4px 4px 0px 0px #000000;
+            background-color: #f0fdf4; /* Light mint focus */
+        }
+
+        /* Specialized Pin Pad Buttons */
+        .pin-btn {
+            aspect-ratio: 1;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        /* Hide scrollbar for clean UI but allow scroll */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .shadow-safe-2 { padding: 2px; }
+        .shadow-safe-3 { padding: 3px; }
+        .shadow-safe-4 { padding: 4px; }
+        .shadow-safe-6 { padding: 6px; }
+        .content-safe-padding {
+            padding-left: 0.25rem;
+            padding-right: 0.25rem;
+        }
+        .page-width {
+            width: 100%;
+            max-width: var(--page-max-width);
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .app-shell {
+            width: 100%;
+            max-width: calc(var(--left-panel-width) + var(--right-panel-width) + var(--size-gap));
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            width: 100%;
+            max-width: none;
+        }
+        .right-panel {
+            min-width: 0;
+            width: 100%;
+            max-width: none;
+        }
+        .section-width {
+            width: 100%;
+        }
+        .left-panel-card {
+            width: 100%;
+            max-width: none;
+        }
+        .panel-shell-padding,
+        .left-panel-card-padding {
+            padding: var(--size-panel-padding-mobile);
+        }
+        .standard-two-up-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+        .standard-unit-button {
+            width: 100%;
+            min-height: var(--size-unit-1);
+            padding: var(--unit-button-padding);
+            box-sizing: border-box;
+        }
+        .action-button {
+            min-width: var(--button-unit-width);
+            min-height: var(--action-button-min-height);
+            padding: var(--unit-button-padding);
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            font-size: 1rem;
+            line-height: 1;
+            text-align: center;
+            white-space: normal;
+        }
+        .action-button span {
+            display: block;
+        }
+        .action-button-fixed {
+            width: var(--button-unit-width);
+        }
+        .action-button-fluid {
+            width: auto;
+        }
+        .action-button-iconless {
+            gap: 0;
+        }
+        .action-button-iconless i {
+            display: none;
+        }
+        .stacked-action-button,
+        .admin-action-button {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            text-align: center;
+            line-height: 1.1;
+            font-size: 0.78rem;
+        }
+        .stacked-action-button i,
+        .admin-action-button i {
+            font-size: 1rem;
+            line-height: 1;
+        }
+        .stacked-action-button span,
+        .admin-action-button span {
+            display: block;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+        }
+        .card-grid {
+            --active-card-column-width: var(--card-grid-column-width);
+            --active-card-row-height: var(--card-grid-row-height);
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--active-card-column-width)), 1fr));
+            grid-auto-rows: var(--active-card-row-height);
+            gap: var(--card-grid-gap);
+            grid-auto-flow: dense;
+            align-content: start;
+        }
+        .card-frame {
+            min-width: 0;
+            height: 100%;
+        }
+        .card-size-1x1 { grid-column: span 1; grid-row: span 1; }
+        .card-size-1x2 { grid-column: span 1; grid-row: span 2; }
+        .card-size-1x3 { grid-column: span 1; grid-row: span 3; }
+        .card-size-2x1 { grid-column: span 2; grid-row: span 1; }
+        .card-size-2x2 { grid-column: span 2; grid-row: span 2; }
+        .card-size-2x3 { grid-column: span 2; grid-row: span 3; }
+        .card-size-3x1 { grid-column: span 3; grid-row: span 1; }
+        .card-size-3x2 { grid-column: span 3; grid-row: span 2; }
+        .page-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: clamp(1.5rem, 2vw, 2rem);
+            font-weight: 700;
+            line-height: 1.1;
+            color: #060606;
+        }
+        .page-subtitle {
+            font-size: clamp(0.95rem, 1.2vw, 1.05rem);
+            font-weight: 700;
+            line-height: 1.4;
+            color: rgba(6, 6, 6, 0.68);
+        }
+        .section-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: clamp(1.25rem, 1.7vw, 1.65rem);
+            font-weight: 700;
+            line-height: 1.15;
+            color: #060606;
+        }
+        .section-subtitle {
+            font-size: clamp(0.78rem, 1vw, 0.92rem);
+            font-weight: 700;
+            line-height: 1.45;
+            color: #6b7280;
+        }
+        .card-eyebrow {
+            font-size: 0.68rem;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #6b7280;
+        }
+        .card-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1.2;
+            color: #060606;
+        }
+        .card-meta {
+            font-size: 0.76rem;
+            font-weight: 700;
+            line-height: 1.35;
+            color: #6b7280;
+        }
+        .field-label {
+            font-size: 0.74rem;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #060606;
+        }
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            border: var(--surface-border);
+            border-radius: var(--surface-radius);
+            padding: 0.35rem 0.75rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            background: #ffffff;
+            color: #060606;
+        }
+        .section-card {
+            border: var(--surface-border);
+            border-radius: var(--surface-radius);
+            box-shadow: var(--surface-shadow);
+            background: #ffffff;
+        }
+        .panel-content-card {
+            padding: var(--panel-surface-padding);
+        }
+        .panel-row-surface {
+            border: var(--surface-border);
+            border-radius: var(--surface-radius);
+            box-shadow: var(--surface-shadow);
+            background: #ffffff;
+            overflow: hidden;
+        }
+        .today-schedule-card-grid {
+            --active-card-row-height: 128px;
+        }
+        .today-schedule-card {
+            min-height: var(--active-card-row-height);
+        }
+        .timesheet-action-button {
+            min-height: 5.4rem;
+            padding: 0.7rem 0.85rem;
+            gap: 0.45rem;
+            font-size: 0.82rem;
+            line-height: 1.1;
+        }
+        .timesheet-action-button i {
+            font-size: 1.15rem;
+            line-height: 1;
+        }
+        .timesheet-entry-row {
+            min-height: 0;
+        }
+        .timesheet-entry-date-block {
+            min-width: 7rem;
+            padding: 0.7rem 0.75rem;
+            gap: 0.35rem;
+            white-space: nowrap;
+        }
+        .timesheet-entry-day {
+            font-size: 0.74rem;
+            letter-spacing: 0.04em;
+            line-height: 1;
+        }
+        .timesheet-entry-number {
+            font-size: 1.35rem;
+            line-height: 1;
+        }
+        .timesheet-entry-month {
+            font-size: 0.72rem;
+            line-height: 1;
+        }
+        .timesheet-entry-details {
+            padding: 0.7rem 0.9rem;
+            gap: 0.55rem;
+        }
+        .timesheet-entry-grid {
+            gap: 0.75rem;
+        }
+        .timesheet-entry-label {
+            font-size: 0.62rem;
+            line-height: 1.2;
+            letter-spacing: 0.05em;
+        }
+        .timesheet-entry-value {
+            font-size: 1rem;
+            line-height: 1.2;
+        }
+        .timesheet-edit-button {
+            width: 2rem;
+            height: 2rem;
+        }
+        .timesheet-edit-button i {
+            font-size: 0.82rem;
+        }
+        .inventory-snapshot-card-grid {
+            grid-auto-rows: auto;
+            align-items: stretch;
+        }
+        .inventory-summary-card {
+            min-height: 0;
+        }
+        .inventory-card-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 0.35rem 0.75rem;
+        }
+        .inventory-card-meta-block {
+            min-width: 0;
+        }
+        .inventory-card-label {
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.62rem;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #6b7280;
+        }
+        .inventory-card-sku {
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.72rem;
+            font-weight: 700;
+            line-height: 1.25;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #0284c7;
+            word-break: break-word;
+        }
+        .inventory-card-name {
+            font-family: 'Poppins', sans-serif;
+            font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+            font-weight: 700;
+            line-height: 1.15;
+            color: #060606;
+            word-break: break-word;
+        }
+        .inventory-stat-label {
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.62rem;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #6b7280;
+        }
+        .inventory-stat-value {
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+            color: #060606;
+        }
+        .inventory-status-chip {
+            font-size: 0.5rem;
+            letter-spacing: 0.04em;
+            padding: 0.2rem 0.5rem;
+            line-height: 1.1;
+            white-space: nowrap;
+            border-radius: var(--surface-radius);
+        }
+        .public-overview-masonry {
+            display: grid;
+            grid-template-columns: minmax(0, var(--size-panel-4)) minmax(0, var(--size-panel-2));
+            gap: var(--card-grid-gap);
+            align-items: start;
+        }
+        .public-overview-left-column {
+            display: flex;
+            flex-direction: column;
+            gap: var(--card-grid-gap);
+            min-width: 0;
+            max-width: var(--size-panel-4);
+        }
+        .public-overview-right-column {
+            min-width: 0;
+            align-self: stretch;
+            max-width: var(--size-panel-2);
+        }
+        .public-overview-card {
+            min-width: 0;
+            min-height: 0;
+        }
+        .surface-rounded {
+            border-radius: var(--surface-radius) !important;
+        }
+        .public-overview-schedule-card {
+            width: 100%;
+            max-width: var(--size-panel-4);
+        }
+        .public-overview-message-card {
+            width: 100%;
+            max-width: var(--size-panel-2);
+            min-height: 640px;
+            display: flex;
+            flex-direction: column;
+        }
+        .public-overview-message-card > * {
+            flex: 1;
+            min-height: 0;
+        }
+        .public-overview-inventory-card {
+            width: 100%;
+            max-width: var(--size-panel-4);
+            min-height: 360px;
+        }
+        .public-schedule-wrap {
+            width: 100%;
+            max-width: 100%;
+        }
+        .public-schedule-grid {
+            display: grid;
+            gap: var(--card-grid-gap);
+            align-content: start;
+            grid-template-columns: repeat(auto-fit, minmax(var(--size-unit-1), var(--size-unit-1)));
+            justify-content: start;
+        }
+        .public-schedule-shift-card {
+            border: var(--surface-border);
+            border-radius: 1rem;
+            box-shadow: 2px 2px 0px 0px #000000;
+            background: #ffffff;
+            padding: 0.55rem;
+            min-height: 84px;
+        }
+        .public-schedule-name {
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            line-height: 1.15;
+            color: #060606;
+            word-break: break-word;
+        }
+        .public-schedule-time-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            border: var(--surface-border);
+            border-radius: 999px;
+            padding: 0.25rem 0.4rem;
+            font-size: 0.58rem;
+            font-weight: 700;
+            line-height: 1.2;
+            background: #e0f2fe;
+            color: #060606;
+            text-align: center;
+        }
+        .public-summary-row {
+            border: var(--surface-border);
+            border-radius: 1rem;
+            box-shadow: 2px 2px 0px 0px #000000;
+            background: #ffffff;
+            padding: 0.8rem 0.9rem;
+        }
+        .message-thread-scroll {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 0.25rem;
+        }
+        .message-thread {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            min-height: 100%;
+        }
+        .message-row {
+            display: flex;
+            width: 100%;
+        }
+        .message-row-left {
+            justify-content: flex-start;
+        }
+        .message-row-right {
+            justify-content: flex-end;
+        }
+        .message-bubble {
+            width: min(100%, var(--size-panel-2));
+            border: var(--surface-border);
+            border-radius: 1rem;
+            box-shadow: 2px 2px 0px 0px #000000;
+            padding: 0.8rem 0.9rem;
+        }
+        .message-bubble-interactive {
+            cursor: pointer;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+        .message-bubble-interactive:hover {
+            transform: translate(-1px, -1px);
+            box-shadow: 3px 3px 0px 0px #000000;
+        }
+        .message-bubble-active {
+            box-shadow: 4px 4px 0px 0px #000000;
+        }
+        .message-bubble-own {
+            background: #dbeafe;
+        }
+        .message-bubble-admin {
+            background: #dcfce7;
+        }
+        .message-bubble-staff {
+            background: #ffffff;
+        }
+        .message-author {
+            font-size: 0.72rem;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #374151;
+        }
+        .message-role-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: var(--surface-border);
+            border-radius: 999px;
+            padding: 0.15rem 0.5rem;
+            font-size: 0.62rem;
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #060606;
+            background: #ffffff;
+        }
+        .message-text {
+            font-size: 0.92rem;
+            line-height: 1.45;
+            color: #060606;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .message-reaction-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            margin-top: 0.75rem;
+        }
+        .message-reaction-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            border: 2px solid #000000;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.82);
+            padding: 0.2rem 0.55rem;
+            font-size: 0.76rem;
+            font-weight: 700;
+            line-height: 1.1;
+            color: #060606;
+        }
+        .message-reaction-pill-active {
+            background: #fef3c7;
+        }
+        .message-reaction-picker {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+            padding-top: 0.8rem;
+            border-top: 2px solid rgba(6, 6, 6, 0.12);
+        }
+        .message-reaction-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #000000;
+            border-radius: 999px;
+            background: #ffffff;
+            width: 2.35rem;
+            height: 2.35rem;
+            padding: 0;
+            font-size: 0.9rem;
+            font-weight: 700;
+            line-height: 1.1;
+            color: #060606;
+            box-shadow: 2px 2px 0px 0px #000000;
+            transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
+        }
+        .message-reaction-button i {
+            line-height: 1;
+        }
+        .message-reaction-button:hover:not(:disabled) {
+            background: #f8fafc;
+        }
+        .message-reaction-button:active:not(:disabled) {
+            box-shadow: 0px 0px 0px 0px #000000;
+            transform: translate(2px, 2px);
+        }
+        .message-reaction-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .message-reaction-button-active {
+            background: #fef3c7;
+        }
+        .schedule-week-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: var(--card-grid-gap);
+            align-items: stretch;
+        }
+        .employee-schedule-grid {
+            align-items: stretch;
+        }
+        .employee-schedule-day-card {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+        }
+        .employee-schedule-shifts {
+            flex: 1;
+            max-height: none;
+            overflow: visible;
+        }
+        .employee-shift-time {
+            font-size: 0.62rem;
+            line-height: 1.25;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+        .schedule-day-card {
+            min-width: 0;
+            min-height: calc(var(--card-grid-row-height) * 2 + var(--card-grid-gap));
+        }
+        .schedule-day-scroll {
+            max-height: 290px;
+            overflow-y: auto;
+        }
+        .schedule-shift-card {
+            border: var(--surface-border);
+            border-radius: 1rem;
+            box-shadow: 2px 2px 0px 0px #000000;
+        }
+        .admin-studio-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            align-items: stretch;
+            gap: 0.75rem;
+        }
+        .admin-studio-control-shell {
+            display: flex;
+            align-items: center;
+            min-height: 3.25rem;
+            min-width: 0;
+            border: var(--surface-border);
+            border-radius: 1rem;
+            box-shadow: 4px 4px 0px 0px #000000;
+            background: #ffffff;
+            color: #060606;
+        }
+        .admin-studio-nav-shell {
+            gap: 0.25rem;
+            padding: 0.25rem;
+        }
+        .admin-studio-nav-button {
+            width: 2.5rem;
+            height: 2.5rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.75rem;
+            color: #060606;
+            transition: background-color 0.12s ease;
+        }
+        .admin-studio-nav-button:hover {
+            background: #f3f4f6;
+        }
+        .admin-studio-range-label {
+            min-width: 170px;
+            padding: 0 0.55rem;
+            text-align: center;
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.92rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .admin-studio-select-shell {
+            gap: 0.65rem;
+            padding: 0 0.9rem;
+            min-width: 240px;
+        }
+        .admin-studio-select {
+            flex: 1;
+            min-width: 0;
+            height: 100%;
+            border: 0;
+            outline: none;
+            background: transparent;
+            appearance: none;
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: #060606;
+            cursor: pointer;
+        }
+        .admin-studio-action {
+            min-width: var(--button-unit-width);
+            min-height: var(--action-button-min-height);
+            padding: var(--unit-button-padding);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            font-size: 1rem;
+            line-height: 1;
+            box-sizing: border-box;
+        }
+        .admin-studio-save-button {
+            min-width: 200px;
+        }
+        .schedule-week-grid.admin-week-board-grid {
+            grid-template-columns: repeat(7, minmax(var(--card-grid-column-width), var(--card-grid-column-width)));
+            gap: 0.625rem;
+            align-items: start;
+            justify-content: start;
+        }
+        .admin-week-board-day-card {
+            min-width: 0;
+            align-self: start;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        .admin-week-board-weekend-column {
+            display: flex;
+            flex-direction: column;
+            gap: 0.625rem;
+            min-width: 0;
+            align-self: start;
+        }
+        .admin-week-board-weekend-day-card {
+            flex: 0 0 auto;
+        }
+        .admin-week-board-weekend-day-card .admin-week-board-day-button {
+            padding: 0.55rem 0.625rem 0.5rem;
+        }
+        .admin-week-board-weekend-day-card .admin-week-board-day-button .card-eyebrow {
+            font-size: 0.5rem;
+            letter-spacing: 0.12em;
+        }
+        .admin-week-board-weekend-day-card .admin-week-board-day-button .card-title {
+            font-size: 0.74rem;
+            line-height: 1.15;
+        }
+        .admin-week-board-day-button {
+            padding: 0.75rem 0.75rem 0.7rem;
+        }
+        .admin-week-board-day-button .card-eyebrow {
+            font-size: 0.54rem;
+            letter-spacing: 0.14em;
+        }
+        .admin-week-board-day-button .card-title {
+            font-size: 0.78rem;
+            line-height: 1.2;
+        }
+        .admin-week-board-scroll {
+            flex: 1 1 auto;
+            min-height: 4.75rem;
+            padding: 0.625rem;
+            overflow: visible;
+        }
+        .admin-week-board-shift-card {
+            padding: 0.7rem 0.75rem;
+        }
+        .admin-week-board-shift-card .card-title {
+            font-size: 0.82rem;
+            line-height: 1.15;
+        }
+        .admin-week-board-shift-card .card-meta {
+            font-size: 0.67rem;
+            line-height: 1.3;
+        }
+        .admin-week-board-shift-card .card-eyebrow {
+            font-size: 0.54rem;
+            letter-spacing: 0.12em;
+        }
+        .admin-week-board-shift-time {
+            font-size: 0.82rem;
+            font-weight: 700;
+            line-height: 1.35;
+            color: #060606;
+        }
+        .admin-week-board-shift-duration {
+            font-size: 0.68rem;
+        }
+        .admin-week-board-weekend-day-card .admin-week-board-scroll {
+            min-height: 1.5rem;
+            padding: 0.35rem 0.5rem 0.45rem;
+        }
+        .admin-week-board-empty-weekend-space {
+            min-height: 0.95rem;
+            border: 1px dashed rgba(6, 6, 6, 0.16);
+            border-radius: 0.625rem;
+            background: rgba(248, 250, 252, 0.82);
+        }
+        .editor-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            z-index: 80;
+        }
+        .editor-modal {
+            width: min(100%, 880px);
+            max-height: min(92vh, 900px);
+            overflow: auto;
+        }
+        @media (min-width: 1024px) {
+            .left-panel {
+                max-width: var(--left-panel-width);
+            }
+            .right-panel {
+                max-width: var(--right-panel-width);
+            }
+            .left-panel-card {
+                max-width: var(--left-panel-width);
+            }
+            .standard-two-up-grid {
+                grid-template-columns: repeat(2, var(--button-unit-width));
+                gap: var(--size-gap);
+                justify-content: center;
+                width: max-content;
+                max-width: 100%;
+                margin-left: auto;
+                margin-right: auto;
+            }
+            .app-shell {
+                display: grid;
+                grid-template-columns: minmax(0, var(--left-panel-width)) minmax(0, 1fr);
+                gap: var(--size-gap);
+                align-items: start;
+            }
+        }
+        @media (min-width: 768px) {
+            .admin-action-button {
+                font-size: 0.875rem;
+            }
+            .timesheet-action-button {
+                min-height: 5.8rem;
+                padding: 0.85rem 1rem;
+                font-size: 0.95rem;
+            }
+            .timesheet-action-button i {
+                font-size: 1.4rem;
+            }
+            .timesheet-entry-date-block {
+                min-width: 7.75rem;
+                padding: 0.75rem 0.85rem;
+                gap: 0.45rem;
+            }
+            .timesheet-entry-day {
+                font-size: 0.8rem;
+                letter-spacing: 0.04em;
+            }
+            .timesheet-entry-number {
+                font-size: 1.55rem;
+            }
+            .timesheet-entry-month {
+                font-size: 0.78rem;
+            }
+            .timesheet-entry-details {
+                padding: 0.8rem 0.95rem;
+                gap: 0.7rem;
+            }
+            .timesheet-entry-grid {
+                gap: 0.9rem;
+            }
+            .timesheet-entry-label {
+                font-size: 0.68rem;
+            }
+            .timesheet-entry-value {
+                font-size: 1.08rem;
+            }
+            .timesheet-edit-button {
+                width: 2.25rem;
+                height: 2.25rem;
+            }
+            .timesheet-edit-button i {
+                font-size: 0.92rem;
+            }
+            .admin-studio-range-label {
+                min-width: 210px;
+                font-size: 1rem;
+            }
+            .admin-studio-select {
+                font-size: 1rem;
+            }
+            .admin-studio-action {
+                font-size: 1rem;
+            }
+        }
+        @media (max-width: 1023px) {
+            .schedule-week-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .schedule-week-grid.admin-week-board-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .public-overview-masonry {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .public-overview-left-column,
+            .public-overview-right-column,
+            .public-overview-schedule-card,
+            .public-overview-message-card,
+            .public-overview-inventory-card {
+                max-width: none;
+            }
+            .public-overview-schedule-card,
+            .public-schedule-wrap {
+                width: 100%;
+            }
+            .public-overview-message-card {
+                min-height: 520px;
+            }
+        }
+        @media (min-width: 768px) {
+            .panel-shell-padding,
+            .left-panel-card-padding {
+                padding: var(--size-panel-padding);
+            }
+            .content-safe-padding {
+                padding-left: 0.25rem;
+                padding-right: 0.25rem;
+            }
+            .today-schedule-card-grid {
+                grid-template-columns: repeat(auto-fit, minmax(var(--active-card-column-width), var(--active-card-column-width)));
+                justify-content: start;
+            }
+        }
+        @media (max-width: 767px) {
+            .card-grid,
+            .schedule-week-grid {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .schedule-week-grid.admin-week-board-grid {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .admin-studio-toolbar {
+                justify-content: stretch;
+            }
+            .admin-studio-control-shell,
+            .admin-studio-action {
+                width: 100%;
+            }
+            .admin-studio-range-label,
+            .admin-studio-select-shell {
+                min-width: 0;
+            }
+            .card-size-1x1,
+            .card-size-1x2,
+            .card-size-1x3,
+            .card-size-2x1,
+            .card-size-2x2,
+            .card-size-2x3,
+            .card-size-3x1,
+            .card-size-3x2 {
+                grid-column: span 1;
+                grid-row: span 1;
+            }
+            .schedule-day-card {
+                min-height: auto;
+            }
+            .public-schedule-grid {
+                grid-template-columns: minmax(0, 1fr) !important;
+            }
+        }
