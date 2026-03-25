@@ -2248,7 +2248,7 @@
             canClockIn,
             canClockOut,
             isSubmittingAction,
-            roleLabel = 'Employee',
+            roleLabel = '',
         }) => {
             const visibleData = filterTimesheetRowsUpToToday(personalData);
 
@@ -2256,8 +2256,8 @@
                 <div className="section-width flex flex-col h-full animate-fade-in relative overflow-hidden">
                     <div className="content-safe-padding flex justify-between items-center mb-4 md:mb-6 shrink-0 pt-1">
                         <div>
-                            <div className="card-eyebrow text-[#0284c7]">{roleLabel}</div>
-                            <h3 className="section-title mt-1">My Timesheet</h3>
+                            {roleLabel && <div className="card-eyebrow text-[#0284c7]">{roleLabel}</div>}
+                            <h3 className={`section-title ${roleLabel ? 'mt-1' : ''}`}>My Timesheet</h3>
                         </div>
                         <div className="flex items-center gap-4">
                             {isFetchingLogs && <span className="card-meta text-[#38bdf8]"><i className="fas fa-sync fa-spin mr-1"></i>Syncing...</span>}
@@ -2573,13 +2573,12 @@
 
             return (
                 <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 md:mb-6 shrink-0">
+                    <div className="content-safe-padding flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 md:mb-6 shrink-0 pt-1 pb-1">
                         <div>
-                            <div className="card-eyebrow text-[#f97316]">Employee</div>
-                            <h3 className="section-title mt-1">Inventory Board</h3>
+                            <h3 className="section-title">Inventory Board</h3>
                             <p className="section-subtitle mt-1">Start work here, then move finished pieces into Awaiting Approval.</p>
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 self-start md:self-auto">
                             <button
                                 onClick={onRefresh}
                                 disabled={isFetchingInventory || isSubmittingInventory}
@@ -2925,8 +2924,7 @@
                     <div className="brutal-card editor-modal bg-white p-4 md:p-6" onClick={e => e.stopPropagation()}>
                         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                             <div>
-                                <div className="card-eyebrow text-[#0284c7]">Employee Schedule</div>
-                                <h4 className="section-title mt-1">Time Off Request</h4>
+                                <h4 className="section-title">Time Off Request</h4>
                                 <p className="section-subtitle mt-1">
                                     {employeeName} - {formatFullDate(draft.date)}
                                 </p>
@@ -3587,14 +3585,11 @@
             onRefresh,
             onUpdateStatus,
         }) => {
-            const roleLabel = formatRoleLabel(currentUser?.role, 'Employee');
-
             return (
                 <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4 shrink-0">
                         <div>
-                            <div className="card-eyebrow text-[#0f766e]">{roleLabel}</div>
-                            <h3 className="section-title mt-1">Pen Hospital</h3>
+                            <h3 className="section-title">Pen Hospital</h3>
                             <p className="section-subtitle mt-1">
                                 Track inbound repairs, bench status, and what is ready to head back to the customer.
                             </p>
@@ -3783,7 +3778,6 @@
             return (
                 <div className="flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="mb-4 md:mb-6 shrink-0">
-                        <div className="card-eyebrow text-[#0284c7]">Public</div>
                         <h2 className="page-title">Today at a Glance</h2>
                     </div>
 
@@ -3915,7 +3909,10 @@
                                 </p>
                             )}
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="status-chip bg-[#fef3c7]">
+                                {awaitingCount} awaiting
+                            </div>
                             <button
                                 onClick={onRefresh}
                                 disabled={isFetchingInventory || isSubmittingInventory}
@@ -4035,14 +4032,9 @@
 
                         <div className="space-y-4">
                             <div className="brutal-card bg-white p-4 md:p-5">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                        <h4 className="text-lg font-bold font-poppins text-[#060606]">Start Inventory Request</h4>
-                                        <p className="text-xs font-bold text-gray-500 mt-1">Start a new SKU request or increase an open row.</p>
-                                    </div>
-                                    <div className="surface-rounded border-2 border-black bg-[#fef3c7] px-3 py-1 text-xs font-bold uppercase">
-                                        {awaitingCount} awaiting
-                                    </div>
+                                <div>
+                                    <h4 className="text-lg font-bold font-poppins text-[#060606]">Start Inventory Request</h4>
+                                    <p className="text-xs font-bold text-gray-500 mt-1">Start a new SKU request or increase an open row.</p>
                                 </div>
                                 <div className="space-y-3 mt-4">
                                     <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3">
@@ -4086,7 +4078,7 @@
                                             className="brutal-btn w-full bg-[#4ade80] hover:bg-[#22c55e] px-4 py-3 text-sm flex items-center justify-center gap-2"
                                         >
                                             <i className={`fas ${isSubmittingInventory ? 'fa-circle-notch spinner' : 'fa-plus'}`}></i>
-                                            <span>{isSubmittingInventory ? 'Saving...' : 'Start Inventory Request'}</span>
+                                            <span>{isSubmittingInventory ? 'Submitting...' : 'Submit'}</span>
                                         </button>
                                     </div>
                                 </div>
@@ -4671,25 +4663,17 @@
                         <div>
                             <div className="card-eyebrow text-[#0284c7]">{roleLabel}</div>
                             <h3 className="page-title">Weekly Schedule Studio</h3>
-                            <div className="flex flex-wrap items-center gap-2 mt-3">
-                                {selectedDraft ? (
-                                    <div className={`status-chip ${
-                                        isSelectingDayEmployee
-                                            ? 'bg-[#fde68a]'
-                                            : selectedTimeOffRow
-                                                ? (isApprovedTimeOffRow(selectedTimeOffRow) ? 'bg-[#fecaca]' : 'bg-[#fde68a]')
-                                                : (selectedDraft.sourceRow ? 'bg-[#bae6fd]' : 'bg-[#fde68a]')
-                                    }`}>
-                                        {isSelectingDayEmployee
+                            <div className="mt-3 space-y-1">
+                                <div className="text-xs md:text-sm font-bold text-gray-500">
+                                    {selectedDraft
+                                        ? (isSelectingDayEmployee
                                             ? `Choose employee - ${formatMonthDayDate(selectedDraft.date)}`
                                             : selectedTimeOffRow
                                                 ? `${selectedDraft.name} - ${getTimeOffStatusLabel(selectedTimeOffRow)}`
-                                                : `${selectedDraft.name} - ${formatMonthDayDate(selectedDraft.date)}`}
-                                    </div>
-                                ) : (
-                                    <div className="status-chip bg-[#fff7ed]">Click a date to add shifts</div>
-                                )}
-                                <div className="status-chip bg-[#f8fafc]">
+                                                : `${selectedDraft.name} - ${formatMonthDayDate(selectedDraft.date)}`)
+                                        : 'Click a date to add shifts'}
+                                </div>
+                                <div className="text-xs md:text-sm font-bold text-gray-500">
                                     {isRefreshing ? 'Syncing latest schedule rows...' : `${sortedEmployees.length} active team member${sortedEmployees.length === 1 ? '' : 's'} in view`}
                                 </div>
                             </div>
@@ -5113,7 +5097,10 @@
             // Timeout Logic States
             const lastActivityRef = useRef(Date.now());
             const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
-            const IDLE_LIMIT = 30000; // 30 seconds idle
+            const [hasAcknowledgedTimeoutWarning, setHasAcknowledgedTimeoutWarning] = useState(false);
+            const INITIAL_IDLE_LIMIT = 30 * 1000; // keep the short first check
+            const ADMIN_IDLE_LIMIT = 60 * 60 * 1000; // 1 hour after confirming
+            const EMPLOYEE_IDLE_LIMIT = 15 * 60 * 1000; // 15 minutes after confirming
             const WARNING_TIME = 15000; // 15 seconds warning countdown
             
             // Loading State
@@ -5139,6 +5126,28 @@
             const [messages, setMessages] = useState([]);
             const [penHospitalCases, setPenHospitalCases] = useState([]);
             const [messageDraft, setMessageDraft] = useState('');
+
+            const activeIdleLimit = !isAuthenticated
+                ? null
+                : (hasAcknowledgedTimeoutWarning
+                    ? (adminUser ? ADMIN_IDLE_LIMIT : EMPLOYEE_IDLE_LIMIT)
+                    : INITIAL_IDLE_LIMIT);
+            const timeoutCountdownSeconds = activeIdleLimit === null
+                ? 0
+                : Math.max(0, Math.ceil((activeIdleLimit + WARNING_TIME - (currentTime.getTime() - lastActivityRef.current)) / 1000));
+            const timeoutResetLabel = adminUser ? '1 hour' : '15 minutes';
+
+            const clearSessionTimeoutState = () => {
+                lastActivityRef.current = Date.now();
+                setShowTimeoutWarning(false);
+                setHasAcknowledgedTimeoutWarning(false);
+            };
+
+            const acknowledgeTimeoutWarning = () => {
+                lastActivityRef.current = Date.now();
+                setShowTimeoutWarning(false);
+                setHasAcknowledgedTimeoutWarning(true);
+            };
             
             // Settings State (Branding)
             const [settings, setSettings] = useState({
@@ -5522,8 +5531,7 @@
                 setMessageDraft('');
                 setReactingMessageRowNumber(null);
                 setReasonValidationTriggered(false);
-                setShowTimeoutWarning(false);
-                lastActivityRef.current = Date.now();
+                clearSessionTimeoutState();
             };
 
             const handleLogout = () => {
@@ -5584,11 +5592,17 @@
 
                     // Check timeout logic if logged in
                     if (isAuthenticated) {
+                        if (activeIdleLimit === null) {
+                            setShowTimeoutWarning(false);
+                            lastActivityRef.current = Date.now();
+                            return;
+                        }
+
                         const idleTime = Date.now() - lastActivityRef.current;
-                        if (idleTime >= (IDLE_LIMIT + WARNING_TIME)) {
+                        if (idleTime >= (activeIdleLimit + WARNING_TIME)) {
                             handleLogout();
                             setNotification({ type: 'info', message: "Session timed out due to inactivity" });
-                        } else if (idleTime >= IDLE_LIMIT) {
+                        } else if (idleTime >= activeIdleLimit) {
                             setShowTimeoutWarning(true);
                         }
                     } else {
@@ -5597,7 +5611,7 @@
                     }
                 }, 1000);
                 return () => clearInterval(timer);
-            }, [isAuthenticated]);
+            }, [isAuthenticated, activeIdleLimit]);
 
             const selectedUser = employees.find(e => e.id === selectedId) || null;
             const selectedEmployee = selectedUser && !isAdminRole(selectedUser.role) ? selectedUser : null;
@@ -6219,7 +6233,7 @@
                 setAdminUser(null);
                 setViewMode('PINPAD');
                 setEmployeeTimeOffDraft(null);
-                lastActivityRef.current = Date.now(); // Reset activity when interacting
+                clearSessionTimeoutState();
 
                 await refreshSheetData(false);
             };
@@ -6348,6 +6362,7 @@
                     setViewMode(isAdminAccount ? 'ADMIN' : 'TIMESHEET');
                     setAdminUser(isAdminAccount ? emp : null);
                     setDirectoryMode(isAdminAccount ? 'admin' : 'employee');
+                    clearSessionTimeoutState();
                     setNotification({
                         type: 'success',
                         message: isAdminAccount ? `Admin Access: ${emp.name}` : `Identity Verified: ${emp.name}`
@@ -6890,16 +6905,18 @@
                                             <i className="fas fa-stopwatch text-4xl text-[#38bdf8] mb-4"></i>
                                             <h3 className="text-xl md:text-2xl font-bold font-poppins text-[#060606] mb-2 text-center">Need more time?</h3>
                                             <p className="text-[#060606] font-bold mb-6 text-center text-sm md:text-base">
-                                                Session expires in <span className="text-[#f43f5e] text-xl ml-1">{Math.max(0, Math.ceil((IDLE_LIMIT + WARNING_TIME - (Date.now() - lastActivityRef.current)) / 1000))}</span>s
+                                                Session expires in <span className="text-[#f43f5e] text-xl ml-1">{timeoutCountdownSeconds}</span>s
+                                            </p>
+                                            <p className="card-meta text-center mb-4">
+                                                {hasAcknowledgedTimeoutWarning
+                                                    ? `Saying yes keeps you signed in and sets the next check to ${timeoutResetLabel} from now.`
+                                                    : `The first check stays short. After you confirm once, the next check will be ${timeoutResetLabel} later.`}
                                             </p>
                                             <button 
-                                                onClick={() => {
-                                                    lastActivityRef.current = Date.now();
-                                                    setShowTimeoutWarning(false);
-                                                }} 
+                                                onClick={acknowledgeTimeoutWarning}
                                                 className="brutal-btn bg-[#4ade80] hover:bg-[#22c55e] py-3 px-8 text-lg w-full flex items-center justify-center gap-2"
                                             >
-                                                <i className="fas fa-check"></i> Yes, I'm here
+                                                <i className="fas fa-check"></i> Yes, I'm still here
                                             </button>
                                         </div>
                                     </div>
@@ -6929,14 +6946,14 @@
                                                 canClockIn={canClockIn}
                                                 canClockOut={canClockOut}
                                                 isSubmittingAction={isSubmittingAction}
-                                                roleLabel={formatRoleLabel(selectedEmployee?.role, 'Employee')}
+                                                roleLabel=""
                                             />
                                         )}
                                         {viewMode === 'SCHEDULE' && (
                                             <>
                                                 <PublishedSchedulePanel
                                                     sheetData={sheetData}
-                                                    eyebrow={formatRoleLabel(selectedEmployee?.role, 'Employee')}
+                                                    eyebrow=""
                                                     title="Schedule"
                                                     highlightName={selectedEmployee?.name || ''}
                                                     allowTimeOffRequests={Boolean(selectedEmployee)}
@@ -6979,7 +6996,7 @@
                                             <MessageBoardPanel
                                                 messages={messages}
                                                 title="Messages"
-                                                eyebrow={formatRoleLabel(activeMessageViewer?.role, 'Employee')}
+                                                eyebrow=""
                                                 subtitle="Leave updates about time off, inventory, supplies, or anything else the admin team should see."
                                                 viewerName={activeMessageViewer?.name || ''}
                                                 viewerRole={activeMessageViewer?.role || ''}
