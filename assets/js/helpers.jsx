@@ -95,7 +95,7 @@ const { useState, useEffect, useRef } = React;
             {
                 key: 'inbound',
                 title: 'Inbound',
-                subtitle: 'Diagnosed and admitted returns waiting for bench time.',
+                subtitle: 'Diagnosed and admitted returns waiting for surgery.',
                 countClass: 'bg-[#ccfbf1]',
                 cardClass: 'bg-[#f0fdfa]',
             },

@@ -1113,13 +1113,14 @@ function App() {
                 );
             };
 
-            const handleCreatePenHospitalCase = async (customerName, expectedCount, penNames = '') => {
+            const handleCreatePenHospitalCase = async (customerName, expectedCount, diagnosis = '', penNames = '') => {
                 if (!adminUser) return false;
                 return submitPenHospitalAction(
                     {
                         action: "PEN_HOSPITAL_CREATE_CASE",
                         customerName,
                         expectedCount,
+                        diagnosis,
                         penNames,
                         editorName: adminUser.name,
                         editorRole: adminUser.role || 'admin',
@@ -2011,7 +2012,6 @@ function App() {
                                                 onRefresh={() => refreshPenHospital({ showSpinner: true })}
                                                 onCreateCase={handleCreatePenHospitalCase}
                                                 onUpdateStatus={handleUpdatePenHospitalStatus}
-                                                onOpenScheduler={() => setViewMode('ADMIN')}
                                                 onMessage={setNotification}
                                             />
                                         )}

@@ -1239,6 +1239,9 @@
             const currentRole = currentUser?.role || 'employee';
             const currentStatus = normalizePenHospitalStatus(caseRow?.status);
             const penNames = String(caseRow?.penNames || '').trim();
+            const diagnosis = String(caseRow?.diagnosis || caseRow?.diagnosisNotes || '').trim();
+            const lastUpdatedLabel = caseRow?.lastUpdated || caseRow?.createdAt || '';
+            const lastUpdatedIso = caseRow?.lastUpdatedIso || caseRow?.createdAtIso || '';
             const canEditStatuses = Boolean(currentUser && typeof onUpdateStatus === 'function');
             const availableStatuses = PEN_HOSPITAL_STATUS_OPTIONS.filter(option => canUserSetPenHospitalStatus(currentRole, option.value));
 
@@ -1267,19 +1270,21 @@
                             </div>
                         </div>
                         <div className="rounded-xl border-2 border-black bg-[#f8fafc] px-3 py-3">
-                            <div className="text-[10px] uppercase font-bold tracking-wide text-gray-500">Activity</div>
-                            <div className="space-y-1.5 mt-1 text-xs md:text-sm font-bold text-gray-600">
-                                <div>Created {formatPenHospitalTimestamp(caseRow?.createdAt, caseRow?.createdAtIso)}</div>
-                                <div>Updated {formatPenHospitalTimestamp(caseRow?.lastUpdated, caseRow?.lastUpdatedIso)}</div>
-                                {caseRow?.createdBy && <div>Opened by {caseRow.createdBy}</div>}
-                                {caseRow?.diagnosedBy && <div>Diagnosed by {caseRow.diagnosedBy}</div>}
-                                {caseRow?.dischargedBy && <div>Discharged by {caseRow.dischargedBy}</div>}
+                            <div className="text-[10px] uppercase font-bold tracking-wide text-gray-500">Diagnosis</div>
+                            <div className="text-sm md:text-base font-bold font-poppins text-[#060606] mt-1 break-words">
+                                {diagnosis || 'Diagnosis was not listed for this return.'}
                             </div>
                         </div>
                     </div>
 
+                    {lastUpdatedLabel && (
+                        <div className="card-meta mt-3">
+                            Updated {formatPenHospitalTimestamp(lastUpdatedLabel, lastUpdatedIso)}
+                        </div>
+                    )}
+
                     {canEditStatuses && availableStatuses.length > 0 && (
-                        <div className="mt-4">
+                        <div className="mt-3">
                             <div className="text-[10px] uppercase font-bold tracking-wide text-gray-500">Update Status</div>
                             <div className="grid grid-cols-2 xl:grid-cols-3 gap-2 mt-2">
                                 {availableStatuses.map(option => {
@@ -1343,8 +1348,7 @@
                                 <div key={section.key} className={`brutal-card ${section.cardClass} p-4 md:p-5`}>
                                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
                                         <div>
-                                            <div className="card-eyebrow text-[#0f766e]">{section.title}</div>
-                                            <h4 className="card-title mt-1">{section.title}</h4>
+                                            <h4 className="card-title">{section.title}</h4>
                                             <p className="section-subtitle mt-1">{section.subtitle}</p>
                                         </div>
                                         <div className={`status-chip self-start ${section.countClass}`}>
@@ -1391,7 +1395,7 @@
                         <div>
                             <h3 className="section-title">Pen Hospital</h3>
                             <p className="section-subtitle mt-1">
-                                Track inbound repairs, bench status, and what is ready to head back to the customer.
+                                Track inbound repairs, surgery status, and what is ready to head back to the customer.
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -1405,12 +1409,6 @@
                             </button>
                         </div>
                     </div>
-
-                    {!isAdminRole(currentUser?.role) && (
-                        <p className="section-subtitle mb-4 shrink-0 px-1 text-gray-600">
-                            Admins open and discharge cases. Staff can move cases through admitted, surgery, recovery, and ready-for-release.
-                        </p>
-                    )}
 
                     <div className="flex-1 overflow-y-auto no-scrollbar pr-1 pb-4">
                         <PenHospitalBoard
@@ -1433,18 +1431,19 @@
             onRefresh,
             onCreateCase,
             onUpdateStatus,
-            onOpenScheduler,
             onMessage,
         }) => {
             const [createForm, setCreateForm] = useState({
                 customerName: '',
                 expectedCount: '',
+                diagnosis: '',
                 penNames: '',
             });
 
             const submitCreate = async () => {
                 const customerName = String(createForm.customerName || '').trim();
                 const expectedCount = parseWholeNumber(createForm.expectedCount);
+                const diagnosis = String(createForm.diagnosis || '').trim();
                 const penNames = String(createForm.penNames || '').trim();
 
                 if (!customerName || !expectedCount) {
@@ -1452,11 +1451,12 @@
                     return;
                 }
 
-                const didSucceed = await onCreateCase(customerName, expectedCount, penNames);
+                const didSucceed = await onCreateCase(customerName, expectedCount, diagnosis, penNames);
                 if (didSucceed) {
                     setCreateForm({
                         customerName: '',
                         expectedCount: '',
+                        diagnosis: '',
                         penNames: '',
                     });
                 }
@@ -1473,13 +1473,6 @@
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <button
-                                onClick={onOpenScheduler}
-                                className="brutal-btn bg-[#38bdf8] hover:bg-[#0ea5e9] px-4 py-2 text-sm flex items-center gap-2"
-                            >
-                                <i className="fas fa-calendar-week"></i>
-                                <span>Schedule</span>
-                            </button>
-                            <button
                                 onClick={onRefresh}
                                 disabled={isFetchingPenHospital || isSubmittingPenHospital}
                                 className="brutal-btn action-button action-button-fixed action-button-iconless bg-white hover:bg-gray-50"
@@ -1487,15 +1480,6 @@
                                 <i className={`fas ${isFetchingPenHospital ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#0f766e]`}></i>
                                 <span>{isFetchingPenHospital ? 'Refreshing...' : 'Refresh'}</span>
                             </button>
-                        </div>
-                    </div>
-
-                    <div className="mb-4 shrink-0 px-1">
-                        <div className="card-eyebrow text-[#0f766e]">Status Rules</div>
-                        <div className="space-y-1 mt-2 text-sm font-bold text-gray-600">
-                            <div>`Diagnosed` and `Discharged` are admin-only steps.</div>
-                            <div>`Admitted`, `In Surgery`, `In Recovery`, and `Ready For Release` can be updated by the team.</div>
-                            <div>Use the lane counts on the right to see what is inbound, active on the bench, and ready to head home.</div>
                         </div>
                     </div>
 
@@ -1538,12 +1522,23 @@
                                     </div>
 
                                     <div>
+                                        <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Diagnosis</label>
+                                        <input
+                                            type="text"
+                                            value={createForm.diagnosis}
+                                            onChange={e => setCreateForm(prev => ({ ...prev, diagnosis: String(e.target.value || '').slice(0, 300) }))}
+                                            className="brutal-input w-full px-3 py-2 text-sm"
+                                            placeholder="What are we expecting to repair?"
+                                        />
+                                    </div>
+
+                                    <div>
                                         <label className="block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2">Pen Names (Optional)</label>
                                         <textarea
                                             value={createForm.penNames}
                                             onChange={e => setCreateForm(prev => ({ ...prev, penNames: String(e.target.value || '').slice(0, 600) }))}
-                                            rows={3}
-                                            className="brutal-input w-full min-h-[112px] px-3 py-2 text-sm resize-none"
+                                            rows={2}
+                                            className="brutal-input w-full min-h-[88px] px-3 py-2 text-sm resize-none"
                                             placeholder="List pen names, one per line or separated by commas."
                                         />
                                     </div>
