@@ -692,6 +692,17 @@
         .admin-week-board-weekend-day-card {
             flex: 0 0 auto;
         }
+        .admin-week-board-weekend-day-card .admin-week-board-day-button {
+            padding: 0.55rem 0.625rem 0.5rem;
+        }
+        .admin-week-board-weekend-day-card .admin-week-board-day-button .card-eyebrow {
+            font-size: 0.5rem;
+            letter-spacing: 0.12em;
+        }
+        .admin-week-board-weekend-day-card .admin-week-board-day-button .card-title {
+            font-size: 0.74rem;
+            line-height: 1.15;
+        }
         .admin-week-board-day-button {
             padding: 0.75rem 0.75rem 0.7rem;
         }
@@ -734,13 +745,13 @@
             font-size: 0.68rem;
         }
         .admin-week-board-weekend-day-card .admin-week-board-scroll {
-            min-height: 2.75rem;
-            padding: 0.5rem 0.625rem 0.625rem;
+            min-height: 1.5rem;
+            padding: 0.35rem 0.5rem 0.45rem;
         }
         .admin-week-board-empty-weekend-space {
-            min-height: 1.75rem;
+            min-height: 0.95rem;
             border: 1px dashed rgba(6, 6, 6, 0.16);
-            border-radius: 0.75rem;
+            border-radius: 0.625rem;
             background: rgba(248, 250, 252, 0.82);
         }
         .editor-modal-backdrop {
@@ -3824,6 +3835,24 @@
             const [drafts, setDrafts] = useState({});
             const openRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
             const awaitingCount = openRows.filter(row => Number(row.awaitingApproval || 0) > 0).length;
+            const latestInventoryUpdate = openRows.reduce((latest, row) => {
+                const rawTimestamp = row?.lastUpdatedIso || row?.lastUpdated || row?.createdAtIso || row?.createdAt || '';
+                if (!rawTimestamp) return latest;
+                const parsedTime = new Date(rawTimestamp).getTime();
+                if (!Number.isFinite(parsedTime)) {
+                    return latest || {
+                        time: Number.NEGATIVE_INFINITY,
+                        label: row?.lastUpdated || row?.createdAt || rawTimestamp,
+                    };
+                }
+                if (!latest || parsedTime > latest.time) {
+                    return {
+                        time: parsedTime,
+                        label: row?.lastUpdated || row?.createdAt || rawTimestamp,
+                    };
+                }
+                return latest;
+            }, null);
             const roleLabel = formatRoleLabel(adminUser?.role, 'Admin');
 
             const updateDraft = (rowNumber, field, value) => {
@@ -3880,6 +3909,11 @@
                         <div>
                             <div className="card-eyebrow text-[#0284c7]">{roleLabel}</div>
                             <h3 className="text-2xl md:text-3xl font-bold font-poppins text-[#060606] mt-1">Inventory Management</h3>
+                            {latestInventoryUpdate && (
+                                <p className="text-xs md:text-sm font-bold text-gray-500 mt-1">
+                                    Latest card update: {formatInventoryTimestamp(latestInventoryUpdate.label)}
+                                </p>
+                            )}
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <button
@@ -3907,15 +3941,8 @@
                                             <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#0284c7] mt-1 break-words">{getInventorySkuText(row)}</div>
                                         </div>
                                         <div className="min-w-0">
-                                            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                                                <div className="min-w-0">
-                                                    <div className="text-[10px] uppercase font-bold text-gray-500">Name</div>
-                                                    <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1 break-words">{getInventoryNameText(row)}</h4>
-                                                </div>
-                                                <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 md:text-right shrink-0">
-                                                    Updated {formatInventoryTimestamp(row.lastUpdated)}
-                                                </div>
-                                            </div>
+                                            <div className="text-[10px] uppercase font-bold text-gray-500">Name</div>
+                                            <h4 className="text-lg md:text-xl font-bold font-poppins text-[#060606] mt-1 break-words">{getInventoryNameText(row)}</h4>
                                         </div>
                                     </div>
 
@@ -3944,10 +3971,7 @@
 
                                     <div className="grid md:grid-cols-3 gap-2.5 mt-3 items-stretch">
                                         <div className="surface-rounded border-2 border-black bg-[#eff6ff] p-2.5 flex flex-col min-h-[154px]">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="text-sm font-bold font-poppins text-[#060606]">Adjust Needed</div>
-                                                <div className="text-[10px] uppercase font-bold text-gray-500 text-right leading-tight">Use -2 or +5</div>
-                                            </div>
+                                            <div className="text-sm font-bold font-poppins text-[#060606]">Adjust Needed</div>
                                             <input
                                                 type="number"
                                                 step="1"
@@ -3966,12 +3990,7 @@
                                         </div>
 
                                         <div className="surface-rounded border-2 border-black bg-[#f0fdf4] p-2.5 flex flex-col min-h-[154px]">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="text-sm font-bold font-poppins text-[#060606]">Approve</div>
-                                                <div className="text-[10px] uppercase font-bold text-gray-500 text-right leading-tight">
-                                                    {row.awaitingApproval > 0 ? `${row.awaitingApproval} waiting` : 'Nothing waiting'}
-                                                </div>
-                                            </div>
+                                            <div className="text-sm font-bold font-poppins text-[#060606]">Approve</div>
                                             <input
                                                 type="number"
                                                 min="1"
@@ -3991,12 +4010,7 @@
                                         </div>
 
                                         <div className="surface-rounded border-2 border-black bg-[#fff7ed] p-2.5 flex flex-col min-h-[154px]">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="text-sm font-bold font-poppins text-[#060606]">Send Back</div>
-                                                <div className="text-[10px] uppercase font-bold text-gray-500 text-right leading-tight">
-                                                    {row.awaitingApproval > 0 ? `${row.awaitingApproval} waiting` : 'Nothing waiting'}
-                                                </div>
-                                            </div>
+                                            <div className="text-sm font-bold font-poppins text-[#060606]">Send Back</div>
                                             <input
                                                 type="number"
                                                 min="1"
