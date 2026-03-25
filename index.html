@@ -670,9 +670,6 @@
         .admin-studio-save-button {
             min-width: 200px;
         }
-        .admin-studio-signout-button {
-            min-width: 144px;
-        }
         .schedule-week-grid.admin-week-board-grid {
             grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 0.88fr);
             gap: 0.625rem;
@@ -681,15 +678,19 @@
         .admin-week-board-day-card {
             min-width: 0;
             align-self: start;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
         }
         .admin-week-board-weekend-column {
             display: flex;
             flex-direction: column;
             gap: 0.625rem;
             min-width: 0;
+            align-self: start;
         }
         .admin-week-board-weekend-day-card {
-            flex: 1 1 0;
+            flex: 0 0 auto;
         }
         .admin-week-board-day-button {
             padding: 0.75rem 0.75rem 0.7rem;
@@ -703,6 +704,7 @@
             line-height: 1.2;
         }
         .admin-week-board-scroll {
+            flex: 1 1 auto;
             min-height: 4.75rem;
             padding: 0.625rem;
             overflow: visible;
@@ -732,7 +734,14 @@
             font-size: 0.68rem;
         }
         .admin-week-board-weekend-day-card .admin-week-board-scroll {
-            min-height: 3.5rem;
+            min-height: 2.75rem;
+            padding: 0.5rem 0.625rem 0.625rem;
+        }
+        .admin-week-board-empty-weekend-space {
+            min-height: 1.75rem;
+            border: 1px dashed rgba(6, 6, 6, 0.16);
+            border-radius: 0.75rem;
+            background: rgba(248, 250, 252, 0.82);
         }
         .editor-modal-backdrop {
             position: fixed;
@@ -2787,10 +2796,6 @@
                                             const personalCardValue = timeOffRow
                                                 ? getTimeOffRangeLabel(timeOffRow, timeOffMeta)
                                                 : (personalShift ? `${personalShift.schedIn} - ${personalShift.schedOut}` : '');
-                                            const dateActionLabel = canSelectDate
-                                                ? (isSubmittingTimeOff ? 'Saving...' : (timeOffRow ? 'View request' : 'Request off'))
-                                                : (isPastScheduleDate(dayKey) ? 'Past date' : 'Schedule only');
-
                                             return (
                                                 <div
                                                     key={dayKey}
@@ -2803,14 +2808,11 @@
                                                             disabled={!canSelectDate}
                                                             className={`w-full px-4 py-3 border-b-2 border-black text-left ${isToday ? 'bg-[#38bdf8]' : 'bg-[#f8fafc]'} ${canSelectDate ? 'hover:bg-[#dbeafe]' : 'cursor-default'}`}
                                                         >
-                                                            <div className="flex items-start justify-between gap-3">
-                                                                <div>
-                                                                    <div className="card-eyebrow text-[#060606]">
-                                                                        {dayObj.toLocaleDateString('en-US', { weekday: 'short' })}
-                                                                    </div>
-                                                                    <div className="card-title mt-1">{formatShortDateLabel(dayObj)}</div>
+                                                            <div className="min-w-0">
+                                                                <div className="card-eyebrow text-[#060606]">
+                                                                    {dayObj.toLocaleDateString('en-US', { weekday: 'short' })}
                                                                 </div>
-                                                                <div className="card-meta text-[#060606]/70 text-right">{dateActionLabel}</div>
+                                                                <div className="card-title mt-1 whitespace-nowrap">{formatShortDateLabel(dayObj)}</div>
                                                             </div>
                                                         </button>
                                                     ) : (
@@ -2818,7 +2820,7 @@
                                                             <div className="card-eyebrow text-[#060606]">
                                                                 {dayObj.toLocaleDateString('en-US', { weekday: 'short' })}
                                                             </div>
-                                                            <div className="card-title mt-1">{formatShortDateLabel(dayObj)}</div>
+                                                            <div className="card-title mt-1 whitespace-nowrap">{formatShortDateLabel(dayObj)}</div>
                                                         </div>
                                                     )}
                                                     <div className="employee-schedule-shifts no-scrollbar p-3 space-y-2">
@@ -3626,7 +3628,6 @@
             onCreateCase,
             onUpdateStatus,
             onOpenScheduler,
-            onSignOut,
             onMessage,
         }) => {
             const [createForm, setCreateForm] = useState({
@@ -3679,13 +3680,6 @@
                             >
                                 <i className={`fas ${isFetchingPenHospital ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#0f766e]`}></i>
                                 <span>{isFetchingPenHospital ? 'Refreshing...' : 'Refresh'}</span>
-                            </button>
-                            <button
-                                onClick={onSignOut}
-                                className="brutal-btn bg-white hover:bg-gray-50 px-4 py-2 text-sm flex items-center gap-2"
-                            >
-                                <i className="fas fa-user-lock text-[#f43f5e]"></i>
-                                <span>Sign Out</span>
                             </button>
                         </div>
                     </div>
@@ -3824,7 +3818,6 @@
             onApprove,
             onReject,
             onOpenScheduler,
-            onSignOut,
             onMessage
         }) => {
             const [createForm, setCreateForm] = useState({ sku: '', product: '', quantity: '' });
@@ -4372,7 +4365,6 @@
             isSavingTemplates,
             onApproveTimeOff,
             onClearTimeOff,
-            onSignOut,
         }) => {
             const [weekJumpValue, setWeekJumpValue] = useState('');
             const [editorDraft, setEditorDraft] = useState(null);
@@ -4560,6 +4552,8 @@
             const renderWeekBoardDay = (dayObj, extraClassName = '') => {
                 const dayKey = normalizeDate(dayObj);
                 const isToday = dayKey === normalizeDate(new Date());
+                const isWeekendMiniCard = extraClassName.includes('admin-week-board-weekend-day-card');
+                const weekdayLabel = dayObj.toLocaleDateString('en-US', { weekday: isWeekendMiniCard ? 'short' : 'long' });
                 const dayEntries = sortedEmployees
                     .map(emp => ({
                         employee: emp,
@@ -4581,11 +4575,11 @@
                             onClick={() => onSelectCell('', dayKey)}
                             className={`w-full admin-week-board-day-button border-b-2 border-black text-left ${isToday ? 'bg-[#38bdf8] text-[#060606]' : 'bg-[#bae6fd] text-[#060606]'}`}
                         >
-                            <div className="card-eyebrow text-[#060606]">{dayObj.toLocaleDateString('en-US', { weekday: 'long' })}</div>
+                            <div className="card-eyebrow text-[#060606]">{weekdayLabel}</div>
                             <div className="card-title mt-1">{formatShortDate(dayObj)}</div>
                         </button>
 
-                        <div className="admin-week-board-scroll no-scrollbar space-y-2">
+                        <div className={`admin-week-board-scroll no-scrollbar ${dayEntries.length > 0 ? 'space-y-2' : ''}`}>
                             {dayEntries.map(({ employee, draft, timeOffRow, timeOffMeta, cellFormattedIn, cellFormattedOut, cellMinutes, hasAssignedShift, cellStateClass, isSelected }, index) => {
                                 const isTimeOffApproved = isApprovedTimeOffRow(timeOffRow);
                                 const surfaceClass = timeOffRow
@@ -4646,6 +4640,9 @@
                                     </button>
                                 );
                             })}
+                            {isWeekendMiniCard && dayEntries.length === 0 && (
+                                <div className="admin-week-board-empty-weekend-space" aria-hidden="true"></div>
+                            )}
                         </div>
                     </div>
                 );
@@ -4660,6 +4657,28 @@
                         <div>
                             <div className="card-eyebrow text-[#0284c7]">{roleLabel}</div>
                             <h3 className="page-title">Weekly Schedule Studio</h3>
+                            <div className="flex flex-wrap items-center gap-2 mt-3">
+                                {selectedDraft ? (
+                                    <div className={`status-chip ${
+                                        isSelectingDayEmployee
+                                            ? 'bg-[#fde68a]'
+                                            : selectedTimeOffRow
+                                                ? (isApprovedTimeOffRow(selectedTimeOffRow) ? 'bg-[#fecaca]' : 'bg-[#fde68a]')
+                                                : (selectedDraft.sourceRow ? 'bg-[#bae6fd]' : 'bg-[#fde68a]')
+                                    }`}>
+                                        {isSelectingDayEmployee
+                                            ? `Choose employee - ${formatMonthDayDate(selectedDraft.date)}`
+                                            : selectedTimeOffRow
+                                                ? `${selectedDraft.name} - ${getTimeOffStatusLabel(selectedTimeOffRow)}`
+                                                : `${selectedDraft.name} - ${formatMonthDayDate(selectedDraft.date)}`}
+                                    </div>
+                                ) : (
+                                    <div className="status-chip bg-[#fff7ed]">Click a date to add shifts</div>
+                                )}
+                                <div className="status-chip bg-[#f8fafc]">
+                                    {isRefreshing ? 'Syncing latest schedule rows...' : `${sortedEmployees.length} active team member${sortedEmployees.length === 1 ? '' : 's'} in view`}
+                                </div>
+                            </div>
                         </div>
                         <div className="admin-studio-toolbar">
                             <div className="admin-studio-control-shell admin-studio-nav-shell">
@@ -4709,41 +4728,10 @@
                                 <i className={`fas ${isSubmitting ? 'fa-circle-notch spinner' : 'fa-save'}`}></i>
                                 <span>{isSubmitting ? 'Saving Week...' : `Save ${dirtyCount} Change${dirtyCount === 1 ? '' : 's'}`}</span>
                             </button>
-
-                            <button
-                                onClick={onSignOut}
-                                className="brutal-btn admin-studio-action admin-studio-signout-button bg-white hover:bg-gray-50"
-                            >
-                                <i className="fas fa-user-lock text-[#f43f5e]"></i>
-                                <span>Sign Out</span>
-                            </button>
                         </div>
                     </div>
 
                     <div className="section-card p-3 md:p-4 overflow-hidden flex flex-col flex-1 min-h-[520px] lg:min-h-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-3 shrink-0">
-                            {selectedDraft ? (
-                                <div className={`status-chip ${
-                                    isSelectingDayEmployee
-                                        ? 'bg-[#fde68a]'
-                                        : selectedTimeOffRow
-                                            ? (isApprovedTimeOffRow(selectedTimeOffRow) ? 'bg-[#fecaca]' : 'bg-[#fde68a]')
-                                            : (selectedDraft.sourceRow ? 'bg-[#bae6fd]' : 'bg-[#fde68a]')
-                                }`}>
-                                    {isSelectingDayEmployee
-                                        ? `Choose employee - ${formatMonthDayDate(selectedDraft.date)}`
-                                        : selectedTimeOffRow
-                                            ? `${selectedDraft.name} - ${getTimeOffStatusLabel(selectedTimeOffRow)}`
-                                            : `${selectedDraft.name} - ${formatMonthDayDate(selectedDraft.date)}`}
-                                </div>
-                            ) : (
-                                <div className="status-chip bg-[#fff7ed]">Click a date to add shifts</div>
-                            )}
-                            <div className="status-chip bg-[#f8fafc]">
-                                {isRefreshing ? 'Syncing latest schedule rows...' : `${sortedEmployees.length} active team member${sortedEmployees.length === 1 ? '' : 's'} in view`}
-                            </div>
-                        </div>
-
                         <div className="flex-1 overflow-auto pr-1 pb-1">
                             {sortedEmployees.length === 0 ? (
                                 <div className="h-full flex items-center justify-center text-center text-sm md:text-base font-bold text-gray-400 border-2 border-dashed border-gray-300 rounded-2xl bg-[#f8fafc]">
@@ -7029,7 +7017,6 @@
                                                 isSavingTemplates={isSavingShiftTemplates}
                                                 onApproveTimeOff={handleApproveTimeOff}
                                                 onClearTimeOff={handleClearTimeOff}
-                                                onSignOut={handleLogout}
                                             />
                                         )}
                                         {viewMode === 'ADMIN_INVENTORY' && (
@@ -7044,7 +7031,6 @@
                                                 onApprove={handleInventoryApprove}
                                                 onReject={handleInventoryRejectAwaiting}
                                                 onOpenScheduler={() => setViewMode('ADMIN')}
-                                                onSignOut={handleLogout}
                                                 onMessage={setNotification}
                                             />
                                         )}
@@ -7058,7 +7044,6 @@
                                                 onCreateCase={handleCreatePenHospitalCase}
                                                 onUpdateStatus={handleUpdatePenHospitalStatus}
                                                 onOpenScheduler={() => setViewMode('ADMIN')}
-                                                onSignOut={handleLogout}
                                                 onMessage={setNotification}
                                             />
                                         )}
