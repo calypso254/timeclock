@@ -1902,6 +1902,23 @@ function App() {
                 }
             };
 
+            const clearAdminWeekSchedules = () => {
+                if (isSubmittingAdminSchedule) return;
+
+                const stagedCount = Object.keys(adminScheduleDrafts).length;
+                if (stagedCount === 0) {
+                    setNotification({ type: 'info', message: "No staged schedule changes to clear." });
+                    return;
+                }
+
+                setAdminScheduleDrafts({});
+                setSelectedAdminCell(null);
+                setNotification({
+                    type: 'info',
+                    message: `Cleared ${stagedCount} staged schedule change${stagedCount === 1 ? '' : 's'}.`
+                });
+            };
+
             const handlePinPress = (num) => {
                 if (!selectedId) return;
                 if (pinInput.length < 4) {
@@ -2370,20 +2387,18 @@ function App() {
                             
                             {/* Employee List (Hides when a user is authenticated, or on mobile when selected) */}
                             <div className={`brutal-card left-panel-card left-panel-card-padding transition-all duration-300 ${!selectedId ? 'block' : isAuthenticated ? 'hidden' : 'hidden lg:block'}`}>
-                                <div className="flex items-start justify-between gap-3 mb-4 md:mb-6">
+                                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4 md:mb-6">
                                     <div>
                                         <h2 className="text-lg md:text-xl font-bold font-poppins text-[#060606] flex items-center gap-2 md:gap-3">
                                             <i className={`fas ${directoryMode === 'admin' ? 'fa-user-shield text-[#38bdf8]' : 'fa-users text-[#f43f5e]'} text-xl md:text-2xl`}></i>
                                             {directoryMode === 'admin' ? 'Admin Menu' : 'Select Name'}
                                         </h2>
-                                        {directoryMode === 'admin' && (
-                                            <p className="text-xs md:text-sm font-bold text-gray-600 mt-2">
-                                                Only admin, manager, and owner accounts appear here.
-                                            </p>
-                                        )}
                                     </div>
                                     {directoryMode === 'admin' && (
-                                        <button onClick={returnToEmployeeDirectory} className="brutal-btn bg-white px-3 py-2 text-xs md:text-sm whitespace-nowrap">
+                                        <button
+                                            onClick={returnToEmployeeDirectory}
+                                            className="brutal-btn bg-white px-3 py-2 text-xs md:text-sm text-center w-full sm:w-auto"
+                                        >
                                             Back to Staff
                                         </button>
                                     )}
@@ -2708,6 +2723,7 @@ function App() {
                                                 onSaveCurrentTemplate={saveSelectedShiftAsTemplate}
                                                 savedWeekOptions={savedWeekOptions}
                                                 saveWeekSchedules={saveAdminWeekSchedules}
+                                                clearWeekSchedules={clearAdminWeekSchedules}
                                                 dirtyCount={stagedScheduleChangeCount}
                                                 isRefreshing={isFetchingLogs}
                                                 isSubmitting={isSubmittingAdminSchedule}

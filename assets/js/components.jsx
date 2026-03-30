@@ -2230,6 +2230,7 @@
             onSaveCurrentTemplate,
             savedWeekOptions,
             saveWeekSchedules,
+            clearWeekSchedules,
             dirtyCount,
             isRefreshing,
             isSubmitting,
@@ -2577,6 +2578,15 @@
                             >
                                 <i className={`fas ${isSubmitting ? 'fa-circle-notch spinner' : 'fa-save'}`}></i>
                                 <span>{isSubmitting ? 'Saving All...' : `Save All${dirtyCount === 0 ? '' : ` (${dirtyCount})`}`}</span>
+                            </button>
+
+                            <button
+                                onClick={clearWeekSchedules}
+                                disabled={isSubmitting || dirtyCount === 0}
+                                className="brutal-btn admin-studio-action bg-white hover:bg-gray-50 text-[#060606]"
+                            >
+                                <i className="fas fa-eraser text-[#f43f5e]"></i>
+                                <span>{`Clear All${dirtyCount === 0 ? '' : ` (${dirtyCount})`}`}</span>
                             </button>
                         </div>
                     </div>
