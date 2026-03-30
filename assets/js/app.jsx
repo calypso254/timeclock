@@ -73,6 +73,7 @@ function App() {
                 notificationApiAvailable ? Notification.permission : 'unsupported'
             );
             const [browserAlertsEnabled, setBrowserAlertsEnabled] = useState(readStoredBrowserAlertPreference);
+            const [midnightAutoClockOutAlert, setMidnightAutoClockOutAlert] = useState(null);
             const alertSnapshotsRef = useRef({
                 messages: new Map(),
                 inventory: new Map(),
@@ -747,6 +748,7 @@ function App() {
                 setEditTarget(null);
                 setEmployeeTimeOffDraft(null);
                 setMessageDraft('');
+                setMidnightAutoClockOutAlert(null);
                 setReactingMessageRowNumber(null);
                 setReasonValidationTriggered(false);
                 clearSessionTimeoutState();
@@ -895,11 +897,21 @@ function App() {
             const selectedClockOutPlan = selectedEmployee
                 ? resolveClockOutPlan(sheetData, selectedEmployee.name, todayKey)
                 : null;
-            const actionAlertPlan = [selectedClockInPlan, selectedClockOutPlan].find(plan =>
+            const completedMidnightAutoClockOutAlertPlan = selectedEmployee &&
+                midnightAutoClockOutAlert &&
+                midnightAutoClockOutAlert.employeeName === selectedEmployee.name
+                ? { code: 'midnight-auto-clock-out', message: midnightAutoClockOutAlert.message }
+                : null;
+            const blockedActionAlertPlan = [selectedClockInPlan, selectedClockOutPlan].find(plan =>
                 plan &&
                 plan.status === 'blocked' &&
-                !['already-clocked-in', 'no-open-shift'].includes(plan.code)
+                !['already-clocked-in', 'no-open-shift'].includes(plan.code) &&
+                !(plan.code === 'prior-open-shift' && selectedClockInPlan?.autoClockOut)
             ) || null;
+            const pendingMidnightAutoClockOutAlertPlan = selectedClockInPlan?.status === 'ready' && selectedClockInPlan?.autoClockOut
+                ? { code: 'midnight-auto-clock-out-pending', message: selectedClockInPlan.autoClockOut.previewMessage }
+                : null;
+            const actionAlertPlan = completedMidnightAutoClockOutAlertPlan || blockedActionAlertPlan || pendingMidnightAutoClockOutAlertPlan || null;
             const canClockIn = Boolean(selectedEmployee) && !isSubmittingAction && selectedClockInPlan?.status === 'ready';
             const canClockOut = Boolean(selectedEmployee) && !isSubmittingAction && selectedClockOutPlan?.status === 'ready';
             const browserAlertsActive = Boolean(
@@ -1200,22 +1212,8 @@ function App() {
             };
 
             const renderBrowserAlertControl = () => {
-                if (!isAuthenticated) return null;
+                if (!adminUser) return null;
 
-                const statusLabel = !notificationApiAvailable
-                    ? 'Unavailable'
-                    : (browserAlertsEnabled && browserNotificationPermission === 'granted')
-                        ? 'On'
-                        : browserNotificationPermission === 'denied'
-                            ? 'Blocked'
-                            : 'Off';
-                const statusClass = !notificationApiAvailable
-                    ? 'bg-[#e5e7eb]'
-                    : (browserAlertsEnabled && browserNotificationPermission === 'granted')
-                        ? 'bg-[#bbf7d0]'
-                        : browserNotificationPermission === 'denied'
-                            ? 'bg-[#fecdd3]'
-                            : 'bg-[#bae6fd]';
                 const buttonClass = (browserAlertsEnabled && browserNotificationPermission === 'granted')
                     ? 'bg-[#bbf7d0] hover:bg-[#86efac]'
                     : browserNotificationPermission === 'denied'
@@ -1225,8 +1223,8 @@ function App() {
                     ? 'fa-bell-slash'
                     : 'fa-bell';
                 const buttonLabel = (browserAlertsEnabled && browserNotificationPermission === 'granted')
-                    ? 'Turn Off'
-                    : 'Enable';
+                    ? 'Turn Off Alerts'
+                    : 'Enable Alerts';
                 const helperText = !notificationApiAvailable
                     ? 'This browser cannot send notifications for this app.'
                     : browserNotificationPermission === 'denied'
@@ -1242,8 +1240,7 @@ function App() {
                                 <div className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#060606]">Browser Alerts</div>
                                 <p className="text-xs md:text-sm font-bold text-gray-600 mt-2">{helperText}</p>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                                <div className={`status-chip ${statusClass}`}>{statusLabel}</div>
+                            <div className="shrink-0">
                                 <button
                                     type="button"
                                     onClick={toggleBrowserAlerts}
@@ -1966,6 +1963,23 @@ function App() {
                 return () => window.removeEventListener('keydown', handleKeyDown);
             }, [viewMode, selectedId, pinInput, employees]); // Re-bind to ensure state closure is fresh
 
+            const buildMidnightAutoClockOutAlertState = (employeeName, row, timeValue = MIDNIGHT_AUTO_CLOCK_OUT_TIME) => {
+                const closedRow = row
+                    ? {
+                        ...row,
+                        name: row.name || employeeName || '',
+                        date: normalizeDate(row.date),
+                        timeOut: timeValue,
+                    }
+                    : null;
+
+                return {
+                    employeeName,
+                    rowKey: buildRowFingerprint(closedRow),
+                    message: buildMidnightAutoClockOutMessage(employeeName, row, { completed: true }),
+                };
+            };
+
             const handleClockAction = async (actionType) => {
                 if (!selectedEmployee || isSubmittingAction) return;
 
@@ -1979,13 +1993,77 @@ function App() {
                     }
 
                     const timestamp = buildActionTimestamp();
-                    const plan = actionType === "CLOCK_IN"
+                    let plan = actionType === "CLOCK_IN"
                         ? resolveClockInPlan(latestRows, selectedEmployee.name, timestamp.localDate)
                         : resolveClockOutPlan(latestRows, selectedEmployee.name, timestamp.localDate);
 
                     if (!plan || plan.status !== 'ready') {
                         setNotification({ type: 'error', message: plan?.message || "This punch could not be matched safely." });
                         return;
+                    }
+
+                    let workingRows = latestRows;
+                    let midnightAutoClockOutOccurred = false;
+                    if (plan.autoClockOut?.row) {
+                        const autoClockOutRow = plan.autoClockOut.row;
+                        const autoClockOutTime = plan.autoClockOut.time || MIDNIGHT_AUTO_CLOCK_OUT_TIME;
+                        const autoClockOutPayload = {
+                            action: "CLOCK_OUT",
+                            date: normalizeDate(autoClockOutRow.date),
+                            time: autoClockOutTime,
+                            name: selectedEmployee.name,
+                            submittedAt: timestamp.isoTimestamp,
+                            timezone: timestamp.timezone,
+                            timezoneOffsetMinutes: timestamp.timezoneOffsetMinutes,
+                            resolutionCode: 'midnight-auto-clock-out',
+                            ...buildRowContextPayload(autoClockOutRow),
+                            ...buildWorkedDurationFields(autoClockOutRow.timeIn || '', autoClockOutTime),
+                        };
+
+                        const autoClockOutResult = await sendToSheet(autoClockOutPayload);
+                        if (!autoClockOutResult.ok) {
+                            setNotification({
+                                type: 'error',
+                                message: autoClockOutResult.error || "The prior shift could not be auto clocked out at midnight."
+                            });
+                            return;
+                        }
+
+                        const rowsAfterAutoClockOut = await refreshLogs({ showSpinner: false });
+                        const closedAutoClockOutRow = rowsAfterAutoClockOut
+                            ? rowsAfterAutoClockOut.find(row =>
+                                row.name === selectedEmployee.name &&
+                                normalizeDate(row.date) === normalizeDate(autoClockOutRow.date) &&
+                                normalizeTimeForComparison(row.timeIn || '') === normalizeTimeForComparison(autoClockOutRow.timeIn || '') &&
+                                normalizeTimeForComparison(row.timeOut || '') === normalizeTimeForComparison(autoClockOutTime)
+                            ) || null
+                            : null;
+
+                        setMidnightAutoClockOutAlert(
+                            buildMidnightAutoClockOutAlertState(selectedEmployee.name, closedAutoClockOutRow || autoClockOutRow, autoClockOutTime)
+                        );
+                        midnightAutoClockOutOccurred = true;
+
+                        if (!rowsAfterAutoClockOut) {
+                            setNotification({
+                                type: 'info',
+                                message: "The prior shift was auto clocked out at midnight, but the latest rows could not be reloaded yet. Please refresh before punching again."
+                            });
+                            return;
+                        }
+
+                        workingRows = rowsAfterAutoClockOut;
+                        plan = actionType === "CLOCK_IN"
+                            ? resolveClockInPlan(workingRows, selectedEmployee.name, timestamp.localDate)
+                            : resolveClockOutPlan(workingRows, selectedEmployee.name, timestamp.localDate);
+
+                        if (!plan || plan.status !== 'ready') {
+                            setNotification({
+                                type: 'error',
+                                message: plan?.message || "The prior shift was auto clocked out at midnight, but today's punch still could not be matched safely."
+                            });
+                            return;
+                        }
                     }
 
                     const actionPayload = {
@@ -2015,7 +2093,7 @@ function App() {
                     const isStructuredSheetSuccess = String(result?.parsed?.status || '').toLowerCase() === 'success';
                     const localRows = isStructuredSheetSuccess
                         ? applySuccessfulPunchLocally(
-                            latestRows,
+                            workingRows,
                             actionType,
                             selectedEmployee.name,
                             timestamp,
@@ -2034,9 +2112,12 @@ function App() {
                         : null;
 
                     const refreshedRows = await refreshLogs();
-                    const successMessage = actionType === "CLOCK_IN"
+                    const baseSuccessMessage = actionType === "CLOCK_IN"
                         ? "Clocked In Successfully"
                         : "Clocked Out Successfully";
+                    const successMessage = midnightAutoClockOutOccurred
+                        ? `${baseSuccessMessage}. The prior shift was auto clocked out at midnight.`
+                        : baseSuccessMessage;
 
                     const refreshConfirmedPunch = Boolean(
                         refreshedRows &&
@@ -2171,6 +2252,12 @@ function App() {
                     ...buildRowContextPayload(editTarget),
                     ...durationFields,
                 };
+                const shouldClearMidnightAutoClockOutAlert = Boolean(
+                    midnightAutoClockOutAlert &&
+                    midnightAutoClockOutAlert.employeeName === editTarget.name &&
+                    midnightAutoClockOutAlert.rowKey &&
+                    buildRowFingerprint(editTarget) === midnightAutoClockOutAlert.rowKey
+                );
 
                 setIsSubmittingAction(true);
                 try {
@@ -2178,6 +2265,10 @@ function App() {
                     if (!result.ok) {
                         setNotification({ type: 'error', message: result.error || "Could not update the timesheet." });
                         return;
+                    }
+
+                    if (shouldClearMidnightAutoClockOutAlert) {
+                        setMidnightAutoClockOutAlert(null);
                     }
 
                     const refreshedRows = await refreshLogs();

@@ -440,6 +440,40 @@ const { useState, useEffect, useRef } = React;
             };
         };
 
+        const MIDNIGHT_AUTO_CLOCK_OUT_TIME = '12:00 AM';
+
+        const buildMidnightAutoClockOutMessage = (employeeName, row, { completed = false } = {}) => {
+            const nameLabel = String(employeeName || 'This employee').trim() || 'This employee';
+            const shiftDateLabel = formatFullDate(row?.date) || 'a prior day';
+
+            if (completed) {
+                return `The open shift for ${nameLabel} on ${shiftDateLabel} was auto clocked out at ${MIDNIGHT_AUTO_CLOCK_OUT_TIME}. Please edit that shift in My Timesheet if work continued past midnight.`;
+            }
+
+            return `The open shift for ${nameLabel} on ${shiftDateLabel} will auto clock out at ${MIDNIGHT_AUTO_CLOCK_OUT_TIME} so shifts do not continue past midnight. Please edit that shift in My Timesheet if work continued later.`;
+        };
+
+        const getMidnightAutoClockOutDetails = (rows, employeeName, localDate) => {
+            if (!employeeName || !localDate) return null;
+
+            const openShifts = getOpenShiftRowsForEmployee(rows, employeeName);
+            const sameDayOpen = openShifts.filter(row => normalizeDate(row.date) === localDate);
+            const olderOpen = openShifts.filter(row => normalizeDate(row.date) < localDate);
+            const futureOpen = openShifts.filter(row => normalizeDate(row.date) > localDate);
+
+            if (openShifts.length !== 1 || sameDayOpen.length > 0 || futureOpen.length > 0 || olderOpen.length !== 1) {
+                return null;
+            }
+
+            const row = olderOpen[0];
+            return {
+                row,
+                time: MIDNIGHT_AUTO_CLOCK_OUT_TIME,
+                previewMessage: buildMidnightAutoClockOutMessage(employeeName, row),
+                completedMessage: buildMidnightAutoClockOutMessage(employeeName, row, { completed: true }),
+            };
+        };
+
         const calculateHours = (start, end) => {
             const workedMinutes = calculateWorkedMinutes(start, end);
             return workedMinutes === null ? "-" : formatWorkedDurationForDisplay(workedMinutes);
@@ -922,41 +956,43 @@ const { useState, useEffect, useRef } = React;
             const sameDayOpen = openShifts.filter(row => normalizeDate(row.date) === localDate);
             const olderOpen = openShifts.filter(row => normalizeDate(row.date) < localDate);
             const futureOpen = openShifts.filter(row => normalizeDate(row.date) > localDate);
+            const autoClockOut = getMidnightAutoClockOutDetails(rows, employeeName, localDate);
+            const withAutoClockOut = (plan) => autoClockOut ? { ...plan, autoClockOut } : plan;
 
             if (sameDayOpen.length === 1 && openShifts.length === 1) {
-                return {
+                return withAutoClockOut({
                     status: 'blocked',
                     code: 'already-clocked-in',
                     message: `${employeeName} is already clocked in for ${formatFullDate(localDate)}.`,
                     rows: sameDayOpen,
-                };
+                });
             }
 
             if (openShifts.length > 1 || sameDayOpen.length > 1) {
-                return {
+                return withAutoClockOut({
                     status: 'blocked',
                     code: 'multiple-open-shifts',
                     message: `Automatic clock actions are paused because ${employeeName} has multiple open shifts (${listShiftDates(openShifts)}). Fix those entries in My Timesheet first so a new punch cannot land on the wrong row.`,
                     rows: openShifts,
-                };
+                });
             }
 
-            if (olderOpen.length > 0) {
-                return {
+            if (olderOpen.length > 0 && !autoClockOut) {
+                return withAutoClockOut({
                     status: 'blocked',
                     code: 'prior-open-shift',
                     message: `Automatic clock actions are paused because ${employeeName} still has an open shift from ${formatFullDate(olderOpen[0].date)}. Add the missing clock-out on that row before recording a new punch.`,
                     rows: olderOpen,
-                };
+                });
             }
 
             if (futureOpen.length > 0) {
-                return {
+                return withAutoClockOut({
                     status: 'blocked',
                     code: 'future-open-shift',
                     message: `Automatic clock actions are paused because there is an open shift dated ${formatFullDate(futureOpen[0].date)}. Please correct that row before recording a new punch.`,
                     rows: futureOpen,
-                };
+                });
             }
 
             const candidates = getEmployeeRows(rows, employeeName).filter(row =>
@@ -968,24 +1004,24 @@ const { useState, useEffect, useRef } = React;
             );
 
             if (candidates.length === 0) {
-                return { status: 'ready', code: 'new-row', row: null };
+                return withAutoClockOut({ status: 'ready', code: 'new-row', row: null });
             }
 
             if (candidates.length === 1) {
-                return { status: 'ready', code: 'existing-row', row: candidates[0] };
+                return withAutoClockOut({ status: 'ready', code: 'existing-row', row: candidates[0] });
             }
 
             const scheduledCandidates = candidates.filter(row => hasTimeValue(row.schedIn) || hasTimeValue(row.schedOut));
             if (scheduledCandidates.length === 1) {
-                return { status: 'ready', code: 'existing-row', row: scheduledCandidates[0] };
+                return withAutoClockOut({ status: 'ready', code: 'existing-row', row: scheduledCandidates[0] });
             }
 
-            return {
+            return withAutoClockOut({
                 status: 'blocked',
                 code: 'ambiguous-clock-in-row',
                 message: `Automatic clock-in is paused because there are multiple blank rows for ${formatFullDate(localDate)}. Please have a manager review today's schedule row before punching in.`,
                 rows: candidates,
-            };
+            });
         };
 
         const hasOpenShiftForToday = (rows, employeeName) => {

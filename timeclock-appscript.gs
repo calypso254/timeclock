@@ -1718,7 +1718,11 @@ function handleClockOut_(sheet, data) {
   }
 
   sheet.getRange(targetRow.rowNumber, LOG_COL.TIME_OUT).setValue(data.time);
-  writeDurationValues_(sheet, targetRow.rowNumber, targetRow.timeIn, data.time);
+  if (String(data.resolutionCode || "") === "midnight-auto-clock-out") {
+    writeWorkedMinutes_(sheet, targetRow.rowNumber, calculateMinutesUntilMidnight_(targetRow.timeIn));
+  } else {
+    writeDurationValues_(sheet, targetRow.rowNumber, targetRow.timeIn, data.time);
+  }
 
   return jsonResponse_({
     status: "success",
@@ -2744,10 +2748,9 @@ function buildTemplateId_(label, index) {
   return base + "-" + index;
 }
 
-function writeDurationValues_(sheet, rowNumber, timeIn, timeOut) {
+function writeWorkedMinutes_(sheet, rowNumber, workedMinutes) {
   var totalHoursRange = sheet.getRange(rowNumber, LOG_COL.TOTAL_HOURS);
   var decimalHoursRange = sheet.getRange(rowNumber, LOG_COL.DECIMAL_HOURS);
-  var workedMinutes = calculateWorkedMinutes_(timeIn, timeOut);
 
   if (workedMinutes === null) {
     totalHoursRange.clearContent();
@@ -2760,6 +2763,11 @@ function writeDurationValues_(sheet, rowNumber, timeIn, timeOut) {
 
   decimalHoursRange.setNumberFormat("0.00");
   decimalHoursRange.setValue(workedMinutes / 60);
+}
+
+function writeDurationValues_(sheet, rowNumber, timeIn, timeOut) {
+  var workedMinutes = calculateWorkedMinutes_(timeIn, timeOut);
+  writeWorkedMinutes_(sheet, rowNumber, workedMinutes);
 }
 
 function writeScheduledDurationValue_(sheet, rowNumber, schedIn, schedOut) {
@@ -2796,6 +2804,15 @@ function calculateWorkedMinutes_(startTime, endTime) {
   }
 
   return diff;
+}
+
+function calculateMinutesUntilMidnight_(startTime) {
+  var startMinutes = parseClockTimeToMinutes_(startTime);
+  if (startMinutes === null) {
+    return null;
+  }
+
+  return (24 * 60) - startMinutes;
 }
 
 function parseClockTimeToMinutes_(value) {
