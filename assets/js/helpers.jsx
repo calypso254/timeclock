@@ -1218,6 +1218,19 @@ const { useState, useEffect, useRef } = React;
                 candidates[0];
         };
 
+        const getSavedScheduleRowForEmployeeDate = (rows, employeeName, dateValue) => {
+            const targetDate = normalizeDate(dateValue);
+            const candidates = getEmployeeRows(rows, employeeName).filter(row =>
+                normalizeDate(row.date) === targetDate &&
+                !isTimeOffRow(row)
+            );
+
+            if (candidates.length === 0) return null;
+            return candidates.find(row => hasTimeValue(row.schedIn) || hasTimeValue(row.schedOut)) ||
+                candidates.find(row => !hasTimeValue(row.timeIn) && !hasTimeValue(row.timeOut)) ||
+                candidates[0];
+        };
+
         const buildAdminScheduleDraftFromRow = (row, employeeName = '', dateValue = new Date()) => {
             const parsedIn = parseTimeField(row?.schedIn || '');
             const parsedOut = parseTimeField(row?.schedOut || '');

@@ -485,11 +485,118 @@ function App() {
                 });
             };
 
-            const jumpToAdminWeek = (dateValue) => {
-                if (!dateValue) return;
-                setAdminWeekStart(getWeekStartDate(dateValue));
+            const loadSavedWeekIntoAdminSchedule = (sourceWeekStart) => {
+                if (!sourceWeekStart) return;
+
+                const normalizedSourceWeekStart = normalizeDate(getWeekStartDate(sourceWeekStart));
+                const normalizedTargetWeekStart = normalizeDate(getWeekStartDate(adminWeekStart));
+
+                if (normalizedSourceWeekStart === normalizedTargetWeekStart) {
+                    setNotification({
+                        type: 'info',
+                        message: "That week is already on screen. Pick a different saved week to copy from."
+                    });
+                    return;
+                }
+
+                const sourceWeekDays = buildWeekDays(normalizedSourceWeekStart);
+                const targetWeekDays = buildWeekDays(normalizedTargetWeekStart);
+                const schedulableEmployees = sortEmployeesForDisplay(
+                    employees.filter(emp => !isAdminRole(emp?.role))
+                );
+                const nextDrafts = { ...adminScheduleDrafts };
+                let stagedCount = 0;
+                let skippedTimeOffCount = 0;
+
+                targetWeekDays.forEach((targetDay, dayIndex) => {
+                    const targetDayKey = normalizeDate(targetDay);
+                    const sourceDayKey = normalizeDate(sourceWeekDays[dayIndex]);
+
+                    schedulableEmployees.forEach(employee => {
+                        const employeeName = String(employee?.name || '').trim();
+                        if (!employeeName) return;
+
+                        const draftKey = buildScheduleCellKey(employeeName, targetDayKey);
+                        const baseDraft = getBaseAdminScheduleDraft(employeeName, targetDayKey, sheetData);
+                        const targetTimeOffRow = getTimeOffRowForEmployeeDate(sheetData, employeeName, targetDayKey);
+                        const sourceRow = getSavedScheduleRowForEmployeeDate(sheetData, employeeName, sourceDayKey);
+                        const sourceHasShift = Boolean(sourceRow && (hasTimeValue(sourceRow.schedIn) || hasTimeValue(sourceRow.schedOut)));
+                        const baseHasShift = Boolean(hasTimeValue(baseDraft.schedIn) || hasTimeValue(baseDraft.schedOut));
+
+                        if (targetTimeOffRow) {
+                            if (sourceHasShift || baseHasShift) {
+                                skippedTimeOffCount += 1;
+                            }
+                            return;
+                        }
+
+                        if (sourceHasShift) {
+                            const parsedIn = parseTimeField(sourceRow.schedIn || '');
+                            const parsedOut = parseTimeField(sourceRow.schedOut || '');
+                            const importedDraft = {
+                                ...baseDraft,
+                                name: employeeName,
+                                date: targetDayKey,
+                                schedIn: parsedIn.time,
+                                schedInPeriod: parsedIn.period || 'AM',
+                                schedOut: parsedOut.time,
+                                schedOutPeriod: parsedOut.period || 'PM',
+                                scheduleStatus: normalizeAdminScheduleStatus(sourceRow.scheduleStatus),
+                                clearSchedule: false,
+                                sourceRow: baseDraft.sourceRow || null,
+                            };
+
+                            if (areAdminScheduleDraftsEquivalent(importedDraft, baseDraft)) {
+                                delete nextDrafts[draftKey];
+                                return;
+                            }
+
+                            nextDrafts[draftKey] = importedDraft;
+                            stagedCount += 1;
+                            return;
+                        }
+
+                        if (baseHasShift) {
+                            const clearedDraft = {
+                                ...baseDraft,
+                                name: employeeName,
+                                date: targetDayKey,
+                                schedIn: '',
+                                schedInPeriod: 'AM',
+                                schedOut: '',
+                                schedOutPeriod: 'PM',
+                                scheduleStatus: '',
+                                clearSchedule: true,
+                                sourceRow: baseDraft.sourceRow || null,
+                            };
+
+                            nextDrafts[draftKey] = clearedDraft;
+                            stagedCount += 1;
+                            return;
+                        }
+
+                        delete nextDrafts[draftKey];
+                    });
+                });
+
+                setAdminScheduleDrafts(nextDrafts);
+
                 setSelectedAdminCell(null);
-                setViewMode('ADMIN');
+
+                if (stagedCount === 0) {
+                    setNotification({
+                        type: skippedTimeOffCount > 0 ? 'info' : 'error',
+                        message: skippedTimeOffCount > 0
+                            ? `No shifts were staged because ${skippedTimeOffCount} target cell${skippedTimeOffCount === 1 ? ' is' : 's are'} blocked by time off.`
+                            : "That saved week did not create any new staged changes."
+                    });
+                    return;
+                }
+
+                setNotification({
+                    type: 'success',
+                    message: `Loaded ${stagedCount} shift change${stagedCount === 1 ? '' : 's'} from ${formatWeekRangeLabel(normalizedSourceWeekStart)}. Review the board, then click Save All.${skippedTimeOffCount > 0 ? ` ${skippedTimeOffCount} time-off block${skippedTimeOffCount === 1 ? ' was' : 's were'} skipped.` : ''}`
+                });
             };
 
             const persistAdminShiftTemplates = async (nextTemplates, successMessage) => {
@@ -747,8 +854,6 @@ function App() {
                 sheetData.reduce((acc, row) => {
                     if (isTimeOffRow(row)) return acc;
                     if (!hasTimeValue(row.schedIn) && !hasTimeValue(row.schedOut)) return acc;
-                    if (normalizeDate(row.date) < todayKey) return acc;
-
                     const weekStartDate = getWeekStartDate(row.date);
                     const weekKey = normalizeDate(weekStartDate);
                     if (!acc[weekKey]) {
@@ -764,7 +869,7 @@ function App() {
                     acc[weekKey].shiftCount += 1;
                     return acc;
                 }, {})
-            ).sort((a, b) => a.weekKey.localeCompare(b.weekKey));
+            ).sort((a, b) => b.weekKey.localeCompare(a.weekKey));
             const stagedScheduleChangeCount = Object.keys(adminScheduleDrafts).length;
             const inventoryOpenRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
             const inventoryAwaitingRows = inventoryOpenRows.filter(row => Number(row.awaitingApproval || 0) > 0);
@@ -2499,7 +2604,7 @@ function App() {
                                                     next.setDate(next.getDate() + 7);
                                                     return next;
                                                 })}
-                                                onJumpToWeek={jumpToAdminWeek}
+                                                onLoadSavedWeek={loadSavedWeekIntoAdminSchedule}
                                                 selectedCell={selectedAdminCell}
                                                 onSelectCell={selectAdminCell}
                                                 onCloseEditor={() => setSelectedAdminCell(null)}

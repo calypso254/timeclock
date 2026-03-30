@@ -2309,7 +2309,7 @@
             weekStart,
             onPrevWeek,
             onNextWeek,
-            onJumpToWeek,
+            onLoadSavedWeek,
             selectedCell,
             onSelectCell,
             onCloseEditor,
@@ -2336,6 +2336,9 @@
             const sortedEmployees = sortEmployeesForDisplay(employees);
 
             const weekDays = buildWeekDays(weekStart);
+            const currentWeekKey = normalizeDate(weekStart);
+            const loadableWeekOptions = (Array.isArray(savedWeekOptions) ? savedWeekOptions : [])
+                .filter(option => option?.weekKey && option.weekKey !== currentWeekKey);
 
             const visibleTemplates = getVisibleAdminShiftTemplates(shiftTemplates);
             const quickActionCount = visibleTemplates.length + 1;
@@ -2640,17 +2643,17 @@
                                         const nextWeek = e.target.value;
                                         setWeekJumpValue(nextWeek);
                                         if (nextWeek) {
-                                            onJumpToWeek(nextWeek);
+                                            onLoadSavedWeek?.(nextWeek);
                                             setWeekJumpValue('');
                                         }
                                     }}
                                     className="admin-studio-select"
-                                    disabled={savedWeekOptions.length === 0}
+                                    disabled={loadableWeekOptions.length === 0}
                                 >
                                     <option value="">
-                                        {savedWeekOptions.length === 0 ? 'No saved weeks yet' : 'Load saved week'}
+                                        {loadableWeekOptions.length === 0 ? 'No saved weeks yet' : 'Copy saved week'}
                                     </option>
-                                    {savedWeekOptions.map(option => (
+                                    {loadableWeekOptions.map(option => (
                                         <option key={option.weekKey} value={option.weekKey}>
                                             {option.label} ({option.shiftCount} shift{option.shiftCount === 1 ? '' : 's'})
                                         </option>
@@ -2665,7 +2668,7 @@
                                 className="brutal-btn admin-studio-action admin-studio-save-button bg-[#4ade80] hover:bg-[#22c55e] text-[#060606]"
                             >
                                 <i className={`fas ${isSubmitting ? 'fa-circle-notch spinner' : 'fa-save'}`}></i>
-                                <span>{isSubmitting ? 'Saving Week...' : `Save ${dirtyCount} Change${dirtyCount === 1 ? '' : 's'}`}</span>
+                                <span>{isSubmitting ? 'Saving All...' : `Save All${dirtyCount === 0 ? '' : ` (${dirtyCount})`}`}</span>
                             </button>
                         </div>
                     </div>
@@ -2958,7 +2961,7 @@
                                             </div>
 
                                             <p className="section-subtitle mt-3">
-                                                Save Shift updates the week board. Use Save Changes at the top when you are ready to publish the week.
+                                                Save Shift stages this card on the week board. Use Save All at the top when you are ready to publish the whole week.
                                             </p>
                                         </div>
 
