@@ -750,17 +750,23 @@
             box-shadow: 2px 2px 0px 0px #000000;
         }
         .admin-studio-toolbar {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: flex-end;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             align-items: stretch;
             gap: 0.75rem;
+            width: min(100%, 31rem);
+        }
+        .admin-studio-toolbar-wide {
+            grid-column: 1 / -1;
+            min-width: 0;
         }
         .admin-studio-control-shell {
             display: flex;
             align-items: center;
             min-height: 3.25rem;
             min-width: 0;
+            width: 100%;
+            box-sizing: border-box;
             border: var(--surface-border);
             border-radius: 1rem;
             box-shadow: 4px 4px 0px 0px #000000;
@@ -768,6 +774,8 @@
             color: #060606;
         }
         .admin-studio-nav-shell {
+            width: 100%;
+            justify-content: space-between;
             gap: 0.25rem;
             padding: 0.25rem;
         }
@@ -785,7 +793,8 @@
             background: #f3f4f6;
         }
         .admin-studio-range-label {
-            min-width: 170px;
+            flex: 1 1 auto;
+            min-width: 0;
             padding: 0 0.55rem;
             text-align: center;
             font-family: var(--font-body);
@@ -796,7 +805,7 @@
         .admin-studio-select-shell {
             gap: 0.65rem;
             padding: 0 0.9rem;
-            min-width: 240px;
+            min-width: 0;
         }
         .admin-studio-select {
             flex: 1;
@@ -813,9 +822,10 @@
             cursor: pointer;
         }
         .admin-studio-action {
-            min-width: var(--button-unit-width);
-            min-height: var(--action-button-min-height);
-            padding: var(--unit-button-padding);
+            width: 100%;
+            min-width: 0;
+            min-height: 3.25rem;
+            padding: 0.65rem 0.8rem;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -825,7 +835,7 @@
             box-sizing: border-box;
         }
         .admin-studio-save-button {
-            min-width: 200px;
+            min-width: 0;
         }
         .schedule-week-grid.admin-week-board-grid {
             grid-template-columns: repeat(7, minmax(var(--card-grid-column-width), var(--card-grid-column-width)));
@@ -1058,7 +1068,7 @@
                 grid-template-columns: minmax(0, 1fr);
             }
             .admin-studio-toolbar {
-                justify-content: stretch;
+                width: 100%;
             }
             .admin-studio-control-shell,
             .admin-studio-action {

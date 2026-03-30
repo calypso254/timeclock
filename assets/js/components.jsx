@@ -2284,15 +2284,30 @@
             }, [selectedCell ? selectedCell.name : '', selectedCell ? selectedCell.date : '']);
 
             const activeSelectedDraft = isSelectingDayEmployee ? selectedDraft : (editorDraft || selectedDraft);
-            const selectedFormattedIn = activeSelectedDraft && !activeSelectedDraft.clearSchedule
-                ? formatTimeField(activeSelectedDraft.schedIn, activeSelectedDraft.schedInPeriod)
-                : '';
-            const selectedFormattedOut = activeSelectedDraft && !activeSelectedDraft.clearSchedule
-                ? formatTimeField(activeSelectedDraft.schedOut, activeSelectedDraft.schedOutPeriod)
-                : '';
-            const selectedPreviewMinutes = activeSelectedDraft && !activeSelectedDraft.clearSchedule
-                ? calculateWorkedMinutes(selectedFormattedIn, selectedFormattedOut)
-                : null;
+            const getScheduledShiftPreview = (draft) => {
+                if (!draft || draft.clearSchedule) {
+                    return {
+                        formattedIn: '',
+                        formattedOut: '',
+                        minutes: null,
+                        hasAssignedShift: false,
+                    };
+                }
+
+                const formattedIn = formatTimeField(draft.schedIn, draft.schedInPeriod);
+                const formattedOut = formatTimeField(draft.schedOut, draft.schedOutPeriod);
+                return {
+                    formattedIn,
+                    formattedOut,
+                    minutes: calculateWorkedMinutes(formattedIn, formattedOut),
+                    hasAssignedShift: Boolean(formattedIn && formattedOut),
+                };
+            };
+
+            const selectedShiftPreview = getScheduledShiftPreview(activeSelectedDraft);
+            const selectedFormattedIn = selectedShiftPreview.formattedIn;
+            const selectedFormattedOut = selectedShiftPreview.formattedOut;
+            const selectedPreviewMinutes = selectedShiftPreview.minutes;
             const canSaveEditorDraft = Boolean(
                 activeSelectedDraft
                 && !isReviewingTimeOff
@@ -2384,10 +2399,11 @@
                 const draft = getCellDraft(employeeName, dayKey);
                 const timeOffRow = getTimeOffRowForEmployeeDate(sheetData, employeeName, dayKey);
                 const timeOffMeta = parseTimeOffMetadata(timeOffRow?.reason);
-                const cellFormattedIn = draft.clearSchedule ? '' : formatTimeField(draft.schedIn, draft.schedInPeriod);
-                const cellFormattedOut = draft.clearSchedule ? '' : formatTimeField(draft.schedOut, draft.schedOutPeriod);
-                const cellMinutes = draft.clearSchedule ? null : calculateWorkedMinutes(cellFormattedIn, cellFormattedOut);
-                const hasAssignedShift = Boolean(cellFormattedIn && cellFormattedOut);
+                const shiftPreview = getScheduledShiftPreview(draft);
+                const cellFormattedIn = shiftPreview.formattedIn;
+                const cellFormattedOut = shiftPreview.formattedOut;
+                const cellMinutes = shiftPreview.minutes;
+                const hasAssignedShift = shiftPreview.hasAssignedShift;
                 const isSelected = selectedCell && selectedCell.name === employeeName && selectedCell.date === dayKey;
                 const isDirty = !areAdminScheduleDraftsEquivalent(draft, draft.sourceRow
                     ? buildAdminScheduleDraftFromRow(draft.sourceRow, employeeName, dayKey)
@@ -2412,6 +2428,29 @@
                     cellStateClass,
                 };
             };
+
+            const employeeWeekSummaries = sortedEmployees.map(employee => {
+                const totalMinutes = weekDays.reduce((sum, dayObj) => {
+                    const dayKey = normalizeDate(dayObj);
+                    const shiftPreview = getScheduledShiftPreview(getCellDraft(employee.name, dayKey));
+                    return sum + (shiftPreview.hasAssignedShift ? (shiftPreview.minutes || 0) : 0);
+                }, 0);
+                const shiftCount = weekDays.reduce((count, dayObj) => {
+                    const dayKey = normalizeDate(dayObj);
+                    return count + (getScheduledShiftPreview(getCellDraft(employee.name, dayKey)).hasAssignedShift ? 1 : 0);
+                }, 0);
+
+                return {
+                    id: employee.id || employee.name,
+                    name: employee.name,
+                    department: employee.department || 'Team',
+                    totalMinutes,
+                    shiftCount,
+                };
+            });
+            const totalScheduledWeekMinutes = employeeWeekSummaries.reduce((sum, employeeSummary) => sum + employeeSummary.totalMinutes, 0);
+            const scheduledEmployeeCount = employeeWeekSummaries.filter(employeeSummary => employeeSummary.totalMinutes > 0).length;
+            const totalScheduledShiftCount = employeeWeekSummaries.reduce((sum, employeeSummary) => sum + employeeSummary.shiftCount, 0);
 
             const renderWeekBoardDay = (dayObj) => {
                 const dayKey = normalizeDate(dayObj);
@@ -2532,43 +2571,47 @@
                             </div>
                         </div>
                         <div className="admin-studio-toolbar">
-                            <div className="admin-studio-control-shell admin-studio-nav-shell">
-                                <button onClick={onPrevWeek} className="admin-studio-nav-button font-bold font-poppins text-lg">
-                                    <i className="fas fa-chevron-left"></i>
-                                </button>
-                                <span className="admin-studio-range-label">
-                                    {formatWeekRangeLabel(weekStart)}
-                                </span>
-                                <button onClick={onNextWeek} className="admin-studio-nav-button font-bold font-poppins text-lg">
-                                    <i className="fas fa-chevron-right"></i>
-                                </button>
+                            <div className="admin-studio-toolbar-wide">
+                                <div className="admin-studio-control-shell admin-studio-nav-shell">
+                                    <button onClick={onPrevWeek} className="admin-studio-nav-button font-bold font-poppins text-lg">
+                                        <i className="fas fa-chevron-left"></i>
+                                    </button>
+                                    <span className="admin-studio-range-label">
+                                        {formatWeekRangeLabel(weekStart)}
+                                    </span>
+                                    <button onClick={onNextWeek} className="admin-studio-nav-button font-bold font-poppins text-lg">
+                                        <i className="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
                             </div>
 
-                            <div className="admin-studio-control-shell admin-studio-select-shell">
-                                <i className="fas fa-folder-open text-[#38bdf8]"></i>
-                                <select
-                                    value={weekJumpValue}
-                                    onChange={e => {
-                                        const nextWeek = e.target.value;
-                                        setWeekJumpValue(nextWeek);
-                                        if (nextWeek) {
-                                            onLoadSavedWeek?.(nextWeek);
-                                            setWeekJumpValue('');
-                                        }
-                                    }}
-                                    className="admin-studio-select"
-                                    disabled={loadableWeekOptions.length === 0}
-                                >
-                                    <option value="">
-                                        {loadableWeekOptions.length === 0 ? 'No saved weeks yet' : 'Copy saved week'}
-                                    </option>
-                                    {loadableWeekOptions.map(option => (
-                                        <option key={option.weekKey} value={option.weekKey}>
-                                            {option.label} ({option.shiftCount} shift{option.shiftCount === 1 ? '' : 's'})
+                            <div className="admin-studio-toolbar-wide">
+                                <div className="admin-studio-control-shell admin-studio-select-shell">
+                                    <i className="fas fa-folder-open text-[#38bdf8]"></i>
+                                    <select
+                                        value={weekJumpValue}
+                                        onChange={e => {
+                                            const nextWeek = e.target.value;
+                                            setWeekJumpValue(nextWeek);
+                                            if (nextWeek) {
+                                                onLoadSavedWeek?.(nextWeek);
+                                                setWeekJumpValue('');
+                                            }
+                                        }}
+                                        className="admin-studio-select"
+                                        disabled={loadableWeekOptions.length === 0}
+                                    >
+                                        <option value="">
+                                            {loadableWeekOptions.length === 0 ? 'No saved weeks yet' : 'Copy saved week'}
                                         </option>
-                                    ))}
-                                </select>
-                                <i className="fas fa-chevron-down text-xs text-gray-500"></i>
+                                        {loadableWeekOptions.map(option => (
+                                            <option key={option.weekKey} value={option.weekKey}>
+                                                {option.label} ({option.shiftCount} shift{option.shiftCount === 1 ? '' : 's'})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <i className="fas fa-chevron-down text-xs text-gray-500"></i>
+                                </div>
                             </div>
 
                             <button
@@ -2602,6 +2645,50 @@
                                     {weekDays.map(dayObj => renderWeekBoardDay(dayObj))}
                                 </div>
                             )}
+                        </div>
+
+                        <div className="border-t-2 border-black bg-[#f8fafc] px-3 py-3 md:px-4 md:py-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="section-card bg-white px-4 py-3">
+                                    <div className="card-eyebrow text-[#38bdf8]">Week Total</div>
+                                    <div className="card-title mt-2">{formatPayrollHours(totalScheduledWeekMinutes)} hrs</div>
+                                    <div className="card-meta mt-1">{formatWorkedDurationForDisplay(totalScheduledWeekMinutes)}</div>
+                                </div>
+                                <div className="section-card bg-white px-4 py-3">
+                                    <div className="card-eyebrow text-[#38bdf8]">Planned Coverage</div>
+                                    <div className="card-title mt-2">{scheduledEmployeeCount} scheduled</div>
+                                    <div className="card-meta mt-1">{totalScheduledShiftCount} shift{totalScheduledShiftCount === 1 ? '' : 's'} on the board</div>
+                                </div>
+                            </div>
+
+                            <div className="section-card bg-white p-4 mt-3">
+                                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                    <div>
+                                        <div className="card-eyebrow text-[#38bdf8]">Hours by Person</div>
+                                        <p className="section-subtitle mt-1">Totals update live from the board, including staged draft changes before Save All.</p>
+                                    </div>
+                                    <div className="card-meta">{employeeWeekSummaries.length} team member{employeeWeekSummaries.length === 1 ? '' : 's'}</div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5 mt-4">
+                                    {employeeWeekSummaries.map(employeeSummary => (
+                                        <div
+                                            key={`week-summary-${employeeSummary.id}`}
+                                            className={`section-card px-3 py-3 ${employeeSummary.totalMinutes > 0 ? 'bg-[#eff6ff]' : 'bg-[#f8fafc]'}`}
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <div className="card-title truncate text-sm">{employeeSummary.name}</div>
+                                                    <div className="card-meta mt-1 truncate">{employeeSummary.department}</div>
+                                                </div>
+                                                <div className="card-eyebrow text-gray-500">{employeeSummary.shiftCount} shift{employeeSummary.shiftCount === 1 ? '' : 's'}</div>
+                                            </div>
+                                            <div className="card-title mt-3">{formatPayrollHours(employeeSummary.totalMinutes)} hrs</div>
+                                            <div className="card-meta mt-1">{formatWorkedDurationForDisplay(employeeSummary.totalMinutes)}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
 

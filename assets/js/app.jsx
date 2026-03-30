@@ -2,16 +2,10 @@ function App() {
             // Updated API URL to your current endpoint
             const scriptUrl = "https://script.google.com/macros/s/AKfycbyQipNZW0DC8R0Etm_-giUXx-5pSt1bZTrUjikY7kgxmRyminft4xAiVNBpdHBb_NxgpA/exec";
             const employeeFetchErrorMessage = "Could not load employees. Please check the Google Sheet setup.";
-            const BROWSER_ALERT_STORAGE_KEY = "timeclock.browserAlertsEnabled";
             const BROWSER_ALERT_REFRESH_MS = 30000;
             const notificationApiAvailable = typeof window !== 'undefined' && 'Notification' in window;
             const readStoredBrowserAlertPreference = () => {
-                if (typeof window === 'undefined') return false;
-                try {
-                    return window.localStorage.getItem(BROWSER_ALERT_STORAGE_KEY) === 'true';
-                } catch (error) {
-                    return false;
-                }
+                return notificationApiAvailable && Notification.permission === 'granted';
             };
 
             const [currentTime, setCurrentTime] = useState(new Date());
@@ -282,12 +276,6 @@ function App() {
 
             const persistBrowserAlertPreference = (nextValue) => {
                 setBrowserAlertsEnabled(nextValue);
-                if (typeof window === 'undefined') return;
-                try {
-                    window.localStorage.setItem(BROWSER_ALERT_STORAGE_KEY, nextValue ? 'true' : 'false');
-                } catch (error) {
-                    console.error("Could not store browser alert preference:", error);
-                }
             };
 
             const buildMessageAlertSnapshot = (rows) => {
@@ -717,13 +705,15 @@ function App() {
             useEffect(() => {
                 if (!notificationApiAvailable) {
                     setBrowserNotificationPermission('unsupported');
-                    persistBrowserAlertPreference(false);
                     return undefined;
                 }
 
                 const syncBrowserNotificationPermission = () => {
                     const nextPermission = Notification.permission;
                     setBrowserNotificationPermission(nextPermission);
+                    if (nextPermission === 'granted' && !browserAlertsEnabled) {
+                        persistBrowserAlertPreference(true);
+                    }
                     if (nextPermission !== 'granted' && browserAlertsEnabled) {
                         persistBrowserAlertPreference(false);
                     }
@@ -837,7 +827,6 @@ function App() {
             const selectedEmployee = selectedUser && !isAdminRole(selectedUser.role) ? selectedUser : null;
             const activeSessionUser = adminUser || selectedEmployee || null;
             const activeMessageViewer = adminUser || selectedEmployee || null;
-            const activeAlertUser = adminUser || selectedEmployee || null;
             const publicEmployees = sortEmployeesForDisplay(
                 employees.filter(emp => !isAdminRole(emp.role))
             );
@@ -915,8 +904,6 @@ function App() {
             const canClockIn = Boolean(selectedEmployee) && !isSubmittingAction && selectedClockInPlan?.status === 'ready';
             const canClockOut = Boolean(selectedEmployee) && !isSubmittingAction && selectedClockOutPlan?.status === 'ready';
             const browserAlertsActive = Boolean(
-                isAuthenticated &&
-                activeAlertUser &&
                 browserAlertsEnabled &&
                 browserNotificationPermission === 'granted'
             );
@@ -940,7 +927,11 @@ function App() {
             }, [messages, inventoryRows, penHospitalCases]);
 
             const openAlertDestination = (channel) => {
-                if (!isAuthenticated) return;
+                if (!isAuthenticated) {
+                    handleSelectionCancel();
+                    setDirectoryMode('employee');
+                    return;
+                }
                 lastActivityRef.current = Date.now();
                 setEmployeeTimeOffDraft(null);
 
@@ -991,10 +982,8 @@ function App() {
 
             const buildMessageAlertPayload = (previousSnapshot, nextRows) => {
                 const nextSnapshot = buildMessageAlertSnapshot(nextRows);
-                const normalizedActiveName = String(activeAlertUser?.name || '').trim().toLowerCase();
                 const newMessages = Array.from(nextSnapshot.values())
                     .filter(messageRow => !previousSnapshot.has(messageRow.rowNumber))
-                    .filter(messageRow => String(messageRow.senderName || '').trim().toLowerCase() !== normalizedActiveName)
                     .sort((a, b) => a.rowNumber - b.rowNumber);
 
                 if (newMessages.length === 0) {
@@ -1162,7 +1151,7 @@ function App() {
                 }, BROWSER_ALERT_REFRESH_MS);
 
                 return () => clearInterval(timer);
-            }, [browserAlertsActive, activeAlertUser?.name, activeAlertUser?.role]);
+            }, [browserAlertsActive]);
 
             const enableBrowserAlerts = async () => {
                 if (!notificationApiAvailable) {
@@ -1186,7 +1175,7 @@ function App() {
 
                 if (nextPermission !== 'granted') {
                     persistBrowserAlertPreference(false);
-                    setNotification({ type: 'info', message: "Browser alerts stayed off." });
+                    setNotification({ type: 'info', message: "Browser alerts were not enabled." });
                     return;
                 }
 
@@ -1194,64 +1183,34 @@ function App() {
                 syncAlertSnapshotsFromState();
                 setNotification({
                     type: 'success',
-                    message: "Browser alerts are on for messages, inventory, and Pen Hospital updates while this page stays open."
+                    message: "Browser alerts enabled."
                 });
             };
 
-            const disableBrowserAlerts = () => {
-                persistBrowserAlertPreference(false);
-                setNotification({ type: 'info', message: "Browser alerts are off." });
-            };
-
-            const toggleBrowserAlerts = async () => {
-                if (browserAlertsEnabled && browserNotificationPermission === 'granted') {
-                    disableBrowserAlerts();
-                    return;
-                }
+            const requestBrowserAlerts = async () => {
                 await enableBrowserAlerts();
             };
 
             const renderBrowserAlertControl = () => {
-                if (!adminUser) return null;
+                if (!adminUser || !notificationApiAvailable || browserNotificationPermission === 'granted') return null;
 
-                const buttonClass = (browserAlertsEnabled && browserNotificationPermission === 'granted')
-                    ? 'bg-[#bbf7d0] hover:bg-[#86efac]'
-                    : browserNotificationPermission === 'denied'
-                        ? 'bg-[#fecdd3] hover:bg-[#fda4af]'
-                        : 'bg-[#bae6fd] hover:bg-[#7dd3fc]';
-                const buttonIcon = (browserAlertsEnabled && browserNotificationPermission === 'granted')
-                    ? 'fa-bell-slash'
-                    : 'fa-bell';
-                const buttonLabel = (browserAlertsEnabled && browserNotificationPermission === 'granted')
-                    ? 'Turn Off Alerts'
+                const buttonClass = browserNotificationPermission === 'denied'
+                    ? 'bg-[#fecdd3] hover:bg-[#fda4af]'
+                    : 'bg-[#bae6fd] hover:bg-[#7dd3fc]';
+                const buttonLabel = browserNotificationPermission === 'denied'
+                    ? 'Alerts Blocked'
                     : 'Enable Alerts';
-                const helperText = !notificationApiAvailable
-                    ? 'This browser cannot send notifications for this app.'
-                    : browserNotificationPermission === 'denied'
-                        ? 'Notifications are blocked in this browser. Allow them in site settings, then enable alerts again.'
-                        : (browserAlertsEnabled && browserNotificationPermission === 'granted')
-                            ? `Messages, inventory, and Pen Hospital are checked every ${Math.round(BROWSER_ALERT_REFRESH_MS / 1000)} seconds while this page stays open.`
-                            : 'Get browser alerts for messages, inventory, and Pen Hospital updates. Time clock punches stay excluded.';
 
                 return (
-                    <div className="mt-4 rounded-xl border-2 border-black bg-[#f8fafc] px-4 py-4">
-                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                            <div className="min-w-0">
-                                <div className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#060606]">Browser Alerts</div>
-                                <p className="text-xs md:text-sm font-bold text-gray-600 mt-2">{helperText}</p>
-                            </div>
-                            <div className="shrink-0">
-                                <button
-                                    type="button"
-                                    onClick={toggleBrowserAlerts}
-                                    disabled={!notificationApiAvailable}
-                                    className={`brutal-btn action-button action-button-fluid ${buttonClass}`}
-                                >
-                                    <i className={`fas ${buttonIcon}`}></i>
-                                    <span>{buttonLabel}</span>
-                                </button>
-                            </div>
-                        </div>
+                    <div className="mt-4 flex justify-center">
+                        <button
+                            type="button"
+                            onClick={requestBrowserAlerts}
+                            className={`brutal-btn action-button action-button-fluid ${buttonClass}`}
+                        >
+                            <i className="fas fa-bell"></i>
+                            <span>{buttonLabel}</span>
+                        </button>
                     </div>
                 );
             };
