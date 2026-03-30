@@ -1076,13 +1076,15 @@
             readOnly = false,
             newestFirst = false,
             autoHeight = false,
+            maxMessages = null,
         }) => {
             const threadEndRef = useRef(null);
             const threadScrollRef = useRef(null);
             const [activeReactionMessageRow, setActiveReactionMessageRow] = useState(null);
             const normalizedViewerName = String(viewerName || '').trim().toLowerCase();
             const safeMessages = Array.isArray(messages) ? messages : [];
-            const displayedMessages = newestFirst ? [...safeMessages].reverse() : safeMessages;
+            const displayedMessages = (newestFirst ? [...safeMessages].reverse() : safeMessages)
+                .slice(0, maxMessages || undefined);
             const trimmedDraft = normalizeMessageText(draft);
             const canReact = !readOnly && Boolean(normalizedViewerName) && typeof onReact === 'function';
 
@@ -1645,6 +1647,7 @@
                                         readOnly={true}
                                         newestFirst={true}
                                         autoHeight={true}
+                                        maxMessages={5}
                                     />
                                 </div>
                             </div>
