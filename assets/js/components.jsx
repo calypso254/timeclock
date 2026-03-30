@@ -1942,6 +1942,27 @@
             const safeEmployees = Array.isArray(employees) ? employees : [];
             const safeRows = Array.isArray(sheetData) ? sheetData : [];
             const currentPeriod = buildPayrollPeriodFromStart(getPayrollPeriodStart(new Date()));
+            const previousPeriod = buildPayrollPeriodFromStart(
+                addDaysToLocalDate(currentPeriod.startDate, -PAYROLL_PERIOD_LENGTH_DAYS)
+            );
+            const payrollPeriods = [
+                {
+                    ...previousPeriod,
+                    title: 'Last Pay Period',
+                    subtitle: 'Most recent closed period for payroll.',
+                    summaryCardClass: 'bg-[#dcfce7]',
+                    metricCardClass: 'bg-[#f0fdf4]',
+                    accentClass: 'text-[#15803d]',
+                },
+                {
+                    ...currentPeriod,
+                    title: 'Current Pay Period',
+                    subtitle: 'Live hours still building for the next run.',
+                    summaryCardClass: 'bg-[#dbeafe]',
+                    metricCardClass: 'bg-[#eff6ff]',
+                    accentClass: 'text-[#1d4ed8]',
+                },
+            ];
             const adminNameSet = new Set(
                 safeEmployees
                     .filter(emp => isAdminRole(emp?.role))
@@ -1949,50 +1970,89 @@
                     .filter(Boolean)
             );
 
-            const currentPeriodRows = safeRows.filter(row => {
+            const payrollCandidateRows = safeRows.filter(row => {
                 const name = String(row?.name || '').trim();
                 if (!name || adminNameSet.has(name.toLowerCase())) return false;
                 if (isTimeOffRow(row) || !isPayrollRelevantRow(row)) return false;
 
                 const rowDate = parseLocalDate(row?.date);
-                if (isNaN(rowDate.getTime())) return false;
-
-                const rowDateKey = normalizeDate(rowDate);
-                return rowDateKey >= currentPeriod.startKey && rowDateKey <= currentPeriod.endKey;
+                return !isNaN(rowDate.getTime());
             });
 
-            const employeeNames = [...new Set([
-                ...safeEmployees
-                    .filter(emp => !isAdminRole(emp?.role))
-                    .map(emp => String(emp?.name || '').trim())
-                    .filter(Boolean),
-                ...currentPeriodRows
-                    .map(row => String(row?.name || '').trim())
-                    .filter(Boolean),
-            ])].sort((a, b) => a.localeCompare(b));
+            const periodRowsByKey = payrollPeriods.reduce((acc, period) => {
+                acc[period.key] = payrollCandidateRows.filter(row => {
+                    const rowDateKey = normalizeDate(row?.date);
+                    return rowDateKey >= period.startKey && rowDateKey <= period.endKey;
+                });
+                return acc;
+            }, {});
+
+            const employeeNames = [
+                ...new Set(
+                    safeEmployees
+                        .filter(emp => !isAdminRole(emp?.role))
+                        .map(emp => String(emp?.name || '').trim())
+                        .concat(
+                            payrollPeriods.reduce((names, period) => (
+                                names.concat(
+                                    (periodRowsByKey[period.key] || [])
+                                        .map(row => String(row?.name || '').trim())
+                                        .filter(Boolean)
+                                )
+                            ), [])
+                        )
+                        .filter(Boolean)
+                )
+            ].sort((a, b) => a.localeCompare(b));
 
             const employeeSummaries = employeeNames
                 .map(name => {
-                    const rows = currentPeriodRows.filter(row => String(row?.name || '').trim() === name);
-                    const totalMinutes = rows.reduce((sum, row) => sum + getPayrollRowMinutes(row), 0);
-                    const workedRows = rows.filter(row => getPayrollRowMinutes(row) > 0);
-                    const workedEntryCount = workedRows.length;
-                    const hasEditedEntries = workedRows.some(row => parseReasonCell(row.reason).length > 0);
+                    const periodSummaries = payrollPeriods.map(period => {
+                        const rows = (periodRowsByKey[period.key] || []).filter(row => String(row?.name || '').trim() === name);
+                        const totalMinutes = rows.reduce((sum, row) => sum + getPayrollRowMinutes(row), 0);
+                        const workedRows = rows.filter(row => getPayrollRowMinutes(row) > 0);
+                        return {
+                            periodKey: period.key,
+                            totalMinutes,
+                            workedEntryCount: workedRows.length,
+                            hasEditedEntries: workedRows.some(row => parseReasonCell(row.reason).length > 0),
+                        };
+                    });
+                    const previousSummary = periodSummaries[0] || { totalMinutes: 0 };
+                    const currentSummary = periodSummaries[1] || { totalMinutes: 0 };
                     return {
                         name,
-                        totalMinutes,
-                        workedEntryCount,
-                        hasEditedEntries,
+                        periodSummaries,
+                        previousMinutes: previousSummary.totalMinutes || 0,
+                        currentMinutes: currentSummary.totalMinutes || 0,
                     };
                 })
                 .sort((a, b) => {
-                    const hourDiff = b.totalMinutes - a.totalMinutes;
-                    if (hourDiff !== 0) return hourDiff;
+                    const previousDiff = b.previousMinutes - a.previousMinutes;
+                    if (previousDiff !== 0) return previousDiff;
+
+                    const currentDiff = b.currentMinutes - a.currentMinutes;
+                    if (currentDiff !== 0) return currentDiff;
+
                     return a.name.localeCompare(b.name);
                 });
 
-            const totalWorkedMinutes = employeeSummaries.reduce((sum, summary) => sum + summary.totalMinutes, 0);
-            const employeesWithHoursCount = employeeSummaries.filter(summary => summary.totalMinutes > 0).length;
+            const periodTotalsByKey = payrollPeriods.reduce((acc, period) => {
+                const periodSummaries = employeeSummaries.map(employee =>
+                    employee.periodSummaries.find(summary => summary.periodKey === period.key) || {
+                        totalMinutes: 0,
+                        workedEntryCount: 0,
+                        hasEditedEntries: false,
+                    }
+                );
+                acc[period.key] = {
+                    totalMinutes: periodSummaries.reduce((sum, summary) => sum + summary.totalMinutes, 0),
+                    workedEntryCount: periodSummaries.reduce((sum, summary) => sum + summary.workedEntryCount, 0),
+                    employeesWithHoursCount: periodSummaries.filter(summary => summary.totalMinutes > 0).length,
+                    editedEmployeeCount: periodSummaries.filter(summary => summary.hasEditedEntries).length,
+                };
+                return acc;
+            }, {});
             const roleLabel = formatRoleLabel(adminUser?.role, 'Admin');
 
             return (
@@ -2000,12 +2060,12 @@
                     <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
                         <div>
                             <div className="card-eyebrow text-[#38bdf8]">{roleLabel}</div>
-                            <h3 className="section-title mt-1">Current Pay Period Hours</h3>
+                            <h3 className="section-title mt-1">Payroll Period Hours</h3>
                             <p className="section-subtitle mt-1">
-                                Current period: {formatFullDate(currentPeriod.startDate)} through {formatFullDate(currentPeriod.endDate)}.
+                                Last pay period is shown first for payroll, and the current pay period stays beside it for context.
                             </p>
                             <p className="section-subtitle mt-1">
-                                Hours shown here are the worked hours logged so far in this two-week period.
+                                Each employee card shows both periods so you can compare what is ready to run now with what is still accumulating.
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 shadow-safe-4">
@@ -2020,46 +2080,96 @@
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 shrink-0 shadow-safe-4">
-                        <div className="section-card panel-content-card bg-[#f8fafc]">
-                            <div className="text-[10px] uppercase font-bold text-gray-500">Pay Period</div>
-                            <div className="text-lg font-bold font-poppins text-[#060606] mt-2">{currentPeriod.label}</div>
-                        </div>
-                        <div className="section-card panel-content-card bg-[#ecfccb]">
-                            <div className="text-[10px] uppercase font-bold text-gray-500">Total Worked Hours</div>
-                            <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{formatPayrollHours(totalWorkedMinutes)}</div>
-                        </div>
-                        <div className="section-card panel-content-card bg-[#fff7ed]">
-                            <div className="text-[10px] uppercase font-bold text-gray-500">Employees With Hours</div>
-                            <div className="text-2xl font-bold font-poppins text-[#060606] mt-2">{employeesWithHoursCount}</div>
-                        </div>
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4 shrink-0 shadow-safe-4">
+                        {payrollPeriods.map(period => {
+                            const totals = periodTotalsByKey[period.key] || {
+                                totalMinutes: 0,
+                                workedEntryCount: 0,
+                                employeesWithHoursCount: 0,
+                                editedEmployeeCount: 0,
+                            };
+
+                            return (
+                                <div key={period.key} className={`section-card panel-content-card ${period.summaryCardClass}`}>
+                                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                                        <div>
+                                            <div className={`text-[10px] uppercase font-bold tracking-[0.2em] ${period.accentClass}`}>{period.title}</div>
+                                            <div className="text-lg font-bold font-poppins text-[#060606] mt-1">{period.label}</div>
+                                            <div className="card-meta mt-1">Pay date {formatFullDate(period.payDate)}</div>
+                                            <div className="text-xs font-bold text-gray-600 mt-2">{period.subtitle}</div>
+                                        </div>
+                                        <div className="status-chip bg-white self-start">
+                                            {totals.employeesWithHoursCount} with hours
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-3 mt-4">
+                                        <div className={`rounded-xl border-2 border-black ${period.metricCardClass} px-3 py-3`}>
+                                            <div className="text-[10px] uppercase font-bold text-gray-500">Hours</div>
+                                            <div className="text-xl font-bold font-poppins text-[#060606] mt-1">{formatPayrollHours(totals.totalMinutes)}</div>
+                                        </div>
+                                        <div className={`rounded-xl border-2 border-black ${period.metricCardClass} px-3 py-3`}>
+                                            <div className="text-[10px] uppercase font-bold text-gray-500">Entries</div>
+                                            <div className="text-xl font-bold font-poppins text-[#060606] mt-1">{totals.workedEntryCount}</div>
+                                        </div>
+                                        <div className={`rounded-xl border-2 border-black ${period.metricCardClass} px-3 py-3`}>
+                                            <div className="text-[10px] uppercase font-bold text-gray-500">Edited</div>
+                                            <div className="text-xl font-bold font-poppins text-[#060606] mt-1">{totals.editedEmployeeCount}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
 
                     <div className="flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pr-1 pb-4">
                         {employeeSummaries.length === 0 ? (
                             <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
-                                No employee records were found for {currentPeriod.label}.
+                                No employee records were found for the last two pay periods.
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 gap-4 content-start">
                                 {employeeSummaries.map(summary => (
-                                    <div key={`${currentPeriod.key}-${summary.name}`} className="section-card panel-content-card">
-                                        <div className="grid md:grid-cols-[minmax(0,1fr)_140px] gap-3 items-center">
+                                    <div key={`${payrollPeriods[0].key}-${payrollPeriods[1].key}-${summary.name}`} className="section-card panel-content-card">
+                                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                                             <div className="min-w-0">
                                                 <div className="font-bold font-poppins text-[#060606] text-base md:text-lg truncate">{summary.name}</div>
                                                 <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 mt-1">
-                                                    {summary.workedEntryCount === 0
-                                                        ? 'No completed shifts logged yet this period'
-                                                        : `${summary.workedEntryCount} worked entr${summary.workedEntryCount === 1 ? 'y' : 'ies'}`}
+                                                    {summary.previousMinutes > 0
+                                                        ? `${formatPayrollHours(summary.previousMinutes)} hours ready for the last pay run`
+                                                        : 'No worked hours logged in the last pay period'}
                                                 </div>
                                             </div>
-                                            <div className="relative rounded-xl border-2 border-black bg-[#f8fafc] px-3 py-2 text-center">
-                                                {summary.hasEditedEntries && (
-                                                    <div className="absolute -top-1 -right-1 w-3.5 h-3.5 md:w-4 md:h-4 bg-[#f43f5e] border-2 border-black rounded-full" title="This pay period includes edited or noted shifts."></div>
-                                                )}
-                                                <div className="text-[10px] uppercase font-bold text-gray-500">Hours</div>
-                                                <div className="text-lg font-bold font-poppins text-[#060606] mt-1">{formatPayrollHours(summary.totalMinutes)}</div>
-                                            </div>
+                                        </div>
+
+                                        <div className="grid xl:grid-cols-2 gap-3 mt-4">
+                                            {summary.periodSummaries.map((periodSummary, index) => {
+                                                const period = payrollPeriods[index];
+                                                return (
+                                                    <div key={`${summary.name}-${periodSummary.periodKey}`} className={`rounded-xl border-2 border-black ${period.metricCardClass} px-4 py-4`}>
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <div className={`text-[10px] uppercase font-bold tracking-[0.2em] ${period.accentClass}`}>{period.title}</div>
+                                                                <div className="text-sm md:text-base font-bold font-poppins text-[#060606] mt-1">{period.fullLabel}</div>
+                                                                <div className="card-meta mt-1">Pay date {formatFullDate(period.payDate)}</div>
+                                                            </div>
+                                                            <div className="relative rounded-xl border-2 border-black bg-white px-3 py-2 text-center min-w-[120px]">
+                                                                {periodSummary.hasEditedEntries && (
+                                                                    <div className="absolute -top-1 -right-1 w-3.5 h-3.5 md:w-4 md:h-4 bg-[#f43f5e] border-2 border-black rounded-full" title="This pay period includes edited or noted shifts."></div>
+                                                                )}
+                                                                <div className="text-[10px] uppercase font-bold text-gray-500">Hours</div>
+                                                                <div className="text-lg font-bold font-poppins text-[#060606] mt-1">{formatPayrollHours(periodSummary.totalMinutes)}</div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="text-[11px] md:text-xs font-bold uppercase tracking-wide text-gray-500 mt-3">
+                                                            {periodSummary.workedEntryCount === 0
+                                                                ? 'No completed shifts logged in this period'
+                                                                : `${periodSummary.workedEntryCount} worked entr${periodSummary.workedEntryCount === 1 ? 'y' : 'ies'}${periodSummary.hasEditedEntries ? ' - includes edited shifts' : ''}`}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 ))}

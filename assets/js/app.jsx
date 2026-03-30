@@ -2,6 +2,17 @@ function App() {
             // Updated API URL to your current endpoint
             const scriptUrl = "https://script.google.com/macros/s/AKfycbyQipNZW0DC8R0Etm_-giUXx-5pSt1bZTrUjikY7kgxmRyminft4xAiVNBpdHBb_NxgpA/exec";
             const employeeFetchErrorMessage = "Could not load employees. Please check the Google Sheet setup.";
+            const BROWSER_ALERT_STORAGE_KEY = "timeclock.browserAlertsEnabled";
+            const BROWSER_ALERT_REFRESH_MS = 30000;
+            const notificationApiAvailable = typeof window !== 'undefined' && 'Notification' in window;
+            const readStoredBrowserAlertPreference = () => {
+                if (typeof window === 'undefined') return false;
+                try {
+                    return window.localStorage.getItem(BROWSER_ALERT_STORAGE_KEY) === 'true';
+                } catch (error) {
+                    return false;
+                }
+            };
 
             const [currentTime, setCurrentTime] = useState(new Date());
             const [viewMode, setViewMode] = useState('PINPAD'); 
@@ -58,6 +69,21 @@ function App() {
             const [messages, setMessages] = useState([]);
             const [penHospitalCases, setPenHospitalCases] = useState([]);
             const [messageDraft, setMessageDraft] = useState('');
+            const [browserNotificationPermission, setBrowserNotificationPermission] = useState(
+                notificationApiAvailable ? Notification.permission : 'unsupported'
+            );
+            const [browserAlertsEnabled, setBrowserAlertsEnabled] = useState(readStoredBrowserAlertPreference);
+            const alertSnapshotsRef = useRef({
+                messages: new Map(),
+                inventory: new Map(),
+                penHospital: new Map(),
+            });
+            const latestAlertDataRef = useRef({
+                messages: [],
+                inventoryRows: [],
+                penHospitalCases: [],
+            });
+            const isBackgroundAlertRefreshRef = useRef(false);
 
             const activeIdleLimit = !isAuthenticated
                 ? null
@@ -251,6 +277,134 @@ function App() {
                     );
                 }
                 return { rows, inventory, messages: messageRows, penHospital };
+            };
+
+            const persistBrowserAlertPreference = (nextValue) => {
+                setBrowserAlertsEnabled(nextValue);
+                if (typeof window === 'undefined') return;
+                try {
+                    window.localStorage.setItem(BROWSER_ALERT_STORAGE_KEY, nextValue ? 'true' : 'false');
+                } catch (error) {
+                    console.error("Could not store browser alert preference:", error);
+                }
+            };
+
+            const buildMessageAlertSnapshot = (rows) => {
+                return new Map(
+                    (Array.isArray(rows) ? rows : [])
+                        .map(row => {
+                            const rowNumber = Number(row?.rowNumber || 0);
+                            return [
+                                rowNumber,
+                                {
+                                    rowNumber,
+                                    senderName: String(row?.senderName || '').trim(),
+                                    message: String(row?.message || '').trim(),
+                                    isoTimestamp: String(row?.isoTimestamp || '').trim(),
+                                }
+                            ];
+                        })
+                        .filter(([rowNumber]) => rowNumber > 0)
+                );
+            };
+
+            const buildInventoryAlertSnapshot = (rows) => {
+                return new Map(
+                    (Array.isArray(rows) ? rows : [])
+                        .map(row => {
+                            const rowNumber = Number(row?.rowNumber || 0);
+                            return [
+                                rowNumber,
+                                {
+                                    rowNumber,
+                                    sku: getInventorySkuText(row),
+                                    product: getInventoryNameText(row),
+                                    status: String(row?.status || '').trim(),
+                                    needed: Number(row?.needed || 0),
+                                    stillNeeded: Number(row?.stillNeeded || 0),
+                                    inProcess: Number(row?.inProcess || 0),
+                                    awaitingApproval: Number(row?.awaitingApproval || 0),
+                                    addedToStore: Number(row?.addedToStore || 0),
+                                    lastUpdated: String(row?.lastUpdated || '').trim(),
+                                }
+                            ];
+                        })
+                        .filter(([rowNumber]) => rowNumber > 0)
+                );
+            };
+
+            const buildPenHospitalAlertSnapshot = (rows) => {
+                return new Map(
+                    (Array.isArray(rows) ? rows : [])
+                        .map(row => {
+                            const rowNumber = Number(row?.rowNumber || 0);
+                            return [
+                                rowNumber,
+                                {
+                                    rowNumber,
+                                    customerName: String(row?.customerName || '').trim(),
+                                    penNames: String(row?.penNames || '').trim(),
+                                    expectedCount: Number(row?.expectedCount || 0),
+                                    status: normalizePenHospitalStatus(row?.status),
+                                    createdAtIso: String(row?.createdAtIso || '').trim(),
+                                    lastUpdatedIso: String(row?.lastUpdatedIso || '').trim(),
+                                    lastUpdated: String(row?.lastUpdated || '').trim(),
+                                }
+                            ];
+                        })
+                        .filter(([rowNumber]) => rowNumber > 0)
+                );
+            };
+
+            const getInventoryAlertLabel = (row) => {
+                const sku = String(row?.sku || '').trim();
+                const product = String(row?.product || '').trim();
+                if (product && sku && sku !== 'No SKU') return `${product} (${sku})`;
+                return product || sku || 'Inventory item';
+            };
+
+            const truncateAlertText = (value, maxLength = 120) => {
+                const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+                if (!normalized) return '';
+                return normalized.length <= maxLength ? normalized : `${normalized.slice(0, maxLength - 1)}…`;
+            };
+
+            const normalizeAlertPreview = (value, maxLength = 120) => {
+                const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+                if (!normalized) return '';
+                return normalized.length <= maxLength
+                    ? normalized
+                    : `${normalized.slice(0, Math.max(0, maxLength - 3))}...`;
+            };
+
+            const isActionableInventoryAlertRow = (row) => {
+                return Number(row?.stillNeeded || 0) > 0 ||
+                    Number(row?.inProcess || 0) > 0 ||
+                    Number(row?.awaitingApproval || 0) > 0;
+            };
+
+            const areInventoryAlertRowsEqual = (left, right) => {
+                if (!left || !right) return false;
+                return left.status === right.status &&
+                    left.needed === right.needed &&
+                    left.stillNeeded === right.stillNeeded &&
+                    left.inProcess === right.inProcess &&
+                    left.awaitingApproval === right.awaitingApproval &&
+                    left.addedToStore === right.addedToStore &&
+                    left.lastUpdated === right.lastUpdated &&
+                    left.sku === right.sku &&
+                    left.product === right.product;
+            };
+
+            const arePenHospitalAlertRowsEqual = (left, right) => {
+                if (!left || !right) return false;
+                return left.customerName === right.customerName &&
+                    left.penNames === right.penNames &&
+                    left.expectedCount === right.expectedCount &&
+                    left.status === right.status &&
+                    left.createdAtIso === right.createdAtIso &&
+                    left.lastUpdatedIso === right.lastUpdatedIso &&
+                    left.lastUpdated === right.lastUpdated;
             };
 
             const getBaseAdminScheduleDraft = (employeeName, dateValue, rows = sheetData) => {
@@ -452,6 +606,31 @@ function App() {
                 }
             }, [notification]);
 
+            useEffect(() => {
+                if (!notificationApiAvailable) {
+                    setBrowserNotificationPermission('unsupported');
+                    persistBrowserAlertPreference(false);
+                    return undefined;
+                }
+
+                const syncBrowserNotificationPermission = () => {
+                    const nextPermission = Notification.permission;
+                    setBrowserNotificationPermission(nextPermission);
+                    if (nextPermission !== 'granted' && browserAlertsEnabled) {
+                        persistBrowserAlertPreference(false);
+                    }
+                };
+
+                syncBrowserNotificationPermission();
+                window.addEventListener('focus', syncBrowserNotificationPermission);
+                document.addEventListener('visibilitychange', syncBrowserNotificationPermission);
+
+                return () => {
+                    window.removeEventListener('focus', syncBrowserNotificationPermission);
+                    document.removeEventListener('visibilitychange', syncBrowserNotificationPermission);
+                };
+            }, [notificationApiAvailable, browserAlertsEnabled]);
+
             const handleSelectionCancel = () => {
                 setSelectedId(null);
                 setPinInput("");
@@ -549,6 +728,7 @@ function App() {
             const selectedEmployee = selectedUser && !isAdminRole(selectedUser.role) ? selectedUser : null;
             const activeSessionUser = adminUser || selectedEmployee || null;
             const activeMessageViewer = adminUser || selectedEmployee || null;
+            const activeAlertUser = adminUser || selectedEmployee || null;
             const publicEmployees = sortEmployeesForDisplay(
                 employees.filter(emp => !isAdminRole(emp.role))
             );
@@ -617,6 +797,362 @@ function App() {
             ) || null;
             const canClockIn = Boolean(selectedEmployee) && !isSubmittingAction && selectedClockInPlan?.status === 'ready';
             const canClockOut = Boolean(selectedEmployee) && !isSubmittingAction && selectedClockOutPlan?.status === 'ready';
+            const browserAlertsActive = Boolean(
+                isAuthenticated &&
+                activeAlertUser &&
+                browserAlertsEnabled &&
+                browserNotificationPermission === 'granted'
+            );
+
+            const syncAlertSnapshotsFromState = () => {
+                alertSnapshotsRef.current = {
+                    messages: buildMessageAlertSnapshot(messages),
+                    inventory: buildInventoryAlertSnapshot(inventoryRows),
+                    penHospital: buildPenHospitalAlertSnapshot(penHospitalCases),
+                };
+            };
+
+            useEffect(() => {
+                latestAlertDataRef.current = {
+                    messages,
+                    inventoryRows,
+                    penHospitalCases,
+                };
+                if (isBackgroundAlertRefreshRef.current) return;
+                syncAlertSnapshotsFromState();
+            }, [messages, inventoryRows, penHospitalCases]);
+
+            const openAlertDestination = (channel) => {
+                if (!isAuthenticated) return;
+                lastActivityRef.current = Date.now();
+                setEmployeeTimeOffDraft(null);
+
+                if (adminUser) {
+                    if (channel === 'messages') setViewMode('ADMIN_MESSAGES');
+                    if (channel === 'inventory') setViewMode('ADMIN_INVENTORY');
+                    if (channel === 'pen_hospital') setViewMode('ADMIN_PEN_HOSPITAL');
+                    return;
+                }
+
+                if (channel === 'messages') setViewMode('MESSAGES');
+                if (channel === 'inventory') setViewMode('INVENTORY');
+                if (channel === 'pen_hospital') setViewMode('PEN_HOSPITAL');
+            };
+
+            const emitAttentionAlert = (alert) => {
+                if (!alert) return;
+
+                const pageVisible = typeof document !== 'undefined' &&
+                    document.visibilityState === 'visible' &&
+                    (typeof document.hasFocus === 'function' ? document.hasFocus() : true);
+
+                if (pageVisible) {
+                    setNotification({ type: 'info', message: alert.inAppMessage || alert.body || alert.title });
+                    return;
+                }
+
+                if (!notificationApiAvailable || browserNotificationPermission !== 'granted') return;
+
+                try {
+                    const browserAlert = new Notification(alert.title, {
+                        body: alert.body,
+                        icon: settings.logoUrl || undefined,
+                        tag: `timeclock-${alert.channel}`,
+                        renotify: true,
+                    });
+
+                    browserAlert.onclick = (event) => {
+                        if (event?.preventDefault) event.preventDefault();
+                        window.focus();
+                        openAlertDestination(alert.channel);
+                        browserAlert.close();
+                    };
+                } catch (error) {
+                    console.error("Browser alert failed:", error);
+                }
+            };
+
+            const buildMessageAlertPayload = (previousSnapshot, nextRows) => {
+                const nextSnapshot = buildMessageAlertSnapshot(nextRows);
+                const normalizedActiveName = String(activeAlertUser?.name || '').trim().toLowerCase();
+                const newMessages = Array.from(nextSnapshot.values())
+                    .filter(messageRow => !previousSnapshot.has(messageRow.rowNumber))
+                    .filter(messageRow => String(messageRow.senderName || '').trim().toLowerCase() !== normalizedActiveName)
+                    .sort((a, b) => a.rowNumber - b.rowNumber);
+
+                if (newMessages.length === 0) {
+                    return { snapshot: nextSnapshot, alert: null };
+                }
+
+                const latestMessage = newMessages[newMessages.length - 1];
+                const senderName = latestMessage.senderName || 'Team';
+                const messageCount = newMessages.length;
+                const messagePreview = normalizeAlertPreview(latestMessage.message || 'Open Messages to read the latest update.');
+
+                return {
+                    snapshot: nextSnapshot,
+                    alert: {
+                        channel: 'messages',
+                        title: messageCount === 1 ? `New message from ${senderName}` : `${messageCount} new messages`,
+                        body: messageCount === 1
+                            ? (messagePreview || 'Open Messages to read the latest update.')
+                            : `${senderName} posted the latest note. Open Messages to catch up.`,
+                        inAppMessage: messageCount === 1
+                            ? `New message from ${senderName}.`
+                            : `${messageCount} new messages were posted.`,
+                    },
+                };
+            };
+
+            const buildInventoryAlertPayload = (previousSnapshot, nextRows) => {
+                const nextSnapshot = buildInventoryAlertSnapshot(nextRows);
+                const changedRows = Array.from(nextSnapshot.values())
+                    .map(row => ({
+                        row,
+                        previousRow: previousSnapshot.get(row.rowNumber) || null,
+                    }))
+                    .filter(({ row, previousRow }) => {
+                        if (!previousRow) return isActionableInventoryAlertRow(row);
+                        if (areInventoryAlertRowsEqual(previousRow, row)) return false;
+                        return isActionableInventoryAlertRow(row) || isActionableInventoryAlertRow(previousRow);
+                    });
+
+                if (changedRows.length === 0) {
+                    return { snapshot: nextSnapshot, alert: null };
+                }
+
+                const awaitingApprovalChange = changedRows.find(({ row, previousRow }) =>
+                    Number(row.awaitingApproval || 0) > Number(previousRow?.awaitingApproval || 0)
+                );
+                const createdChange = changedRows.find(({ previousRow }) => !previousRow);
+                const statusChange = changedRows.find(({ row, previousRow }) =>
+                    previousRow && row.status !== previousRow.status
+                );
+                const topChange = awaitingApprovalChange || createdChange || statusChange || changedRows[0];
+                const topLabel = getInventoryAlertLabel(topChange.row);
+
+                let title = 'Inventory board updated';
+                let body = changedRows.length === 1
+                    ? `${topLabel} was updated.`
+                    : `${changedRows.length} inventory items changed.`;
+
+                if (awaitingApprovalChange) {
+                    title = 'Inventory approval needed';
+                    body = `${topLabel} has ${topChange.row.awaitingApproval} awaiting approval${changedRows.length > 1 ? `, plus ${changedRows.length - 1} other update${changedRows.length === 2 ? '' : 's'}` : ''}.`;
+                } else if (createdChange) {
+                    title = 'New inventory need';
+                    body = `${topLabel} now shows ${topChange.row.stillNeeded || topChange.row.needed} still needed${changedRows.length > 1 ? `, plus ${changedRows.length - 1} other update${changedRows.length === 2 ? '' : 's'}` : ''}.`;
+                } else if (statusChange) {
+                    title = 'Inventory updated';
+                    body = `${topLabel} is now ${topChange.row.status || 'updated'}${changedRows.length > 1 ? `, plus ${changedRows.length - 1} other update${changedRows.length === 2 ? '' : 's'}` : ''}.`;
+                }
+
+                return {
+                    snapshot: nextSnapshot,
+                    alert: {
+                        channel: 'inventory',
+                        title,
+                        body,
+                        inAppMessage: body,
+                    },
+                };
+            };
+
+            const buildPenHospitalAlertPayload = (previousSnapshot, nextRows) => {
+                const nextSnapshot = buildPenHospitalAlertSnapshot(nextRows);
+                const changedRows = Array.from(nextSnapshot.values())
+                    .map(row => ({
+                        row,
+                        previousRow: previousSnapshot.get(row.rowNumber) || null,
+                    }))
+                    .filter(({ row, previousRow }) => {
+                        if (!previousRow) return true;
+                        return !arePenHospitalAlertRowsEqual(previousRow, row);
+                    });
+
+                if (changedRows.length === 0) {
+                    return { snapshot: nextSnapshot, alert: null };
+                }
+
+                const createdChange = changedRows.find(({ previousRow }) => !previousRow);
+                const statusChange = changedRows.find(({ row, previousRow }) =>
+                    previousRow && row.status !== previousRow.status
+                );
+                const topChange = createdChange || statusChange || changedRows[0];
+                const customerName = topChange.row.customerName || 'A customer';
+
+                let title = 'Pen Hospital updated';
+                let body = changedRows.length === 1
+                    ? `${customerName} was updated in Pen Hospital.`
+                    : `${changedRows.length} Pen Hospital cases changed.`;
+
+                if (createdChange) {
+                    title = 'New Pen Hospital case';
+                    body = `${customerName} was added${topChange.row.expectedCount ? ` with ${topChange.row.expectedCount} expected` : ''}${changedRows.length > 1 ? `, plus ${changedRows.length - 1} other update${changedRows.length === 2 ? '' : 's'}` : ''}.`;
+                } else if (statusChange) {
+                    title = 'Pen Hospital status changed';
+                    body = `${customerName} is now ${topChange.row.status}${changedRows.length > 1 ? `, plus ${changedRows.length - 1} other update${changedRows.length === 2 ? '' : 's'}` : ''}.`;
+                }
+
+                return {
+                    snapshot: nextSnapshot,
+                    alert: {
+                        channel: 'pen_hospital',
+                        title,
+                        body,
+                        inAppMessage: body,
+                    },
+                };
+            };
+
+            const pollBrowserAlertSources = async () => {
+                if (!browserAlertsActive || isBackgroundAlertRefreshRef.current) return;
+
+                isBackgroundAlertRefreshRef.current = true;
+                const previousSnapshots = alertSnapshotsRef.current;
+
+                try {
+                    const [nextMessages, nextInventory, nextPenHospital] = await Promise.all([
+                        refreshMessages({ showSpinner: false }),
+                        refreshInventory({ showSpinner: false }),
+                        refreshPenHospital({ showSpinner: false }),
+                    ]);
+
+                    const messageResult = buildMessageAlertPayload(previousSnapshots.messages, nextMessages || latestAlertDataRef.current.messages);
+                    const inventoryResult = buildInventoryAlertPayload(previousSnapshots.inventory, nextInventory || latestAlertDataRef.current.inventoryRows);
+                    const penHospitalResult = buildPenHospitalAlertPayload(previousSnapshots.penHospital, nextPenHospital || latestAlertDataRef.current.penHospitalCases);
+
+                    alertSnapshotsRef.current = {
+                        messages: messageResult.snapshot,
+                        inventory: inventoryResult.snapshot,
+                        penHospital: penHospitalResult.snapshot,
+                    };
+
+                    [messageResult.alert, inventoryResult.alert, penHospitalResult.alert]
+                        .filter(Boolean)
+                        .forEach(emitAttentionAlert);
+                } finally {
+                    isBackgroundAlertRefreshRef.current = false;
+                }
+            };
+
+            useEffect(() => {
+                if (!browserAlertsActive) return undefined;
+
+                syncAlertSnapshotsFromState();
+                const timer = setInterval(() => {
+                    pollBrowserAlertSources();
+                }, BROWSER_ALERT_REFRESH_MS);
+
+                return () => clearInterval(timer);
+            }, [browserAlertsActive, activeAlertUser?.name, activeAlertUser?.role]);
+
+            const enableBrowserAlerts = async () => {
+                if (!notificationApiAvailable) {
+                    setNotification({ type: 'error', message: "This browser does not support notifications for this app." });
+                    return;
+                }
+
+                let nextPermission = Notification.permission;
+                setBrowserNotificationPermission(nextPermission);
+
+                if (nextPermission === 'denied') {
+                    persistBrowserAlertPreference(false);
+                    setNotification({ type: 'error', message: "Browser alerts are blocked. Allow notifications in your browser settings, then try again." });
+                    return;
+                }
+
+                if (nextPermission !== 'granted') {
+                    nextPermission = await Notification.requestPermission();
+                    setBrowserNotificationPermission(nextPermission);
+                }
+
+                if (nextPermission !== 'granted') {
+                    persistBrowserAlertPreference(false);
+                    setNotification({ type: 'info', message: "Browser alerts stayed off." });
+                    return;
+                }
+
+                persistBrowserAlertPreference(true);
+                syncAlertSnapshotsFromState();
+                setNotification({
+                    type: 'success',
+                    message: "Browser alerts are on for messages, inventory, and Pen Hospital updates while this page stays open."
+                });
+            };
+
+            const disableBrowserAlerts = () => {
+                persistBrowserAlertPreference(false);
+                setNotification({ type: 'info', message: "Browser alerts are off." });
+            };
+
+            const toggleBrowserAlerts = async () => {
+                if (browserAlertsEnabled && browserNotificationPermission === 'granted') {
+                    disableBrowserAlerts();
+                    return;
+                }
+                await enableBrowserAlerts();
+            };
+
+            const renderBrowserAlertControl = () => {
+                if (!isAuthenticated) return null;
+
+                const statusLabel = !notificationApiAvailable
+                    ? 'Unavailable'
+                    : (browserAlertsEnabled && browserNotificationPermission === 'granted')
+                        ? 'On'
+                        : browserNotificationPermission === 'denied'
+                            ? 'Blocked'
+                            : 'Off';
+                const statusClass = !notificationApiAvailable
+                    ? 'bg-[#e5e7eb]'
+                    : (browserAlertsEnabled && browserNotificationPermission === 'granted')
+                        ? 'bg-[#bbf7d0]'
+                        : browserNotificationPermission === 'denied'
+                            ? 'bg-[#fecdd3]'
+                            : 'bg-[#bae6fd]';
+                const buttonClass = (browserAlertsEnabled && browserNotificationPermission === 'granted')
+                    ? 'bg-[#bbf7d0] hover:bg-[#86efac]'
+                    : browserNotificationPermission === 'denied'
+                        ? 'bg-[#fecdd3] hover:bg-[#fda4af]'
+                        : 'bg-[#bae6fd] hover:bg-[#7dd3fc]';
+                const buttonIcon = (browserAlertsEnabled && browserNotificationPermission === 'granted')
+                    ? 'fa-bell-slash'
+                    : 'fa-bell';
+                const buttonLabel = (browserAlertsEnabled && browserNotificationPermission === 'granted')
+                    ? 'Turn Off'
+                    : 'Enable';
+                const helperText = !notificationApiAvailable
+                    ? 'This browser cannot send notifications for this app.'
+                    : browserNotificationPermission === 'denied'
+                        ? 'Notifications are blocked in this browser. Allow them in site settings, then enable alerts again.'
+                        : (browserAlertsEnabled && browserNotificationPermission === 'granted')
+                            ? `Messages, inventory, and Pen Hospital are checked every ${Math.round(BROWSER_ALERT_REFRESH_MS / 1000)} seconds while this page stays open.`
+                            : 'Get browser alerts for messages, inventory, and Pen Hospital updates. Time clock punches stay excluded.';
+
+                return (
+                    <div className="mt-4 rounded-xl border-2 border-black bg-[#f8fafc] px-4 py-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div className="min-w-0">
+                                <div className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#060606]">Browser Alerts</div>
+                                <p className="text-xs md:text-sm font-bold text-gray-600 mt-2">{helperText}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                                <div className={`status-chip ${statusClass}`}>{statusLabel}</div>
+                                <button
+                                    type="button"
+                                    onClick={toggleBrowserAlerts}
+                                    disabled={!notificationApiAvailable}
+                                    className={`brutal-btn action-button action-button-fluid ${buttonClass}`}
+                                >
+                                    <i className={`fas ${buttonIcon}`}></i>
+                                    <span>{buttonLabel}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
 
             const submitInventoryAction = async (payload, successMessage, fallbackSuccessMessage = null) => {
                 if (isSubmittingInventory) return false;
@@ -1760,6 +2296,7 @@ function App() {
                                             <span>Sign Out</span>
                                         </button>
                                     </div>
+                                    {renderBrowserAlertControl()}
                                 </div>
                             )}
 
@@ -1821,6 +2358,7 @@ function App() {
                                             <span>Sign Out</span>
                                         </button>
                                     </div>
+                                    {renderBrowserAlertControl()}
                                 </div>
                             )}
                         </div>
