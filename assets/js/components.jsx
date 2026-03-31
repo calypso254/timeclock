@@ -2449,8 +2449,6 @@
                 };
             });
             const totalScheduledWeekMinutes = employeeWeekSummaries.reduce((sum, employeeSummary) => sum + employeeSummary.totalMinutes, 0);
-            const scheduledEmployeeCount = employeeWeekSummaries.filter(employeeSummary => employeeSummary.totalMinutes > 0).length;
-            const totalScheduledShiftCount = employeeWeekSummaries.reduce((sum, employeeSummary) => sum + employeeSummary.shiftCount, 0);
 
             const renderWeekBoardDay = (dayObj) => {
                 const dayKey = normalizeDate(dayObj);
@@ -2648,16 +2646,10 @@
                         </div>
 
                         <div className="border-t-2 border-black bg-[#f8fafc] px-3 py-3 md:px-4 md:py-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 gap-3">
                                 <div className="section-card bg-white px-4 py-3">
                                     <div className="card-eyebrow text-[#38bdf8]">Week Total</div>
                                     <div className="card-title mt-2">{formatPayrollHours(totalScheduledWeekMinutes)} hrs</div>
-                                    <div className="card-meta mt-1">{formatWorkedDurationForDisplay(totalScheduledWeekMinutes)}</div>
-                                </div>
-                                <div className="section-card bg-white px-4 py-3">
-                                    <div className="card-eyebrow text-[#38bdf8]">Planned Coverage</div>
-                                    <div className="card-title mt-2">{scheduledEmployeeCount} scheduled</div>
-                                    <div className="card-meta mt-1">{totalScheduledShiftCount} shift{totalScheduledShiftCount === 1 ? '' : 's'} on the board</div>
                                 </div>
                             </div>
 
@@ -2665,7 +2657,6 @@
                                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                                     <div>
                                         <div className="card-eyebrow text-[#38bdf8]">Hours by Person</div>
-                                        <p className="section-subtitle mt-1">Totals update live from the board, including staged draft changes before Save All.</p>
                                     </div>
                                     <div className="card-meta">{employeeWeekSummaries.length} team member{employeeWeekSummaries.length === 1 ? '' : 's'}</div>
                                 </div>
@@ -2684,7 +2675,6 @@
                                                 <div className="card-eyebrow text-gray-500">{employeeSummary.shiftCount} shift{employeeSummary.shiftCount === 1 ? '' : 's'}</div>
                                             </div>
                                             <div className="card-title mt-3">{formatPayrollHours(employeeSummary.totalMinutes)} hrs</div>
-                                            <div className="card-meta mt-1">{formatWorkedDurationForDisplay(employeeSummary.totalMinutes)}</div>
                                         </div>
                                     ))}
                                 </div>

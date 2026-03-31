@@ -91,14 +91,15 @@ var PEN_HOSPITAL_COL = {
   CUSTOMER_NAME: 2,
   EXPECTED_COUNT: 3,
   PEN_NAMES: 4,
-  STATUS: 5,
-  LAST_UPDATED: 6,
-  CREATED_BY: 7,
-  LAST_UPDATED_BY: 8,
-  DIAGNOSED_AT: 9,
-  DIAGNOSED_BY: 10,
-  DISCHARGED_AT: 11,
-  DISCHARGED_BY: 12
+  DIAGNOSIS: 5,
+  STATUS: 6,
+  LAST_UPDATED: 7,
+  CREATED_BY: 8,
+  LAST_UPDATED_BY: 9,
+  DIAGNOSED_AT: 10,
+  DIAGNOSED_BY: 11,
+  DISCHARGED_AT: 12,
+  DISCHARGED_BY: 13
 };
 
 var MESSAGE_FETCH_LIMIT = 120;
@@ -527,6 +528,7 @@ function handleCreatePenHospitalCase_(data) {
   var editorName = String(data.editorName || "").trim();
   var customerName = sanitizePenHospitalCustomerName_(data.customerName);
   var expectedCount = parseIntegerQuantity_(data.expectedCount, "expectedCount", false);
+  var diagnosis = sanitizePenHospitalDiagnosis_(hasValue_(data.diagnosis) ? data.diagnosis : data.diagnosisNotes);
   var penNames = sanitizePenHospitalPenNames_(data.penNames);
   if (!editorName) {
     throw new Error("Missing required field: editorName");
@@ -548,6 +550,7 @@ function handleCreatePenHospitalCase_(data) {
     createdAt: submittedAt,
     customerName: customerName,
     expectedCount: expectedCount,
+    diagnosis: diagnosis,
     penNames: penNames,
     status: PEN_HOSPITAL_STATUS.DIAGNOSED,
     lastUpdated: submittedAt,
@@ -941,6 +944,7 @@ function ensurePenHospitalSheetStructure_(sheet) {
     "Customer Name",
     "Expected Count",
     "Pen Names",
+    "Diagnosis",
     "Status",
     "Last Updated",
     "Created By",
@@ -951,6 +955,7 @@ function ensurePenHospitalSheetStructure_(sheet) {
     "Discharged By"
   ]];
 
+  migrateLegacyPenHospitalDiagnosisColumn_(sheet);
   if (sheet.getMaxColumns() < headers[0].length) {
     sheet.insertColumnsAfter(sheet.getMaxColumns(), headers[0].length - sheet.getMaxColumns());
   }
@@ -958,6 +963,25 @@ function ensurePenHospitalSheetStructure_(sheet) {
   sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
   sheet.setFrozenRows(1);
   ensurePenHospitalStatusValidation_(sheet);
+}
+
+function migrateLegacyPenHospitalDiagnosisColumn_(sheet) {
+  var headerWidth = Math.max(sheet.getLastColumn(), Math.min(sheet.getMaxColumns(), PEN_HOSPITAL_COL.DISCHARGED_BY));
+  if (headerWidth < PEN_HOSPITAL_COL.DIAGNOSIS) {
+    return;
+  }
+
+  var currentHeaders = sheet.getRange(1, 1, 1, headerWidth).getDisplayValues()[0];
+  var penNamesHeader = String(currentHeaders[PEN_HOSPITAL_COL.PEN_NAMES - 1] || "").trim();
+  var diagnosisHeader = String(currentHeaders[PEN_HOSPITAL_COL.DIAGNOSIS - 1] || "").trim();
+  var statusHeader = String(currentHeaders[PEN_HOSPITAL_COL.STATUS - 1] || "").trim();
+
+  // Legacy sheets stored Status immediately after Pen Names and had no Diagnosis column.
+  if (penNamesHeader === "Pen Names" &&
+      diagnosisHeader === "Status" &&
+      statusHeader === "Last Updated") {
+    sheet.insertColumnAfter(PEN_HOSPITAL_COL.PEN_NAMES);
+  }
 }
 
 function ensurePenHospitalStatusValidation_(sheet) {
@@ -1183,6 +1207,7 @@ function buildInventoryRecord_(row, rowNumber) {
 
 function buildPenHospitalRecord_(rawRow, displayRow, rowNumber) {
   var status = sanitizePenHospitalStatus_(displayRow[PEN_HOSPITAL_COL.STATUS - 1]) || PEN_HOSPITAL_STATUS.DIAGNOSED;
+  var diagnosis = sanitizePenHospitalDiagnosis_(displayRow[PEN_HOSPITAL_COL.DIAGNOSIS - 1]);
   return {
     rowNumber: rowNumber,
     createdAt: displayRow[PEN_HOSPITAL_COL.CREATED_AT - 1] || "",
@@ -1190,6 +1215,8 @@ function buildPenHospitalRecord_(rawRow, displayRow, rowNumber) {
     customerName: sanitizePenHospitalCustomerName_(displayRow[PEN_HOSPITAL_COL.CUSTOMER_NAME - 1]),
     expectedCount: parseSheetNumber_(displayRow[PEN_HOSPITAL_COL.EXPECTED_COUNT - 1]),
     penNames: sanitizePenHospitalPenNames_(displayRow[PEN_HOSPITAL_COL.PEN_NAMES - 1]),
+    diagnosis: diagnosis,
+    diagnosisNotes: diagnosis,
     status: status,
     lastUpdated: displayRow[PEN_HOSPITAL_COL.LAST_UPDATED - 1] || "",
     lastUpdatedIso: dateValueToIsoString_(rawRow[PEN_HOSPITAL_COL.LAST_UPDATED - 1]),
@@ -1271,6 +1298,7 @@ function writePenHospitalRecord_(sheet, rowNumber, record) {
     sanitizePenHospitalCustomerName_(record.customerName),
     parseSheetNumber_(record.expectedCount),
     sanitizePenHospitalPenNames_(record.penNames),
+    sanitizePenHospitalDiagnosis_(hasValue_(record.diagnosis) ? record.diagnosis : record.diagnosisNotes),
     status,
     lastUpdated || new Date(),
     String(record.createdBy || "").trim(),
@@ -2529,6 +2557,14 @@ function sanitizePenHospitalStatus_(value) {
 
 function sanitizePenHospitalCustomerName_(value) {
   return String(value || "").trim().slice(0, 200);
+}
+
+function sanitizePenHospitalDiagnosis_(value) {
+  return String(value || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim()
+    .slice(0, 300);
 }
 
 function sanitizePenHospitalPenNames_(value) {
