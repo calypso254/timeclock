@@ -1998,7 +1998,7 @@
                         const rows = periodRows.filter(row => String(row?.name || '').trim() === name);
                         const workedRows = rows.filter(row => getPayrollRowMinutes(row) > 0);
                         const employeeRecord = employeeMapByName.get(name.toLowerCase()) || null;
-                        const hourlyWage = parseCurrencyNumber(employeeRecord?.hourlyWageValue ?? employeeRecord?.hourlyWage);
+                        const hourlyWage = getEmployeeHourlyWage(employeeRecord);
                         const totalMinutes = workedRows.reduce((sum, row) => sum + getPayrollRowMinutes(row), 0);
                         return {
                             name,
@@ -2105,22 +2105,36 @@
             adminUser,
             employees,
             isSubmitting,
+            isCreating,
             onSave,
+            onCreate,
         }) => {
             if (!adminUser) return null;
 
             const safeEmployees = Array.isArray(employees) ? employees : [];
             const activeEmployees = sortEmployeesForDisplay(safeEmployees.filter(employee => isEmployeeActive(employee)));
             const inactiveEmployees = sortEmployeesForDisplay(safeEmployees.filter(employee => !isEmployeeActive(employee)));
-            const editableEmployees = [...activeEmployees, ...inactiveEmployees];
+            const [visibilityFilter, setVisibilityFilter] = useState('active');
+            const [isCreatingNew, setIsCreatingNew] = useState(false);
+            const editableEmployees = visibilityFilter === 'all'
+                ? [...activeEmployees, ...inactiveEmployees]
+                : activeEmployees;
             const [selectedEmployeeRowNumber, setSelectedEmployeeRowNumber] = useState(
                 editableEmployees[0]?.rowNumber ? String(editableEmployees[0].rowNumber) : ''
             );
-            const selectedEmployee = editableEmployees.find(employee => String(employee?.rowNumber || '') === String(selectedEmployeeRowNumber || '')) || editableEmployees[0] || null;
-            const baselineDraft = buildEmployeeAdminDraft(selectedEmployee);
+            const selectedEmployee = isCreatingNew
+                ? null
+                : (editableEmployees.find(employee => String(employee?.rowNumber || '') === String(selectedEmployeeRowNumber || '')) || editableEmployees[0] || null);
+            const baselineDraft = isCreatingNew
+                ? buildEmptyEmployeeAdminDraft()
+                : buildEmployeeAdminDraft(selectedEmployee);
             const [draft, setDraft] = useState(baselineDraft);
 
             useEffect(() => {
+                if (isCreatingNew) {
+                    return;
+                }
+
                 if (!editableEmployees.length) {
                     setSelectedEmployeeRowNumber('');
                     return;
@@ -2130,11 +2144,12 @@
                 if (!hasSelection) {
                     setSelectedEmployeeRowNumber(String(editableEmployees[0].rowNumber));
                 }
-            }, [employees]);
+            }, [employees, visibilityFilter, isCreatingNew]);
 
             useEffect(() => {
-                setDraft(buildEmployeeAdminDraft(selectedEmployee));
+                setDraft(isCreatingNew ? buildEmptyEmployeeAdminDraft() : buildEmployeeAdminDraft(selectedEmployee));
             }, [
+                isCreatingNew,
                 selectedEmployee?.rowNumber,
                 selectedEmployee?.name,
                 selectedEmployee?.jobTitle,
@@ -2147,7 +2162,15 @@
                 selectedEmployee?.phoneNumber,
             ]);
 
-            const isDirty = Boolean(selectedEmployee) && (
+            const isDirty = isCreatingNew ? (
+                draft.name !== ''
+                || draft.jobTitle !== ''
+                || draft.pin !== ''
+                || draft.role !== 'employee'
+                || Boolean(draft.active) !== true
+                || draft.hourlyWage !== ''
+                || draft.phoneNumber !== ''
+            ) : Boolean(selectedEmployee) && (
                 draft.name !== baselineDraft.name
                 || draft.jobTitle !== baselineDraft.jobTitle
                 || draft.pin !== baselineDraft.pin
@@ -2167,7 +2190,20 @@
             };
 
             const handleSave = async () => {
-                if (!selectedEmployee || !onSave || isSubmitting) return;
+                if (isSubmitting || isCreating) return;
+
+                if (isCreatingNew) {
+                    if (!onCreate) return;
+                    const createdEmployee = await onCreate(draft);
+                    if (createdEmployee?.rowNumber) {
+                        setIsCreatingNew(false);
+                        setVisibilityFilter('all');
+                        setSelectedEmployeeRowNumber(String(createdEmployee.rowNumber));
+                    }
+                    return;
+                }
+
+                if (!selectedEmployee || !onSave) return;
                 await onSave(selectedEmployee, draft);
             };
 
@@ -2181,17 +2217,31 @@
                                 {activeEmployees.length} active, {inactiveEmployees.length} inactive
                             </div>
                         </div>
-                        <button
-                            onClick={handleSave}
-                            disabled={!selectedEmployee || !isDirty || isSubmitting}
-                            className="brutal-btn action-button action-button-fluid bg-[#4ade80] hover:bg-[#22c55e] text-[#060606] self-start"
-                        >
-                            <i className={`fas ${isSubmitting ? 'fa-circle-notch spinner' : 'fa-save'}`}></i>
-                            <span>{isSubmitting ? 'Saving...' : 'Save Employee'}</span>
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsCreatingNew(true);
+                                    setDraft(buildEmptyEmployeeAdminDraft());
+                                }}
+                                disabled={isSubmitting || isCreating}
+                                className="brutal-btn action-button action-button-fluid bg-white hover:bg-gray-50 text-[#060606] self-start"
+                            >
+                                <i className="fas fa-user-plus text-[#7c3aed]"></i>
+                                <span>Add Employee</span>
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                disabled={(!selectedEmployee && !isCreatingNew) || !isDirty || isSubmitting || isCreating}
+                                className="brutal-btn action-button action-button-fluid bg-[#4ade80] hover:bg-[#22c55e] text-[#060606] self-start"
+                            >
+                                <i className={`fas ${(isSubmitting || isCreating) ? 'fa-circle-notch spinner' : 'fa-save'}`}></i>
+                                <span>{(isSubmitting || isCreating) ? (isCreatingNew ? 'Creating...' : 'Saving...') : (isCreatingNew ? 'Create Employee' : 'Save Employee')}</span>
+                            </button>
+                        </div>
                     </div>
 
-                    {editableEmployees.length === 0 ? (
+                    {editableEmployees.length === 0 && !isCreatingNew ? (
                         <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
                             No employees were found in the Employees sheet.
                         </div>
@@ -2200,16 +2250,44 @@
                             <div className="section-card panel-content-card bg-white p-4 flex flex-col gap-4">
                                 <div>
                                     <div className="card-eyebrow text-[#38bdf8]">Choose Employee</div>
-                                    <div className="card-meta mt-2">Active team members stay at the top so quick edits are easier.</div>
+                                    <div className="card-meta mt-2">Switch between active-only and all employees, or start a new employee record.</div>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setVisibilityFilter('active')}
+                                        className={`brutal-btn action-button action-button-fluid ${visibilityFilter === 'active' ? 'bg-[#dbeafe] hover:bg-[#bfdbfe]' : 'bg-white hover:bg-gray-50'} text-[#060606]`}
+                                    >
+                                        <span>Active Only</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setVisibilityFilter('all')}
+                                        className={`brutal-btn action-button action-button-fluid ${visibilityFilter === 'all' ? 'bg-[#f3e8ff] hover:bg-[#e9d5ff]' : 'bg-white hover:bg-gray-50'} text-[#060606]`}
+                                    >
+                                        <span>Show All</span>
+                                    </button>
                                 </div>
 
                                 <div className="admin-studio-control-shell admin-studio-select-shell">
                                     <i className="fas fa-user-gear text-[#38bdf8]"></i>
                                     <select
-                                        value={selectedEmployee ? String(selectedEmployee.rowNumber) : ''}
-                                        onChange={e => setSelectedEmployeeRowNumber(e.target.value)}
+                                        value={isCreatingNew ? '__new__' : (selectedEmployee ? String(selectedEmployee.rowNumber) : '')}
+                                        onChange={e => {
+                                            const nextValue = e.target.value;
+                                            if (nextValue === '__new__') {
+                                                setIsCreatingNew(true);
+                                                setDraft(buildEmptyEmployeeAdminDraft());
+                                                return;
+                                            }
+
+                                            setIsCreatingNew(false);
+                                            setSelectedEmployeeRowNumber(nextValue);
+                                        }}
                                         className="admin-studio-select"
                                     >
+                                        <option value="__new__">Add New Employee</option>
                                         {editableEmployees.map(employee => (
                                             <option key={`employee-admin-${employee.rowNumber}`} value={String(employee.rowNumber)}>
                                                 {employee.name} {isEmployeeActive(employee) ? '' : '(Inactive)'}
@@ -2219,10 +2297,12 @@
                                     <i className="fas fa-chevron-down text-xs text-gray-500"></i>
                                 </div>
 
-                                {selectedEmployee && (
+                                {(selectedEmployee || isCreatingNew) && (
                                     <div className={`section-card px-4 py-3 ${draft.active ? 'bg-[#eff6ff]' : 'bg-[#fef2f2]'}`}>
-                                        <div className="card-eyebrow text-gray-500">{draft.active ? 'Active Account' : 'Inactive Account'}</div>
-                                        <div className="card-title mt-2 break-words">{draft.name || selectedEmployee.name}</div>
+                                        <div className="card-eyebrow text-gray-500">
+                                            {isCreatingNew ? 'New Employee' : (draft.active ? 'Active Account' : 'Inactive Account')}
+                                        </div>
+                                        <div className="card-title mt-2 break-words">{draft.name || selectedEmployee?.name || 'New employee'}</div>
                                         <div className="card-meta mt-2">{draft.jobTitle || 'No job title set'}</div>
                                         <div className="card-meta mt-2">{formatRoleLabel(draft.role, 'Employee')}</div>
                                         <div className="card-meta mt-2">{hourlyWagePreview || 'No hourly wage set'}</div>

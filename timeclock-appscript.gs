@@ -233,6 +233,10 @@ function doPost(e) {
       return handleAdminUpdateEmployee_(data);
     }
 
+    if (data.action === "ADMIN_CREATE_EMPLOYEE") {
+      return handleAdminCreateEmployee_(data);
+    }
+
     if (data.action === "INVENTORY_ADD_NEED") {
       return handleInventoryAddNeed_(data);
     }
@@ -488,6 +492,69 @@ function handleAdminUpdateEmployee_(data) {
     action: "ADMIN_UPDATE_EMPLOYEE",
     employee: savedEmployee,
     renamedTimesheetRows: renamedTimesheetRows
+  });
+}
+
+function handleAdminCreateEmployee_(data) {
+  validateRequiredFields_(data, ["editorName", "editorRole", "name", "role"]);
+
+  if (!isAdminRole_(data.editorRole)) {
+    throw new Error("Unauthorized. Only admin-capable accounts can create employees.");
+  }
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(EMPLOYEES_SHEET_NAME);
+  if (!sheet) {
+    throw new Error("No Employees Sheet");
+  }
+
+  var lastColumn = Math.max(sheet.getLastColumn(), EMPLOYEE_LEGACY_COL.PHONE_NUMBER);
+  var headerRow = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+  var columns = buildEmployeeColumnMap_(headerRow, lastColumn);
+  var missingColumns = getMissingEmployeeEditColumns_(columns);
+  if (missingColumns.length > 0) {
+    throw new Error("Missing Employees sheet column(s): " + missingColumns.join(", "));
+  }
+
+  var nextName = String(data.name || "").trim();
+  var nextJobTitle = String(data.jobTitle || "").trim();
+  var nextPin = String(data.pin || "").trim();
+  var nextRole = String(data.role || "employee").trim().toLowerCase();
+  var nextPhoneNumber = String(data.phoneNumber || "").trim();
+  var nextActive = parseEmployeeActiveValue_(data.active, data.active);
+  var parsedHourlyWage = parseEmployeeHourlyWageInput_(data.hourlyWage);
+
+  if (!nextName) {
+    throw new Error("Employee name is required.");
+  }
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    var existingNames = sheet.getRange(2, columns.name, lastRow - 1, 1).getDisplayValues();
+    for (var i = 0; i < existingNames.length; i++) {
+      if (String(existingNames[i][0] || "").trim().toLowerCase() === nextName.toLowerCase()) {
+        throw new Error("An employee with that name already exists.");
+      }
+    }
+  }
+
+  var nextRow = Math.max(lastRow + 1, 2);
+  sheet.getRange(nextRow, 1, 1, lastColumn).clearContent();
+  writeEmployeeColumnValue_(sheet, nextRow, columns.name, nextName);
+  writeEmployeeColumnValue_(sheet, nextRow, columns.jobTitle, nextJobTitle);
+  writeEmployeeColumnValue_(sheet, nextRow, columns.pin, nextPin);
+  writeEmployeeColumnValue_(sheet, nextRow, columns.role, nextRole);
+  writeEmployeeColumnValue_(sheet, nextRow, columns.active, nextActive ? true : false);
+  writeEmployeeColumnValue_(sheet, nextRow, columns.hourlyWage, parsedHourlyWage);
+  writeEmployeeColumnValue_(sheet, nextRow, columns.phoneNumber, nextPhoneNumber);
+
+  var savedRawRow = sheet.getRange(nextRow, 1, 1, lastColumn).getValues()[0];
+  var savedDisplayRow = sheet.getRange(nextRow, 1, 1, lastColumn).getDisplayValues()[0];
+  var savedEmployee = buildEmployeeRecord_(savedRawRow, savedDisplayRow, nextRow, columns);
+
+  return jsonResponse_({
+    status: "success",
+    action: "ADMIN_CREATE_EMPLOYEE",
+    employee: savedEmployee
   });
 }
 

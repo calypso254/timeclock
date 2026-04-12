@@ -187,6 +187,22 @@
       currency: "USD"
     });
   };
+  const getEmployeeHourlyWage = (employee) => {
+    if (!employee || typeof employee !== "object") return null;
+    const candidates = [
+      employee.hourlyWageValue,
+      employee.hourlyWage,
+      employee.wage,
+      employee.payRate,
+      employee.hourlyRate,
+      employee.rate
+    ];
+    for (const candidate of candidates) {
+      const parsed = parseCurrencyNumber(candidate);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+  };
   const buildEmployeeAdminDraft = (employee) => ({
     rowNumber: employee?.rowNumber || "",
     name: String(employee?.name || ""),
@@ -195,11 +211,21 @@
     role: String(employee?.role || "employee"),
     active: isEmployeeActive(employee),
     hourlyWage: (() => {
-      const numericHourlyWage = parseCurrencyNumber(employee?.hourlyWageValue ?? employee?.hourlyWage);
+      const numericHourlyWage = getEmployeeHourlyWage(employee);
       if (Number.isFinite(numericHourlyWage)) return String(numericHourlyWage);
       return String(employee?.hourlyWage || "").trim();
     })(),
     phoneNumber: String(employee?.phoneNumber || "")
+  });
+  const buildEmptyEmployeeAdminDraft = () => ({
+    rowNumber: "",
+    name: "",
+    jobTitle: "",
+    pin: "",
+    role: "employee",
+    active: true,
+    hourlyWage: "",
+    phoneNumber: ""
   });
   const getEmployeeDisplayOrderValue = (employee) => {
     const candidates = [
@@ -2205,7 +2231,7 @@
         const rows = periodRows.filter((row) => String(row?.name || "").trim() === name);
         const workedRows = rows.filter((row) => getPayrollRowMinutes(row) > 0);
         const employeeRecord = employeeMapByName.get(name.toLowerCase()) || null;
-        const hourlyWage = parseCurrencyNumber(employeeRecord?.hourlyWageValue ?? employeeRecord?.hourlyWage);
+        const hourlyWage = getEmployeeHourlyWage(employeeRecord);
         const totalMinutes = workedRows.reduce((sum, row) => sum + getPayrollRowMinutes(row), 0);
         return {
           name,
@@ -2247,20 +2273,27 @@
     adminUser,
     employees,
     isSubmitting,
-    onSave
+    isCreating,
+    onSave,
+    onCreate
   }) => {
     if (!adminUser) return null;
     const safeEmployees = Array.isArray(employees) ? employees : [];
     const activeEmployees = sortEmployeesForDisplay(safeEmployees.filter((employee) => isEmployeeActive(employee)));
     const inactiveEmployees = sortEmployeesForDisplay(safeEmployees.filter((employee) => !isEmployeeActive(employee)));
-    const editableEmployees = [...activeEmployees, ...inactiveEmployees];
+    const [visibilityFilter, setVisibilityFilter] = useState("active");
+    const [isCreatingNew, setIsCreatingNew] = useState(false);
+    const editableEmployees = visibilityFilter === "all" ? [...activeEmployees, ...inactiveEmployees] : activeEmployees;
     const [selectedEmployeeRowNumber, setSelectedEmployeeRowNumber] = useState(
       editableEmployees[0]?.rowNumber ? String(editableEmployees[0].rowNumber) : ""
     );
-    const selectedEmployee = editableEmployees.find((employee) => String(employee?.rowNumber || "") === String(selectedEmployeeRowNumber || "")) || editableEmployees[0] || null;
-    const baselineDraft = buildEmployeeAdminDraft(selectedEmployee);
+    const selectedEmployee = isCreatingNew ? null : editableEmployees.find((employee) => String(employee?.rowNumber || "") === String(selectedEmployeeRowNumber || "")) || editableEmployees[0] || null;
+    const baselineDraft = isCreatingNew ? buildEmptyEmployeeAdminDraft() : buildEmployeeAdminDraft(selectedEmployee);
     const [draft, setDraft] = useState(baselineDraft);
     useEffect(() => {
+      if (isCreatingNew) {
+        return;
+      }
       if (!editableEmployees.length) {
         setSelectedEmployeeRowNumber("");
         return;
@@ -2269,10 +2302,11 @@
       if (!hasSelection) {
         setSelectedEmployeeRowNumber(String(editableEmployees[0].rowNumber));
       }
-    }, [employees]);
+    }, [employees, visibilityFilter, isCreatingNew]);
     useEffect(() => {
-      setDraft(buildEmployeeAdminDraft(selectedEmployee));
+      setDraft(isCreatingNew ? buildEmptyEmployeeAdminDraft() : buildEmployeeAdminDraft(selectedEmployee));
     }, [
+      isCreatingNew,
       selectedEmployee?.rowNumber,
       selectedEmployee?.name,
       selectedEmployee?.jobTitle,
@@ -2284,7 +2318,7 @@
       selectedEmployee?.hourlyWageValue,
       selectedEmployee?.phoneNumber
     ]);
-    const isDirty = Boolean(selectedEmployee) && (draft.name !== baselineDraft.name || draft.jobTitle !== baselineDraft.jobTitle || draft.pin !== baselineDraft.pin || draft.role !== baselineDraft.role || Boolean(draft.active) !== Boolean(baselineDraft.active) || draft.hourlyWage !== baselineDraft.hourlyWage || draft.phoneNumber !== baselineDraft.phoneNumber);
+    const isDirty = isCreatingNew ? draft.name !== "" || draft.jobTitle !== "" || draft.pin !== "" || draft.role !== "employee" || Boolean(draft.active) !== true || draft.hourlyWage !== "" || draft.phoneNumber !== "" : Boolean(selectedEmployee) && (draft.name !== baselineDraft.name || draft.jobTitle !== baselineDraft.jobTitle || draft.pin !== baselineDraft.pin || draft.role !== baselineDraft.role || Boolean(draft.active) !== Boolean(baselineDraft.active) || draft.hourlyWage !== baselineDraft.hourlyWage || draft.phoneNumber !== baselineDraft.phoneNumber);
     const roleLabel = formatRoleLabel(adminUser?.role, "Admin");
     const hourlyWagePreview = formatCurrencyAmount(draft.hourlyWage);
     const updateDraft = (field, value) => {
@@ -2294,27 +2328,77 @@
       }));
     };
     const handleSave = async () => {
-      if (!selectedEmployee || !onSave || isSubmitting) return;
+      if (isSubmitting || isCreating) return;
+      if (isCreatingNew) {
+        if (!onCreate) return;
+        const createdEmployee = await onCreate(draft);
+        if (createdEmployee?.rowNumber) {
+          setIsCreatingNew(false);
+          setVisibilityFilter("all");
+          setSelectedEmployeeRowNumber(String(createdEmployee.rowNumber));
+        }
+        return;
+      }
+      if (!selectedEmployee || !onSave) return;
       await onSave(selectedEmployee, draft);
     };
-    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-full min-h-0 animate-fade-in overflow-y-auto pr-1" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#38bdf8]" }, roleLabel), /* @__PURE__ */ React.createElement("h3", { className: "section-title mt-1" }, "Employee Admin"), /* @__PURE__ */ React.createElement("div", { className: "mt-2 text-xs md:text-sm font-bold text-gray-500" }, activeEmployees.length, " active, ", inactiveEmployees.length, " inactive")), /* @__PURE__ */ React.createElement(
+    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-full min-h-0 animate-fade-in overflow-y-auto pr-1" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#38bdf8]" }, roleLabel), /* @__PURE__ */ React.createElement("h3", { className: "section-title mt-1" }, "Employee Admin"), /* @__PURE__ */ React.createElement("div", { className: "mt-2 text-xs md:text-sm font-bold text-gray-500" }, activeEmployees.length, " active, ", inactiveEmployees.length, " inactive")), /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap gap-2" }, /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        onClick: () => {
+          setIsCreatingNew(true);
+          setDraft(buildEmptyEmployeeAdminDraft());
+        },
+        disabled: isSubmitting || isCreating,
+        className: "brutal-btn action-button action-button-fluid bg-white hover:bg-gray-50 text-[#060606] self-start"
+      },
+      /* @__PURE__ */ React.createElement("i", { className: "fas fa-user-plus text-[#7c3aed]" }),
+      /* @__PURE__ */ React.createElement("span", null, "Add Employee")
+    ), /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: handleSave,
-        disabled: !selectedEmployee || !isDirty || isSubmitting,
+        disabled: !selectedEmployee && !isCreatingNew || !isDirty || isSubmitting || isCreating,
         className: "brutal-btn action-button action-button-fluid bg-[#4ade80] hover:bg-[#22c55e] text-[#060606] self-start"
       },
-      /* @__PURE__ */ React.createElement("i", { className: `fas ${isSubmitting ? "fa-circle-notch spinner" : "fa-save"}` }),
-      /* @__PURE__ */ React.createElement("span", null, isSubmitting ? "Saving..." : "Save Employee")
-    )), editableEmployees.length === 0 ? /* @__PURE__ */ React.createElement("div", { className: "rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white" }, "No employees were found in the Employees sheet.") : /* @__PURE__ */ React.createElement("div", { className: "grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)] flex-1 min-h-0" }, /* @__PURE__ */ React.createElement("div", { className: "section-card panel-content-card bg-white p-4 flex flex-col gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#38bdf8]" }, "Choose Employee"), /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-2" }, "Active team members stay at the top so quick edits are easier.")), /* @__PURE__ */ React.createElement("div", { className: "admin-studio-control-shell admin-studio-select-shell" }, /* @__PURE__ */ React.createElement("i", { className: "fas fa-user-gear text-[#38bdf8]" }), /* @__PURE__ */ React.createElement(
+      /* @__PURE__ */ React.createElement("i", { className: `fas ${isSubmitting || isCreating ? "fa-circle-notch spinner" : "fa-save"}` }),
+      /* @__PURE__ */ React.createElement("span", null, isSubmitting || isCreating ? isCreatingNew ? "Creating..." : "Saving..." : isCreatingNew ? "Create Employee" : "Save Employee")
+    ))), editableEmployees.length === 0 && !isCreatingNew ? /* @__PURE__ */ React.createElement("div", { className: "rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white" }, "No employees were found in the Employees sheet.") : /* @__PURE__ */ React.createElement("div", { className: "grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)] flex-1 min-h-0" }, /* @__PURE__ */ React.createElement("div", { className: "section-card panel-content-card bg-white p-4 flex flex-col gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#38bdf8]" }, "Choose Employee"), /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-2" }, "Switch between active-only and all employees, or start a new employee record.")), /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap gap-2" }, /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        onClick: () => setVisibilityFilter("active"),
+        className: `brutal-btn action-button action-button-fluid ${visibilityFilter === "active" ? "bg-[#dbeafe] hover:bg-[#bfdbfe]" : "bg-white hover:bg-gray-50"} text-[#060606]`
+      },
+      /* @__PURE__ */ React.createElement("span", null, "Active Only")
+    ), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        onClick: () => setVisibilityFilter("all"),
+        className: `brutal-btn action-button action-button-fluid ${visibilityFilter === "all" ? "bg-[#f3e8ff] hover:bg-[#e9d5ff]" : "bg-white hover:bg-gray-50"} text-[#060606]`
+      },
+      /* @__PURE__ */ React.createElement("span", null, "Show All")
+    )), /* @__PURE__ */ React.createElement("div", { className: "admin-studio-control-shell admin-studio-select-shell" }, /* @__PURE__ */ React.createElement("i", { className: "fas fa-user-gear text-[#38bdf8]" }), /* @__PURE__ */ React.createElement(
       "select",
       {
-        value: selectedEmployee ? String(selectedEmployee.rowNumber) : "",
-        onChange: (e) => setSelectedEmployeeRowNumber(e.target.value),
+        value: isCreatingNew ? "__new__" : selectedEmployee ? String(selectedEmployee.rowNumber) : "",
+        onChange: (e) => {
+          const nextValue = e.target.value;
+          if (nextValue === "__new__") {
+            setIsCreatingNew(true);
+            setDraft(buildEmptyEmployeeAdminDraft());
+            return;
+          }
+          setIsCreatingNew(false);
+          setSelectedEmployeeRowNumber(nextValue);
+        },
         className: "admin-studio-select"
       },
+      /* @__PURE__ */ React.createElement("option", { value: "__new__" }, "Add New Employee"),
       editableEmployees.map((employee) => /* @__PURE__ */ React.createElement("option", { key: `employee-admin-${employee.rowNumber}`, value: String(employee.rowNumber) }, employee.name, " ", isEmployeeActive(employee) ? "" : "(Inactive)"))
-    ), /* @__PURE__ */ React.createElement("i", { className: "fas fa-chevron-down text-xs text-gray-500" })), selectedEmployee && /* @__PURE__ */ React.createElement("div", { className: `section-card px-4 py-3 ${draft.active ? "bg-[#eff6ff]" : "bg-[#fef2f2]"}` }, /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-gray-500" }, draft.active ? "Active Account" : "Inactive Account"), /* @__PURE__ */ React.createElement("div", { className: "card-title mt-2 break-words" }, draft.name || selectedEmployee.name), /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-2" }, draft.jobTitle || "No job title set"), /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-2" }, formatRoleLabel(draft.role, "Employee")), /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-2" }, hourlyWagePreview || "No hourly wage set"))), /* @__PURE__ */ React.createElement("div", { className: "section-card panel-content-card bg-white p-4 md:p-5" }, /* @__PURE__ */ React.createElement("div", { className: "grid gap-4 md:grid-cols-2" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2" }, "Name"), /* @__PURE__ */ React.createElement(
+    ), /* @__PURE__ */ React.createElement("i", { className: "fas fa-chevron-down text-xs text-gray-500" })), (selectedEmployee || isCreatingNew) && /* @__PURE__ */ React.createElement("div", { className: `section-card px-4 py-3 ${draft.active ? "bg-[#eff6ff]" : "bg-[#fef2f2]"}` }, /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-gray-500" }, isCreatingNew ? "New Employee" : draft.active ? "Active Account" : "Inactive Account"), /* @__PURE__ */ React.createElement("div", { className: "card-title mt-2 break-words" }, draft.name || selectedEmployee?.name || "New employee"), /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-2" }, draft.jobTitle || "No job title set"), /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-2" }, formatRoleLabel(draft.role, "Employee")), /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-2" }, hourlyWagePreview || "No hourly wage set"))), /* @__PURE__ */ React.createElement("div", { className: "section-card panel-content-card bg-white p-4 md:p-5" }, /* @__PURE__ */ React.createElement("div", { className: "grid gap-4 md:grid-cols-2" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2" }, "Name"), /* @__PURE__ */ React.createElement(
       "input",
       {
         type: "text",
@@ -2861,6 +2945,7 @@
     const [isSubmittingInventory, setIsSubmittingInventory] = useState(false);
     const [isSubmittingAdminSchedule, setIsSubmittingAdminSchedule] = useState(false);
     const [isSubmittingEmployeeAdmin, setIsSubmittingEmployeeAdmin] = useState(false);
+    const [isCreatingEmployeeAdmin, setIsCreatingEmployeeAdmin] = useState(false);
     const [isSavingShiftTemplates, setIsSavingShiftTemplates] = useState(false);
     const [isSubmittingTimeOff, setIsSubmittingTimeOff] = useState(false);
     const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
@@ -4309,6 +4394,52 @@
         setIsSubmittingEmployeeAdmin(false);
       }
     };
+    const createAdminEmployee = async (draft) => {
+      if (!adminUser || isCreatingEmployeeAdmin) return null;
+      const trimmedName = String(draft?.name || "").trim();
+      const trimmedHourlyWage = String(draft?.hourlyWage || "").trim();
+      if (!trimmedName) {
+        setNotification({ type: "error", message: "Employee name is required." });
+        return null;
+      }
+      if (trimmedHourlyWage && !Number.isFinite(parseCurrencyNumber(trimmedHourlyWage))) {
+        setNotification({ type: "error", message: "Hourly wage must be a valid dollar amount." });
+        return null;
+      }
+      setIsCreatingEmployeeAdmin(true);
+      try {
+        const result = await sendToSheet({
+          action: "ADMIN_CREATE_EMPLOYEE",
+          editorName: adminUser.name,
+          editorRole: adminUser.role || "admin",
+          name: trimmedName,
+          jobTitle: String(draft?.jobTitle || "").trim(),
+          pin: String(draft?.pin || "").trim(),
+          role: String(draft?.role || "employee").trim().toLowerCase(),
+          active: Boolean(draft?.active),
+          hourlyWage: trimmedHourlyWage,
+          phoneNumber: String(draft?.phoneNumber || "").trim()
+        });
+        if (!result.ok) {
+          setNotification({ type: "error", message: result.error || "Could not create the employee." });
+          return null;
+        }
+        const createdEmployee = result?.parsed?.employee || null;
+        const refreshedEmployees = await refreshEmployees();
+        if (refreshedEmployees) {
+          setNotification({ type: "success", message: `Employee created for ${trimmedName}.` });
+        } else {
+          setNotification({ type: "info", message: "Employee was created, but the latest employee list could not be reloaded automatically." });
+        }
+        return createdEmployee;
+      } catch (err) {
+        console.error("Admin employee create failed:", err);
+        setNotification({ type: "error", message: err?.message || "An unexpected error interrupted employee creation." });
+        return null;
+      } finally {
+        setIsCreatingEmployeeAdmin(false);
+      }
+    };
     useEffect(() => {
       if (employees.length === 0) return;
       setEmployees((prev) => {
@@ -5100,7 +5231,9 @@
         adminUser,
         employees,
         isSubmitting: isSubmittingEmployeeAdmin,
-        onSave: saveAdminEmployee
+        isCreating: isCreatingEmployeeAdmin,
+        onSave: saveAdminEmployee,
+        onCreate: createAdminEmployee
       }
     )), notification && /* @__PURE__ */ React.createElement("div", { className: `
                                         absolute bottom-6 md:bottom-10 left-0 right-0 mx-auto w-max max-w-[90%] px-6 py-3 md:px-8 md:py-4 rounded-xl border-3 border-black shadow-[6px_6px_0px_0px_#000000] text-[#060606] font-bold font-poppins text-sm md:text-lg flex items-center gap-3 animate-fade-in z-[60]

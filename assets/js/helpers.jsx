@@ -218,6 +218,26 @@ const { useState, useEffect, useRef } = React;
             });
         };
 
+        const getEmployeeHourlyWage = (employee) => {
+            if (!employee || typeof employee !== 'object') return null;
+
+            const candidates = [
+                employee.hourlyWageValue,
+                employee.hourlyWage,
+                employee.wage,
+                employee.payRate,
+                employee.hourlyRate,
+                employee.rate,
+            ];
+
+            for (const candidate of candidates) {
+                const parsed = parseCurrencyNumber(candidate);
+                if (Number.isFinite(parsed)) return parsed;
+            }
+
+            return null;
+        };
+
         const buildEmployeeAdminDraft = (employee) => ({
             rowNumber: employee?.rowNumber || '',
             name: String(employee?.name || ''),
@@ -226,11 +246,22 @@ const { useState, useEffect, useRef } = React;
             role: String(employee?.role || 'employee'),
             active: isEmployeeActive(employee),
             hourlyWage: (() => {
-                const numericHourlyWage = parseCurrencyNumber(employee?.hourlyWageValue ?? employee?.hourlyWage);
+                const numericHourlyWage = getEmployeeHourlyWage(employee);
                 if (Number.isFinite(numericHourlyWage)) return String(numericHourlyWage);
                 return String(employee?.hourlyWage || '').trim();
             })(),
             phoneNumber: String(employee?.phoneNumber || ''),
+        });
+
+        const buildEmptyEmployeeAdminDraft = () => ({
+            rowNumber: '',
+            name: '',
+            jobTitle: '',
+            pin: '',
+            role: 'employee',
+            active: true,
+            hourlyWage: '',
+            phoneNumber: '',
         });
 
         const getEmployeeDisplayOrderValue = (employee) => {

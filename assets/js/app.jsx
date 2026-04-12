@@ -50,6 +50,7 @@ function App() {
             const [isSubmittingInventory, setIsSubmittingInventory] = useState(false);
             const [isSubmittingAdminSchedule, setIsSubmittingAdminSchedule] = useState(false);
             const [isSubmittingEmployeeAdmin, setIsSubmittingEmployeeAdmin] = useState(false);
+            const [isCreatingEmployeeAdmin, setIsCreatingEmployeeAdmin] = useState(false);
             const [isSavingShiftTemplates, setIsSavingShiftTemplates] = useState(false);
             const [isSubmittingTimeOff, setIsSubmittingTimeOff] = useState(false);
             const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
@@ -1809,6 +1810,59 @@ function App() {
                 }
             };
 
+            const createAdminEmployee = async (draft) => {
+                if (!adminUser || isCreatingEmployeeAdmin) return null;
+
+                const trimmedName = String(draft?.name || '').trim();
+                const trimmedHourlyWage = String(draft?.hourlyWage || '').trim();
+                if (!trimmedName) {
+                    setNotification({ type: 'error', message: "Employee name is required." });
+                    return null;
+                }
+                if (trimmedHourlyWage && !Number.isFinite(parseCurrencyNumber(trimmedHourlyWage))) {
+                    setNotification({ type: 'error', message: "Hourly wage must be a valid dollar amount." });
+                    return null;
+                }
+
+                setIsCreatingEmployeeAdmin(true);
+
+                try {
+                    const result = await sendToSheet({
+                        action: "ADMIN_CREATE_EMPLOYEE",
+                        editorName: adminUser.name,
+                        editorRole: adminUser.role || 'admin',
+                        name: trimmedName,
+                        jobTitle: String(draft?.jobTitle || '').trim(),
+                        pin: String(draft?.pin || '').trim(),
+                        role: String(draft?.role || 'employee').trim().toLowerCase(),
+                        active: Boolean(draft?.active),
+                        hourlyWage: trimmedHourlyWage,
+                        phoneNumber: String(draft?.phoneNumber || '').trim(),
+                    });
+
+                    if (!result.ok) {
+                        setNotification({ type: 'error', message: result.error || "Could not create the employee." });
+                        return null;
+                    }
+
+                    const createdEmployee = result?.parsed?.employee || null;
+                    const refreshedEmployees = await refreshEmployees();
+                    if (refreshedEmployees) {
+                        setNotification({ type: 'success', message: `Employee created for ${trimmedName}.` });
+                    } else {
+                        setNotification({ type: 'info', message: "Employee was created, but the latest employee list could not be reloaded automatically." });
+                    }
+
+                    return createdEmployee;
+                } catch (err) {
+                    console.error("Admin employee create failed:", err);
+                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted employee creation." });
+                    return null;
+                } finally {
+                    setIsCreatingEmployeeAdmin(false);
+                }
+            };
+
             useEffect(() => {
                 if (employees.length === 0) return;
                 setEmployees(prev => {
@@ -2830,7 +2884,9 @@ function App() {
                                                 adminUser={adminUser}
                                                 employees={employees}
                                                 isSubmitting={isSubmittingEmployeeAdmin}
+                                                isCreating={isCreatingEmployeeAdmin}
                                                 onSave={saveAdminEmployee}
+                                                onCreate={createAdminEmployee}
                                             />
                                         )}
                                     </div>
