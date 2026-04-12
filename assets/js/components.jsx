@@ -2052,7 +2052,7 @@
                                     >
                                         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px] lg:items-center">
                                             <div className="min-w-0">
-                                                <div className="font-bold font-poppins text-[#060606] text-base md:text-lg xl:text-xl leading-tight break-words">
+                                                <div className="card-title text-base md:text-lg xl:text-xl leading-tight break-words">
                                                     {period.label}
                                                 </div>
                                                 <div className="card-meta mt-1">
@@ -2060,12 +2060,12 @@
                                                 </div>
                                             </div>
                                             <div className="rounded-xl border-2 border-black bg-white px-4 py-3">
-                                                <div className="text-[10px] uppercase font-bold tracking-[0.12em] text-gray-500">Total Hours</div>
-                                                <div className="text-xl font-bold font-poppins text-[#060606] mt-1">{formatPayrollHours(period.totalMinutes)}</div>
+                                                <div className="card-eyebrow text-gray-500">Total Hours</div>
+                                                <div className="payroll-summary-value mt-1">{formatPayrollHours(period.totalMinutes)}</div>
                                             </div>
                                             <div className="rounded-xl border-2 border-black bg-white px-4 py-3">
-                                                <div className="text-[10px] uppercase font-bold tracking-[0.12em] text-gray-500">Pay Date</div>
-                                                <div className="text-sm md:text-base font-bold font-poppins text-[#060606] mt-1">{formatFullDate(period.payDate)}</div>
+                                                <div className="card-eyebrow text-gray-500">Pay Date</div>
+                                                <div className="payroll-summary-value mt-1">{formatFullDate(period.payDate)}</div>
                                             </div>
                                         </div>
 
@@ -2073,20 +2073,20 @@
                                             {period.employeeSummaries.map(summary => (
                                                 <div key={`${period.key}-${summary.name}`} className="rounded-xl border-2 border-black bg-white px-4 py-3">
                                                     <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_120px_110px_170px_150px] md:items-center">
-                                                        <div className="font-bold font-poppins text-[#060606] text-sm md:text-base truncate">
+                                                        <div className="payroll-row-text truncate">
                                                             {summary.name}
                                                         </div>
-                                                        <div className="text-sm font-bold text-gray-600">
+                                                        <div className="payroll-row-text text-gray-700">
                                                             {formatEntryCount(summary.workedEntryCount)}
                                                         </div>
-                                                        <div className="text-sm font-bold text-gray-600">
+                                                        <div className="payroll-row-text text-gray-700">
                                                             {summary.editedEntryCount} Edited
                                                         </div>
-                                                        <div className="text-sm md:text-base font-bold font-poppins text-[#060606] md:text-right">
-                                                            Total Hours {formatPayrollHours(summary.totalMinutes)}
+                                                        <div className="payroll-row-text md:text-right">
+                                                            Hours {formatPayrollHours(summary.totalMinutes)}
                                                         </div>
-                                                        <div className="text-sm md:text-base font-bold font-poppins text-[#060606] md:text-right">
-                                                            Total Pay {summary.totalPay === null ? '-' : formatCurrencyAmount(summary.totalPay)}
+                                                        <div className="payroll-row-text md:text-right">
+                                                            Pay {summary.totalPay === null ? '-' : formatCurrencyAmount(summary.totalPay)}
                                                         </div>
                                                     </div>
                                                 </div>
