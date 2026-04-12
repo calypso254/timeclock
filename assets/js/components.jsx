@@ -1946,7 +1946,10 @@
             const safeRows = Array.isArray(sheetData) ? sheetData : [];
             const currentPeriod = buildPayrollPeriodFromStart(getPayrollPeriodStart(new Date()));
             const sortedStaffEmployees = sortEmployeesForDisplay(
-                safeEmployees.filter(emp => !isAdminRole(emp?.role))
+                safeEmployees.filter(emp => !isAdminRole(emp?.role) && isEmployeeActive(emp))
+            );
+            const employeeMapByName = new Map(
+                safeEmployees.map(employee => [String(employee?.name || '').trim().toLowerCase(), employee])
             );
             const adminNameSet = new Set(
                 safeEmployees
@@ -1994,11 +1997,15 @@
                     const employeeSummaries = employeeNames.map(name => {
                         const rows = periodRows.filter(row => String(row?.name || '').trim() === name);
                         const workedRows = rows.filter(row => getPayrollRowMinutes(row) > 0);
+                        const employeeRecord = employeeMapByName.get(name.toLowerCase()) || null;
+                        const hourlyWage = parseCurrencyNumber(employeeRecord?.hourlyWageValue ?? employeeRecord?.hourlyWage);
+                        const totalMinutes = workedRows.reduce((sum, row) => sum + getPayrollRowMinutes(row), 0);
                         return {
                             name,
                             workedEntryCount: workedRows.length,
                             editedEntryCount: workedRows.filter(row => parseReasonCell(row.reason).length > 0).length,
-                            totalMinutes: workedRows.reduce((sum, row) => sum + getPayrollRowMinutes(row), 0),
+                            totalMinutes,
+                            totalPay: Number.isFinite(hourlyWage) ? ((totalMinutes / 60) * hourlyWage) : null,
                         };
                     });
 
@@ -2045,8 +2052,11 @@
                                     >
                                         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px] lg:items-center">
                                             <div className="min-w-0">
-                                                <div className="font-bold font-poppins text-[#060606] text-lg md:text-xl truncate">
-                                                    {period.label} ({period.isActive ? 'Active' : 'Closed'})
+                                                <div className="font-bold font-poppins text-[#060606] text-base md:text-lg xl:text-xl leading-tight break-words">
+                                                    {period.label}
+                                                </div>
+                                                <div className="card-meta mt-1">
+                                                    {period.isActive ? 'Active period' : 'Closed period'}
                                                 </div>
                                             </div>
                                             <div className="rounded-xl border-2 border-black bg-white px-4 py-3">
@@ -2062,7 +2072,7 @@
                                         <div className="mt-4 space-y-2">
                                             {period.employeeSummaries.map(summary => (
                                                 <div key={`${period.key}-${summary.name}`} className="rounded-xl border-2 border-black bg-white px-4 py-3">
-                                                    <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_120px_110px_170px] md:items-center">
+                                                    <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_120px_110px_170px_150px] md:items-center">
                                                         <div className="font-bold font-poppins text-[#060606] text-sm md:text-base truncate">
                                                             {summary.name}
                                                         </div>
@@ -2075,6 +2085,9 @@
                                                         <div className="text-sm md:text-base font-bold font-poppins text-[#060606] md:text-right">
                                                             Total Hours {formatPayrollHours(summary.totalMinutes)}
                                                         </div>
+                                                        <div className="text-sm md:text-base font-bold font-poppins text-[#060606] md:text-right">
+                                                            Total Pay {summary.totalPay === null ? '-' : formatCurrencyAmount(summary.totalPay)}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
@@ -2084,6 +2097,223 @@
                             </div>
                         )}
                     </div>
+                </div>
+            );
+        };
+
+        const AdminEmployeeWorkspace = ({
+            adminUser,
+            employees,
+            isSubmitting,
+            onSave,
+        }) => {
+            if (!adminUser) return null;
+
+            const safeEmployees = Array.isArray(employees) ? employees : [];
+            const activeEmployees = sortEmployeesForDisplay(safeEmployees.filter(employee => isEmployeeActive(employee)));
+            const inactiveEmployees = sortEmployeesForDisplay(safeEmployees.filter(employee => !isEmployeeActive(employee)));
+            const editableEmployees = [...activeEmployees, ...inactiveEmployees];
+            const [selectedEmployeeRowNumber, setSelectedEmployeeRowNumber] = useState(
+                editableEmployees[0]?.rowNumber ? String(editableEmployees[0].rowNumber) : ''
+            );
+            const selectedEmployee = editableEmployees.find(employee => String(employee?.rowNumber || '') === String(selectedEmployeeRowNumber || '')) || editableEmployees[0] || null;
+            const baselineDraft = buildEmployeeAdminDraft(selectedEmployee);
+            const [draft, setDraft] = useState(baselineDraft);
+
+            useEffect(() => {
+                if (!editableEmployees.length) {
+                    setSelectedEmployeeRowNumber('');
+                    return;
+                }
+
+                const hasSelection = editableEmployees.some(employee => String(employee?.rowNumber || '') === String(selectedEmployeeRowNumber || ''));
+                if (!hasSelection) {
+                    setSelectedEmployeeRowNumber(String(editableEmployees[0].rowNumber));
+                }
+            }, [employees]);
+
+            useEffect(() => {
+                setDraft(buildEmployeeAdminDraft(selectedEmployee));
+            }, [
+                selectedEmployee?.rowNumber,
+                selectedEmployee?.name,
+                selectedEmployee?.jobTitle,
+                selectedEmployee?.department,
+                selectedEmployee?.pin,
+                selectedEmployee?.role,
+                selectedEmployee?.active,
+                selectedEmployee?.hourlyWage,
+                selectedEmployee?.hourlyWageValue,
+                selectedEmployee?.phoneNumber,
+            ]);
+
+            const isDirty = Boolean(selectedEmployee) && (
+                draft.name !== baselineDraft.name
+                || draft.jobTitle !== baselineDraft.jobTitle
+                || draft.pin !== baselineDraft.pin
+                || draft.role !== baselineDraft.role
+                || Boolean(draft.active) !== Boolean(baselineDraft.active)
+                || draft.hourlyWage !== baselineDraft.hourlyWage
+                || draft.phoneNumber !== baselineDraft.phoneNumber
+            );
+            const roleLabel = formatRoleLabel(adminUser?.role, 'Admin');
+            const hourlyWagePreview = formatCurrencyAmount(draft.hourlyWage);
+
+            const updateDraft = (field, value) => {
+                setDraft(prev => ({
+                    ...prev,
+                    [field]: value,
+                }));
+            };
+
+            const handleSave = async () => {
+                if (!selectedEmployee || !onSave || isSubmitting) return;
+                await onSave(selectedEmployee, draft);
+            };
+
+            return (
+                <div className="section-width flex flex-col h-full min-h-0 animate-fade-in overflow-y-auto pr-1">
+                    <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4 shrink-0">
+                        <div>
+                            <div className="card-eyebrow text-[#38bdf8]">{roleLabel}</div>
+                            <h3 className="section-title mt-1">Employee Admin</h3>
+                            <div className="mt-2 text-xs md:text-sm font-bold text-gray-500">
+                                {activeEmployees.length} active, {inactiveEmployees.length} inactive
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleSave}
+                            disabled={!selectedEmployee || !isDirty || isSubmitting}
+                            className="brutal-btn action-button action-button-fluid bg-[#4ade80] hover:bg-[#22c55e] text-[#060606] self-start"
+                        >
+                            <i className={`fas ${isSubmitting ? 'fa-circle-notch spinner' : 'fa-save'}`}></i>
+                            <span>{isSubmitting ? 'Saving...' : 'Save Employee'}</span>
+                        </button>
+                    </div>
+
+                    {editableEmployees.length === 0 ? (
+                        <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
+                            No employees were found in the Employees sheet.
+                        </div>
+                    ) : (
+                        <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)] flex-1 min-h-0">
+                            <div className="section-card panel-content-card bg-white p-4 flex flex-col gap-4">
+                                <div>
+                                    <div className="card-eyebrow text-[#38bdf8]">Choose Employee</div>
+                                    <div className="card-meta mt-2">Active team members stay at the top so quick edits are easier.</div>
+                                </div>
+
+                                <div className="admin-studio-control-shell admin-studio-select-shell">
+                                    <i className="fas fa-user-gear text-[#38bdf8]"></i>
+                                    <select
+                                        value={selectedEmployee ? String(selectedEmployee.rowNumber) : ''}
+                                        onChange={e => setSelectedEmployeeRowNumber(e.target.value)}
+                                        className="admin-studio-select"
+                                    >
+                                        {editableEmployees.map(employee => (
+                                            <option key={`employee-admin-${employee.rowNumber}`} value={String(employee.rowNumber)}>
+                                                {employee.name} {isEmployeeActive(employee) ? '' : '(Inactive)'}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <i className="fas fa-chevron-down text-xs text-gray-500"></i>
+                                </div>
+
+                                {selectedEmployee && (
+                                    <div className={`section-card px-4 py-3 ${draft.active ? 'bg-[#eff6ff]' : 'bg-[#fef2f2]'}`}>
+                                        <div className="card-eyebrow text-gray-500">{draft.active ? 'Active Account' : 'Inactive Account'}</div>
+                                        <div className="card-title mt-2 break-words">{draft.name || selectedEmployee.name}</div>
+                                        <div className="card-meta mt-2">{draft.jobTitle || 'No job title set'}</div>
+                                        <div className="card-meta mt-2">{formatRoleLabel(draft.role, 'Employee')}</div>
+                                        <div className="card-meta mt-2">{hourlyWagePreview || 'No hourly wage set'}</div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="section-card panel-content-card bg-white p-4 md:p-5">
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Name</label>
+                                        <input
+                                            type="text"
+                                            value={draft.name}
+                                            onChange={e => updateDraft('name', e.target.value)}
+                                            className="brutal-input w-full px-3 py-2.5"
+                                            placeholder="Employee name"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Job Title</label>
+                                        <input
+                                            type="text"
+                                            value={draft.jobTitle}
+                                            onChange={e => updateDraft('jobTitle', e.target.value)}
+                                            className="brutal-input w-full px-3 py-2.5"
+                                            placeholder="Job title"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">PIN</label>
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            value={draft.pin}
+                                            onChange={e => updateDraft('pin', e.target.value.replace(/[^\d]/g, ''))}
+                                            className="brutal-input w-full px-3 py-2.5"
+                                            placeholder="4 digit PIN"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Role</label>
+                                        <select
+                                            value={draft.role}
+                                            onChange={e => updateDraft('role', e.target.value)}
+                                            className="brutal-input w-full px-3 py-2.5"
+                                        >
+                                            <option value="employee">Employee</option>
+                                            <option value="admin">Admin</option>
+                                            <option value="manager">Manager</option>
+                                            <option value="owner">Owner</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Active</label>
+                                        <select
+                                            value={draft.active ? 'true' : 'false'}
+                                            onChange={e => updateDraft('active', e.target.value === 'true')}
+                                            className="brutal-input w-full px-3 py-2.5"
+                                        >
+                                            <option value="true">Active</option>
+                                            <option value="false">Inactive</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Hourly Wage</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={draft.hourlyWage}
+                                            onChange={e => updateDraft('hourlyWage', e.target.value)}
+                                            className="brutal-input w-full px-3 py-2.5"
+                                            placeholder="0.00"
+                                        />
+                                        <div className="card-meta mt-2">{hourlyWagePreview || 'Enter an hourly rate in dollars'}</div>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Phone Number</label>
+                                        <input
+                                            type="text"
+                                            value={draft.phoneNumber}
+                                            onChange={e => updateDraft('phoneNumber', e.target.value)}
+                                            className="brutal-input w-full px-3 py-2.5"
+                                            placeholder="Phone number"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -2242,7 +2472,9 @@
             const [weekJumpValue, setWeekJumpValue] = useState('');
             const [editorDraft, setEditorDraft] = useState(null);
 
-            const sortedEmployees = sortEmployeesForDisplay(employees);
+            const sortedEmployees = sortEmployeesForDisplay(
+                (Array.isArray(employees) ? employees : []).filter(employee => isEmployeeActive(employee))
+            );
 
             const weekDays = buildWeekDays(weekStart);
             const currentWeekKey = normalizeDate(weekStart);

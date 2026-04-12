@@ -192,6 +192,47 @@ const { useState, useEffect, useRef } = React;
                 .join(' ');
         };
 
+        const isEmployeeActive = (employee) => {
+            if (!employee) return false;
+            if (typeof employee.active === 'boolean') return employee.active;
+            const normalized = String(employee.active ?? '').trim().toLowerCase();
+            if (!normalized) return true;
+            return ['true', 'yes', 'y', '1', 'active'].includes(normalized);
+        };
+
+        const parseCurrencyNumber = (value) => {
+            if (value === null || value === undefined || value === '') return null;
+            if (typeof value === 'number' && Number.isFinite(value)) return value;
+            const normalized = String(value).replace(/[^0-9.\-]/g, '');
+            if (!normalized) return null;
+            const parsed = Number.parseFloat(normalized);
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+
+        const formatCurrencyAmount = (value) => {
+            const numericValue = parseCurrencyNumber(value);
+            if (!Number.isFinite(numericValue)) return '';
+            return numericValue.toLocaleString('en-US', {
+                style: 'currency',
+                currency: 'USD',
+            });
+        };
+
+        const buildEmployeeAdminDraft = (employee) => ({
+            rowNumber: employee?.rowNumber || '',
+            name: String(employee?.name || ''),
+            jobTitle: String(employee?.jobTitle || employee?.department || ''),
+            pin: String(employee?.pin || ''),
+            role: String(employee?.role || 'employee'),
+            active: isEmployeeActive(employee),
+            hourlyWage: (() => {
+                const numericHourlyWage = parseCurrencyNumber(employee?.hourlyWageValue ?? employee?.hourlyWage);
+                if (Number.isFinite(numericHourlyWage)) return String(numericHourlyWage);
+                return String(employee?.hourlyWage || '').trim();
+            })(),
+            phoneNumber: String(employee?.phoneNumber || ''),
+        });
+
         const getEmployeeDisplayOrderValue = (employee) => {
             const candidates = [
                 employee?.displayOrder,

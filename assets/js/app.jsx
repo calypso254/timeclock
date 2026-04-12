@@ -49,6 +49,7 @@ function App() {
             const [isSubmittingAction, setIsSubmittingAction] = useState(false);
             const [isSubmittingInventory, setIsSubmittingInventory] = useState(false);
             const [isSubmittingAdminSchedule, setIsSubmittingAdminSchedule] = useState(false);
+            const [isSubmittingEmployeeAdmin, setIsSubmittingEmployeeAdmin] = useState(false);
             const [isSavingShiftTemplates, setIsSavingShiftTemplates] = useState(false);
             const [isSubmittingTimeOff, setIsSubmittingTimeOff] = useState(false);
             const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
@@ -491,7 +492,7 @@ function App() {
                 const sourceWeekDays = buildWeekDays(normalizedSourceWeekStart);
                 const targetWeekDays = buildWeekDays(normalizedTargetWeekStart);
                 const schedulableEmployees = sortEmployeesForDisplay(
-                    employees.filter(emp => !isAdminRole(emp?.role))
+                    employees.filter(emp => !isAdminRole(emp?.role) && isEmployeeActive(emp))
                 );
                 const nextDrafts = { ...adminScheduleDrafts };
                 let stagedCount = 0;
@@ -828,10 +829,10 @@ function App() {
             const activeSessionUser = adminUser || selectedEmployee || null;
             const activeMessageViewer = adminUser || selectedEmployee || null;
             const publicEmployees = sortEmployeesForDisplay(
-                employees.filter(emp => !isAdminRole(emp.role))
+                employees.filter(emp => !isAdminRole(emp.role) && isEmployeeActive(emp))
             );
             const adminAccounts = sortEmployeesForDisplay(
-                employees.filter(emp => isAdminRole(emp.role))
+                employees.filter(emp => isAdminRole(emp.role) && isEmployeeActive(emp))
             );
             const directoryEmployees = directoryMode === 'admin' ? adminAccounts : publicEmployees;
             const personalData = selectedEmployee 
@@ -864,7 +865,7 @@ function App() {
             const stagedScheduleChangeCount = Object.keys(adminScheduleDrafts).length;
             const inventoryOpenRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
             const inventoryAwaitingRows = inventoryOpenRows.filter(row => Number(row.awaitingApproval || 0) > 0);
-            const isAdminWorkspaceOpen = Boolean(isAuthenticated && adminUser && ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PEN_HOSPITAL', 'ADMIN_PAYROLL', 'ADMIN_MESSAGES'].includes(viewMode));
+            const isAdminWorkspaceOpen = Boolean(isAuthenticated && adminUser && ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PEN_HOSPITAL', 'ADMIN_PAYROLL', 'ADMIN_MESSAGES', 'ADMIN_EMPLOYEES'].includes(viewMode));
             const editableRows = filterTimesheetRowsUpToToday(personalData)
                 .filter(row => !isEntryLocked(row))
                 .slice()
@@ -1349,6 +1350,12 @@ function App() {
                 await refreshLogs({ showSpinner: false });
             };
 
+            const handleOpenAdminEmployees = async () => {
+                setEmployeeTimeOffDraft(null);
+                setViewMode('ADMIN_EMPLOYEES');
+                await refreshEmployees();
+            };
+
             const handleOpenAdminMessages = async () => {
                 setEmployeeTimeOffDraft(null);
                 setViewMode('ADMIN_MESSAGES');
@@ -1738,6 +1745,68 @@ function App() {
                     },
                     `${String(caseRow.customerName || 'This case').trim() || 'This case'} moved to ${nextStatus}.`
                 );
+            };
+
+            const saveAdminEmployee = async (employee, draft) => {
+                if (!adminUser || !employee?.rowNumber || isSubmittingEmployeeAdmin) return false;
+
+                const trimmedName = String(draft?.name || '').trim();
+                const trimmedHourlyWage = String(draft?.hourlyWage || '').trim();
+                if (!trimmedName) {
+                    setNotification({ type: 'error', message: "Employee name is required." });
+                    return false;
+                }
+                if (trimmedHourlyWage && !Number.isFinite(parseCurrencyNumber(trimmedHourlyWage))) {
+                    setNotification({ type: 'error', message: "Hourly wage must be a valid dollar amount." });
+                    return false;
+                }
+
+                setIsSubmittingEmployeeAdmin(true);
+
+                try {
+                    const result = await sendToSheet({
+                        action: "ADMIN_UPDATE_EMPLOYEE",
+                        employeeRowNumber: employee.rowNumber,
+                        editorName: adminUser.name,
+                        editorRole: adminUser.role || 'admin',
+                        name: trimmedName,
+                        jobTitle: String(draft?.jobTitle || '').trim(),
+                        pin: String(draft?.pin || '').trim(),
+                        role: String(draft?.role || 'employee').trim().toLowerCase(),
+                        active: Boolean(draft?.active),
+                        hourlyWage: trimmedHourlyWage,
+                        phoneNumber: String(draft?.phoneNumber || '').trim(),
+                    });
+
+                    if (!result.ok) {
+                        setNotification({ type: 'error', message: result.error || "Could not save the employee details." });
+                        return false;
+                    }
+
+                    const updatedEmployee = result?.parsed?.employee || null;
+                    if (updatedEmployee && adminUser?.rowNumber === updatedEmployee.rowNumber) {
+                        setAdminUser(updatedEmployee);
+                    }
+
+                    const [employeesRefresh, logsRefresh] = await Promise.allSettled([
+                        refreshEmployees(),
+                        refreshLogs({ showSpinner: false }),
+                    ]);
+
+                    if (employeesRefresh.status === 'fulfilled' && logsRefresh.status === 'fulfilled') {
+                        setNotification({ type: 'success', message: "Employee details saved." });
+                    } else {
+                        setNotification({ type: 'info', message: "Employee details were saved, but the latest data could not be fully reloaded." });
+                    }
+
+                    return true;
+                } catch (err) {
+                    console.error("Admin employee save failed:", err);
+                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted the employee update." });
+                    return false;
+                } finally {
+                    setIsSubmittingEmployeeAdmin(false);
+                }
             };
 
             useEffect(() => {
@@ -2512,6 +2581,15 @@ function App() {
                                             <span>Payroll</span>
                                         </button>
                                         <button
+                                            onClick={handleOpenAdminEmployees}
+                                            className={`brutal-btn standard-unit-button admin-action-button text-[#060606] ${
+                                                viewMode === 'ADMIN_EMPLOYEES' ? 'bg-[#ddd6fe] hover:bg-[#c4b5fd]' : 'bg-white hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <i className="fas fa-users-gear text-[#7c3aed]"></i>
+                                            <span>Employee Admin</span>
+                                        </button>
+                                        <button
                                             onClick={handleOpenAdminMessages}
                                             className={`brutal-btn standard-unit-button admin-action-button text-[#060606] ${
                                                 viewMode === 'ADMIN_MESSAGES' ? 'bg-[#f9a8d4] hover:bg-[#f472b6]' : 'bg-white hover:bg-gray-50'
@@ -2745,6 +2823,14 @@ function App() {
                                                 sheetData={sheetData}
                                                 isRefreshing={isFetchingLogs}
                                                 onRefresh={() => refreshLogs({ showSpinner: true })}
+                                            />
+                                        )}
+                                        {viewMode === 'ADMIN_EMPLOYEES' && (
+                                            <AdminEmployeeWorkspace
+                                                adminUser={adminUser}
+                                                employees={employees}
+                                                isSubmitting={isSubmittingEmployeeAdmin}
+                                                onSave={saveAdminEmployee}
                                             />
                                         )}
                                     </div>
