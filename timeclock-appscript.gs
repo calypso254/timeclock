@@ -442,9 +442,9 @@ function handleAdminUpdateEmployee_(data) {
     throw new Error("Invalid employee row number.");
   }
 
-  var lastColumn = Math.max(sheet.getLastColumn(), EMPLOYEE_LEGACY_COL.PHONE_NUMBER);
-  var headerRow = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
-  var columns = buildEmployeeColumnMap_(headerRow, lastColumn);
+  var employeeSheetConfig = ensureEmployeeAdminColumns_(sheet);
+  var lastColumn = employeeSheetConfig.lastColumn;
+  var columns = employeeSheetConfig.columns;
   var missingColumns = getMissingEmployeeEditColumns_(columns);
   if (missingColumns.length > 0) {
     throw new Error("Missing Employees sheet column(s): " + missingColumns.join(", "));
@@ -460,6 +460,7 @@ function handleAdminUpdateEmployee_(data) {
   var nextRole = String(data.role || "employee").trim().toLowerCase();
   var nextPhoneNumber = String(data.phoneNumber || "").trim();
   var nextActive = parseEmployeeActiveValue_(data.active, data.active);
+  var nextPayType = parseEmployeePayType_(data.payType || data.compensationType || data.wageType);
   var parsedHourlyWage = parseEmployeeHourlyWageInput_(data.hourlyWage);
 
   if (!nextName) {
@@ -475,8 +476,10 @@ function handleAdminUpdateEmployee_(data) {
   writeEmployeeColumnValue_(sheet, rowNumber, columns.pin, nextPin);
   writeEmployeeColumnValue_(sheet, rowNumber, columns.role, nextRole);
   writeEmployeeColumnValue_(sheet, rowNumber, columns.active, nextActive ? true : false);
+  writeEmployeeColumnValue_(sheet, rowNumber, columns.payType, nextPayType);
   writeEmployeeColumnValue_(sheet, rowNumber, columns.hourlyWage, parsedHourlyWage);
   writeEmployeeColumnValue_(sheet, rowNumber, columns.phoneNumber, nextPhoneNumber);
+  writeEmployeeColumnValue_(sheet, rowNumber, columns.lastUpdate, buildEmployeeLastUpdateValue_(data.editorName));
 
   var renamedTimesheetRows = 0;
   if (previousEmployee.name && nextName && previousEmployee.name !== nextName) {
@@ -507,9 +510,9 @@ function handleAdminCreateEmployee_(data) {
     throw new Error("No Employees Sheet");
   }
 
-  var lastColumn = Math.max(sheet.getLastColumn(), EMPLOYEE_LEGACY_COL.PHONE_NUMBER);
-  var headerRow = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
-  var columns = buildEmployeeColumnMap_(headerRow, lastColumn);
+  var employeeSheetConfig = ensureEmployeeAdminColumns_(sheet);
+  var lastColumn = employeeSheetConfig.lastColumn;
+  var columns = employeeSheetConfig.columns;
   var missingColumns = getMissingEmployeeEditColumns_(columns);
   if (missingColumns.length > 0) {
     throw new Error("Missing Employees sheet column(s): " + missingColumns.join(", "));
@@ -521,6 +524,7 @@ function handleAdminCreateEmployee_(data) {
   var nextRole = String(data.role || "employee").trim().toLowerCase();
   var nextPhoneNumber = String(data.phoneNumber || "").trim();
   var nextActive = parseEmployeeActiveValue_(data.active, data.active);
+  var nextPayType = parseEmployeePayType_(data.payType || data.compensationType || data.wageType);
   var parsedHourlyWage = parseEmployeeHourlyWageInput_(data.hourlyWage);
 
   if (!nextName) {
@@ -544,8 +548,10 @@ function handleAdminCreateEmployee_(data) {
   writeEmployeeColumnValue_(sheet, nextRow, columns.pin, nextPin);
   writeEmployeeColumnValue_(sheet, nextRow, columns.role, nextRole);
   writeEmployeeColumnValue_(sheet, nextRow, columns.active, nextActive ? true : false);
+  writeEmployeeColumnValue_(sheet, nextRow, columns.payType, nextPayType);
   writeEmployeeColumnValue_(sheet, nextRow, columns.hourlyWage, parsedHourlyWage);
   writeEmployeeColumnValue_(sheet, nextRow, columns.phoneNumber, nextPhoneNumber);
+  writeEmployeeColumnValue_(sheet, nextRow, columns.lastUpdate, buildEmployeeLastUpdateValue_(data.editorName));
 
   var savedRawRow = sheet.getRange(nextRow, 1, 1, lastColumn).getValues()[0];
   var savedDisplayRow = sheet.getRange(nextRow, 1, 1, lastColumn).getDisplayValues()[0];
@@ -612,9 +618,39 @@ function buildEmployeeColumnMap_(headerRow, lastColumn) {
     pin: findEmployeeColumnIndex_(normalizedHeaderMap, ["pin", "passcode"], EMPLOYEE_LEGACY_COL.PIN, lastColumn),
     role: findEmployeeColumnIndex_(normalizedHeaderMap, ["role", "user role", "userrole"], EMPLOYEE_LEGACY_COL.ROLE, lastColumn),
     active: findEmployeeColumnIndex_(normalizedHeaderMap, ["active", "is active", "isactive", "enabled"], EMPLOYEE_LEGACY_COL.ACTIVE, lastColumn),
+    payType: findEmployeeColumnIndex_(normalizedHeaderMap, ["pay type", "paytype", "wage type", "wagetype", "compensation type", "compensationtype"], 0, lastColumn),
     hourlyWage: findEmployeeColumnIndex_(normalizedHeaderMap, ["hourly wage", "hourlywage", "hourly rate", "hourlyrate", "wage", "pay rate", "payrate"], EMPLOYEE_LEGACY_COL.HOURLY_WAGE, lastColumn),
     phoneNumber: findEmployeeColumnIndex_(normalizedHeaderMap, ["phone number", "phonenumber", "phone", "mobile", "cell"], EMPLOYEE_LEGACY_COL.PHONE_NUMBER, lastColumn),
+    lastUpdate: findEmployeeColumnIndex_(normalizedHeaderMap, ["last update", "lastupdate", "last updated", "lastupdated", "updated by", "updatedby"], 0, lastColumn),
     displayOrder: findEmployeeColumnIndex_(normalizedHeaderMap, ["display order", "displayorder", "sort order", "sortorder", "order", "position"], 0, lastColumn)
+  };
+}
+
+function ensureEmployeeAdminColumns_(sheet) {
+  var lastColumn = Math.max(sheet.getLastColumn(), EMPLOYEE_LEGACY_COL.PHONE_NUMBER);
+  var headerRow = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+  var columns = buildEmployeeColumnMap_(headerRow, lastColumn);
+  var appendedHeaders = [];
+
+  if (!columns.payType) {
+    appendedHeaders.push("Pay Type");
+  }
+
+  if (!columns.lastUpdate) {
+    appendedHeaders.push("Last Update");
+  }
+
+  if (appendedHeaders.length > 0) {
+    sheet.getRange(1, lastColumn + 1, 1, appendedHeaders.length).setValues([appendedHeaders]);
+    lastColumn += appendedHeaders.length;
+    headerRow = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+    columns = buildEmployeeColumnMap_(headerRow, lastColumn);
+  }
+
+  return {
+    headerRow: headerRow,
+    lastColumn: lastColumn,
+    columns: columns
   };
 }
 
@@ -659,12 +695,27 @@ function parseEmployeeHourlyWageInput_(value) {
   return parsed;
 }
 
+function parseEmployeePayType_(value) {
+  var normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "salary" || normalized === "salaried" || normalized === "fixed") {
+    return "salary";
+  }
+  return "hourly";
+}
+
+function buildEmployeeLastUpdateValue_(editorName) {
+  var timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "M/d/yyyy h:mm:ss a");
+  var actor = String(editorName || "").trim() || "Unknown";
+  return timestamp + " by " + actor;
+}
+
 function buildEmployeeRecord_(rawRow, displayRow, rowNumber, columns) {
   var name = String(displayRow[columns.name - 1] || "").trim();
   var jobTitle = columns.jobTitle ? String(displayRow[columns.jobTitle - 1] || "").trim() : "";
   var pin = columns.pin ? String(displayRow[columns.pin - 1] || "").trim() : "";
   var role = columns.role ? String(displayRow[columns.role - 1] || "employee").trim().toLowerCase() : "employee";
   var active = columns.active ? parseEmployeeActiveValue_(rawRow[columns.active - 1], displayRow[columns.active - 1]) : true;
+  var payType = columns.payType ? parseEmployeePayType_(displayRow[columns.payType - 1]) : "hourly";
   var hourlyWageRaw = columns.hourlyWage ? rawRow[columns.hourlyWage - 1] : "";
   var hourlyWageDisplay = columns.hourlyWage ? String(displayRow[columns.hourlyWage - 1] || "").trim() : "";
   var hourlyWageValue = "";
@@ -674,6 +725,7 @@ function buildEmployeeRecord_(rawRow, displayRow, rowNumber, columns) {
     hourlyWageValue = "";
   }
   var phoneNumber = columns.phoneNumber ? String(displayRow[columns.phoneNumber - 1] || "").trim() : "";
+  var lastUpdate = columns.lastUpdate ? String(displayRow[columns.lastUpdate - 1] || "").trim() : "";
   var displayOrder = columns.displayOrder ? String(displayRow[columns.displayOrder - 1] || "").trim() : "";
 
   return {
@@ -685,9 +737,11 @@ function buildEmployeeRecord_(rawRow, displayRow, rowNumber, columns) {
     pin: pin || "0000",
     role: role || "employee",
     active: active,
+    payType: payType,
     hourlyWage: hourlyWageDisplay,
     hourlyWageValue: hourlyWageValue === "" ? null : hourlyWageValue,
     phoneNumber: phoneNumber,
+    lastUpdate: lastUpdate,
     displayOrder: displayOrder
   };
 }

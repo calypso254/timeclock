@@ -1752,13 +1752,13 @@ function App() {
                 if (!adminUser || !employee?.rowNumber || isSubmittingEmployeeAdmin) return false;
 
                 const trimmedName = String(draft?.name || '').trim();
-                const trimmedHourlyWage = String(draft?.hourlyWage || '').trim();
+                const trimmedPayAmount = String(draft?.hourlyWage || '').trim();
                 if (!trimmedName) {
                     setNotification({ type: 'error', message: "Employee name is required." });
                     return false;
                 }
-                if (trimmedHourlyWage && !Number.isFinite(parseCurrencyNumber(trimmedHourlyWage))) {
-                    setNotification({ type: 'error', message: "Hourly wage must be a valid dollar amount." });
+                if (trimmedPayAmount && !Number.isFinite(parseCurrencyNumber(trimmedPayAmount))) {
+                    setNotification({ type: 'error', message: "Pay amount must be a valid dollar amount." });
                     return false;
                 }
 
@@ -1775,7 +1775,8 @@ function App() {
                         pin: String(draft?.pin || '').trim(),
                         role: String(draft?.role || 'employee').trim().toLowerCase(),
                         active: Boolean(draft?.active),
-                        hourlyWage: trimmedHourlyWage,
+                        payType: String(draft?.payType || 'hourly').trim().toLowerCase(),
+                        hourlyWage: trimmedPayAmount,
                         phoneNumber: String(draft?.phoneNumber || '').trim(),
                     });
 
@@ -1814,13 +1815,13 @@ function App() {
                 if (!adminUser || isCreatingEmployeeAdmin) return null;
 
                 const trimmedName = String(draft?.name || '').trim();
-                const trimmedHourlyWage = String(draft?.hourlyWage || '').trim();
+                const trimmedPayAmount = String(draft?.hourlyWage || '').trim();
                 if (!trimmedName) {
                     setNotification({ type: 'error', message: "Employee name is required." });
                     return null;
                 }
-                if (trimmedHourlyWage && !Number.isFinite(parseCurrencyNumber(trimmedHourlyWage))) {
-                    setNotification({ type: 'error', message: "Hourly wage must be a valid dollar amount." });
+                if (trimmedPayAmount && !Number.isFinite(parseCurrencyNumber(trimmedPayAmount))) {
+                    setNotification({ type: 'error', message: "Pay amount must be a valid dollar amount." });
                     return null;
                 }
 
@@ -1836,7 +1837,8 @@ function App() {
                         pin: String(draft?.pin || '').trim(),
                         role: String(draft?.role || 'employee').trim().toLowerCase(),
                         active: Boolean(draft?.active),
-                        hourlyWage: trimmedHourlyWage,
+                        payType: String(draft?.payType || 'hourly').trim().toLowerCase(),
+                        hourlyWage: trimmedPayAmount,
                         phoneNumber: String(draft?.phoneNumber || '').trim(),
                     });
 

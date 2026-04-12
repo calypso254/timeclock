@@ -218,6 +218,16 @@ const { useState, useEffect, useRef } = React;
             });
         };
 
+        const getEmployeePayType = (employee) => {
+            const normalized = String(
+                employee?.payType
+                || employee?.compensationType
+                || employee?.wageType
+                || ''
+            ).trim().toLowerCase();
+            return normalized === 'salary' ? 'salary' : 'hourly';
+        };
+
         const getEmployeeHourlyWage = (employee) => {
             if (!employee || typeof employee !== 'object') return null;
 
@@ -245,12 +255,14 @@ const { useState, useEffect, useRef } = React;
             pin: String(employee?.pin || ''),
             role: String(employee?.role || 'employee'),
             active: isEmployeeActive(employee),
+            payType: getEmployeePayType(employee),
             hourlyWage: (() => {
                 const numericHourlyWage = getEmployeeHourlyWage(employee);
                 if (Number.isFinite(numericHourlyWage)) return String(numericHourlyWage);
                 return String(employee?.hourlyWage || '').trim();
             })(),
             phoneNumber: String(employee?.phoneNumber || ''),
+            lastUpdate: String(employee?.lastUpdate || ''),
         });
 
         const buildEmptyEmployeeAdminDraft = () => ({
@@ -260,8 +272,10 @@ const { useState, useEffect, useRef } = React;
             pin: '',
             role: 'employee',
             active: true,
+            payType: 'hourly',
             hourlyWage: '',
             phoneNumber: '',
+            lastUpdate: '',
         });
 
         const getEmployeeDisplayOrderValue = (employee) => {

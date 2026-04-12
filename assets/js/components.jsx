@@ -1998,14 +1998,18 @@
                         const rows = periodRows.filter(row => String(row?.name || '').trim() === name);
                         const workedRows = rows.filter(row => getPayrollRowMinutes(row) > 0);
                         const employeeRecord = employeeMapByName.get(name.toLowerCase()) || null;
-                        const hourlyWage = getEmployeeHourlyWage(employeeRecord);
+                        const payType = getEmployeePayType(employeeRecord);
+                        const payAmount = getEmployeeHourlyWage(employeeRecord);
                         const totalMinutes = workedRows.reduce((sum, row) => sum + getPayrollRowMinutes(row), 0);
                         return {
                             name,
                             workedEntryCount: workedRows.length,
                             editedEntryCount: workedRows.filter(row => parseReasonCell(row.reason).length > 0).length,
                             totalMinutes,
-                            totalPay: Number.isFinite(hourlyWage) ? ((totalMinutes / 60) * hourlyWage) : null,
+                            payType,
+                            totalPay: Number.isFinite(payAmount)
+                                ? (payType === 'salary' ? payAmount : ((totalMinutes / 60) * payAmount))
+                                : null,
                         };
                     });
 
@@ -2157,9 +2161,11 @@
                 selectedEmployee?.pin,
                 selectedEmployee?.role,
                 selectedEmployee?.active,
+                selectedEmployee?.payType,
                 selectedEmployee?.hourlyWage,
                 selectedEmployee?.hourlyWageValue,
                 selectedEmployee?.phoneNumber,
+                selectedEmployee?.lastUpdate,
             ]);
 
             const isDirty = isCreatingNew ? (
@@ -2168,6 +2174,7 @@
                 || draft.pin !== ''
                 || draft.role !== 'employee'
                 || Boolean(draft.active) !== true
+                || draft.payType !== 'hourly'
                 || draft.hourlyWage !== ''
                 || draft.phoneNumber !== ''
             ) : Boolean(selectedEmployee) && (
@@ -2176,11 +2183,13 @@
                 || draft.pin !== baselineDraft.pin
                 || draft.role !== baselineDraft.role
                 || Boolean(draft.active) !== Boolean(baselineDraft.active)
+                || draft.payType !== baselineDraft.payType
                 || draft.hourlyWage !== baselineDraft.hourlyWage
                 || draft.phoneNumber !== baselineDraft.phoneNumber
             );
             const roleLabel = formatRoleLabel(adminUser?.role, 'Admin');
-            const hourlyWagePreview = formatCurrencyAmount(draft.hourlyWage);
+            const payAmountPreview = formatCurrencyAmount(draft.hourlyWage);
+            const payTypeLabel = draft.payType === 'salary' ? 'Salary' : 'Hourly';
 
             const updateDraft = (field, value) => {
                 setDraft(prev => ({
@@ -2248,11 +2257,6 @@
                     ) : (
                         <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)] flex-1 min-h-0">
                             <div className="section-card panel-content-card bg-white p-4 flex flex-col gap-4">
-                                <div>
-                                    <div className="card-eyebrow text-[#38bdf8]">Choose Employee</div>
-                                    <div className="card-meta mt-2">Switch between active-only and all employees, or start a new employee record.</div>
-                                </div>
-
                                 <div className="flex flex-wrap gap-2">
                                     <button
                                         type="button"
@@ -2270,31 +2274,50 @@
                                     </button>
                                 </div>
 
-                                <div className="admin-studio-control-shell admin-studio-select-shell">
-                                    <i className="fas fa-user-gear text-[#38bdf8]"></i>
-                                    <select
-                                        value={isCreatingNew ? '__new__' : (selectedEmployee ? String(selectedEmployee.rowNumber) : '')}
-                                        onChange={e => {
-                                            const nextValue = e.target.value;
-                                            if (nextValue === '__new__') {
-                                                setIsCreatingNew(true);
-                                                setDraft(buildEmptyEmployeeAdminDraft());
-                                                return;
-                                            }
-
-                                            setIsCreatingNew(false);
-                                            setSelectedEmployeeRowNumber(nextValue);
-                                        }}
-                                        className="admin-studio-select"
-                                    >
-                                        <option value="__new__">Add New Employee</option>
-                                        {editableEmployees.map(employee => (
-                                            <option key={`employee-admin-${employee.rowNumber}`} value={String(employee.rowNumber)}>
-                                                {employee.name} {isEmployeeActive(employee) ? '' : '(Inactive)'}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <i className="fas fa-chevron-down text-xs text-gray-500"></i>
+                                <div className="grid grid-cols-1 gap-2 max-h-[420px] overflow-y-auto pr-1">
+                                    {isCreatingNew && (
+                                        <button
+                                            type="button"
+                                            className="section-card bg-[#ede9fe] px-4 py-3 text-left ring-2 ring-[#7c3aed]"
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <div className="card-title break-words">New Employee</div>
+                                                    <div className="card-meta mt-1">Create a new employee record</div>
+                                                </div>
+                                                <div className="card-eyebrow text-[#7c3aed]">New</div>
+                                            </div>
+                                        </button>
+                                    )}
+                                    {editableEmployees.map(employee => {
+                                        const isSelected = !isCreatingNew && String(selectedEmployee?.rowNumber || '') === String(employee.rowNumber);
+                                        const employeePayType = getEmployeePayType(employee);
+                                        const employeePayPreview = formatCurrencyAmount(getEmployeeHourlyWage(employee));
+                                        return (
+                                            <button
+                                                key={`employee-admin-${employee.rowNumber}`}
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsCreatingNew(false);
+                                                    setSelectedEmployeeRowNumber(String(employee.rowNumber));
+                                                }}
+                                                className={`section-card px-4 py-3 text-left transition-colors ${isSelected ? 'bg-[#dbeafe] ring-2 ring-[#38bdf8]' : (isEmployeeActive(employee) ? 'bg-white hover:bg-[#f8fafc]' : 'bg-[#f8fafc] hover:bg-[#f1f5f9]')}`}
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <div className="card-title break-words">{employee.name}</div>
+                                                        <div className="card-meta mt-1">{employee.jobTitle || employee.department || 'No job title set'}</div>
+                                                    </div>
+                                                    <div className="card-eyebrow text-gray-500">
+                                                        {isEmployeeActive(employee) ? 'Active' : 'Inactive'}
+                                                    </div>
+                                                </div>
+                                                <div className="card-meta mt-3">
+                                                    {employeePayType === 'salary' ? 'Salary' : 'Hourly'} {employeePayPreview || 'Not set'}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
 
                                 {(selectedEmployee || isCreatingNew) && (
@@ -2305,7 +2328,10 @@
                                         <div className="card-title mt-2 break-words">{draft.name || selectedEmployee?.name || 'New employee'}</div>
                                         <div className="card-meta mt-2">{draft.jobTitle || 'No job title set'}</div>
                                         <div className="card-meta mt-2">{formatRoleLabel(draft.role, 'Employee')}</div>
-                                        <div className="card-meta mt-2">{hourlyWagePreview || 'No hourly wage set'}</div>
+                                        <div className="card-meta mt-2">{payTypeLabel} {payAmountPreview || 'Not set'}</div>
+                                        {!isCreatingNew && draft.lastUpdate && (
+                                            <div className="card-meta mt-2">{draft.lastUpdate}</div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -2368,7 +2394,20 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Hourly Wage</label>
+                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Pay Type</label>
+                                        <select
+                                            value={draft.payType}
+                                            onChange={e => updateDraft('payType', e.target.value)}
+                                            className="brutal-input w-full px-3 py-2.5"
+                                        >
+                                            <option value="hourly">Hourly</option>
+                                            <option value="salary">Salary</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">
+                                            {draft.payType === 'salary' ? 'Salary Amount' : 'Hourly Wage'}
+                                        </label>
                                         <input
                                             type="number"
                                             min="0"
@@ -2378,7 +2417,9 @@
                                             className="brutal-input w-full px-3 py-2.5"
                                             placeholder="0.00"
                                         />
-                                        <div className="card-meta mt-2">{hourlyWagePreview || 'Enter an hourly rate in dollars'}</div>
+                                        <div className="card-meta mt-2">
+                                            {payAmountPreview || (draft.payType === 'salary' ? 'Enter the fixed salary amount for this payroll period' : 'Enter an hourly rate in dollars')}
+                                        </div>
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Phone Number</label>
@@ -2390,6 +2431,14 @@
                                             placeholder="Phone number"
                                         />
                                     </div>
+                                    {!isCreatingNew && (
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2">Last Update</label>
+                                            <div className="rounded-xl border-2 border-black bg-[#f8fafc] px-3 py-2.5 text-sm font-bold text-gray-600">
+                                                {draft.lastUpdate || 'No updates recorded yet'}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
