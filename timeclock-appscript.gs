@@ -6,6 +6,7 @@ var INVENTORY_SHEET_NAME = "Inventory";
 var INVENTORY_LOG_SHEET_NAME = "Inventory Log";
 var MESSAGES_SHEET_NAME = "Messages";
 var PEN_HOSPITAL_SHEET_NAME = "Pen Hospital";
+var EMPLOYEE_ROLE_OPTIONS = ["supervisor", "admin", "employee"];
 var SHOPIFY_API_VERSION = "2025-10";
 
 /*
@@ -457,7 +458,7 @@ function handleAdminUpdateEmployee_(data) {
   var nextName = String(data.name || "").trim();
   var nextJobTitle = String(data.jobTitle || "").trim();
   var nextPin = String(data.pin || "").trim();
-  var nextRole = String(data.role || "employee").trim().toLowerCase();
+  var nextRole = sanitizeEmployeeRole_(data.role);
   var nextPhoneNumber = String(data.phoneNumber || "").trim();
   var nextActive = parseEmployeeActiveValue_(data.active, data.active);
   var nextPayType = parseEmployeePayType_(data.payType || data.compensationType || data.wageType);
@@ -465,10 +466,6 @@ function handleAdminUpdateEmployee_(data) {
 
   if (!nextName) {
     throw new Error("Employee name is required.");
-  }
-
-  if (!nextRole) {
-    throw new Error("Employee role is required.");
   }
 
   writeEmployeeColumnValue_(sheet, rowNumber, columns.name, nextName);
@@ -521,7 +518,7 @@ function handleAdminCreateEmployee_(data) {
   var nextName = String(data.name || "").trim();
   var nextJobTitle = String(data.jobTitle || "").trim();
   var nextPin = String(data.pin || "").trim();
-  var nextRole = String(data.role || "employee").trim().toLowerCase();
+  var nextRole = sanitizeEmployeeRole_(data.role);
   var nextPhoneNumber = String(data.phoneNumber || "").trim();
   var nextActive = parseEmployeeActiveValue_(data.active, data.active);
   var nextPayType = parseEmployeePayType_(data.payType || data.compensationType || data.wageType);
@@ -2899,7 +2896,17 @@ function isPayrollRelevantRecord_(record) {
 
 function isAdminRole_(role) {
   var normalized = String(role || "").trim().toLowerCase();
-  return normalized === "admin" || normalized === "manager" || normalized === "owner";
+  return normalized === "supervisor" || normalized === "admin";
+}
+
+function sanitizeEmployeeRole_(role) {
+  var normalized = String(role || "employee").trim().toLowerCase();
+  for (var i = 0; i < EMPLOYEE_ROLE_OPTIONS.length; i++) {
+    if (normalized === EMPLOYEE_ROLE_OPTIONS[i]) {
+      return normalized;
+    }
+  }
+  throw new Error("Employee role must be supervisor, admin, or employee.");
 }
 
 function normalizeMessageSenderRole_(role) {

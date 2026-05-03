@@ -1024,7 +1024,6 @@
             subtitle = '',
         }) => {
             const summary = buildPenHospitalSummary(penHospitalCases)
-                .filter(section => section.key !== 'completed')
                 .map(section => ({
                     ...section,
                     displayTitle: section.key === 'ready' ? 'Ready' : section.title,
@@ -1362,7 +1361,7 @@
             onUpdateStatus,
             emptyMessage = 'No Pen Hospital cases yet.',
         }) => {
-            const sortedCases = sortPenHospitalCases(penHospitalCases);
+            const sortedCases = sortPenHospitalCases(getActivePenHospitalCases(penHospitalCases));
             const summary = buildPenHospitalSummary(sortedCases);
 
             if (sortedCases.length === 0) {
@@ -1375,7 +1374,7 @@
 
             return (
                 <div className="space-y-4">
-                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                         {summary.map(section => (
                             <div key={section.key} className={`public-summary-row ${section.countClass}`}>
                                 <div className="text-[9px] uppercase font-bold text-gray-500">{section.title}</div>
@@ -1535,7 +1534,7 @@
                                         <p className="text-xs font-bold text-gray-500 mt-1">Admins start each repair case here. New cases begin as diagnosed.</p>
                                     </div>
                                     <div className="surface-rounded border-2 border-black bg-[#ccfbf1] px-3 py-1 text-xs font-bold uppercase">
-                                        {penHospitalCases.length} total
+                                        {getActivePenHospitalCases(penHospitalCases).length} active
                                     </div>
                                 </div>
 
@@ -2376,10 +2375,9 @@
                                             onChange={e => updateDraft('role', e.target.value)}
                                             className="brutal-input w-full px-3 py-2.5"
                                         >
-                                            <option value="employee">Employee</option>
+                                            <option value="supervisor">Supervisor</option>
                                             <option value="admin">Admin</option>
-                                            <option value="manager">Manager</option>
-                                            <option value="owner">Owner</option>
+                                            <option value="employee">Employee</option>
                                         </select>
                                     </div>
                                     <div>

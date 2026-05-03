@@ -46,7 +46,7 @@
     const diff = dateObj.getDate() - day;
     return new Date(dateObj.getFullYear(), dateObj.getMonth(), diff);
   };
-  const ADMIN_ROLES = ["admin", "manager", "owner"];
+  const ADMIN_ROLES = ["supervisor", "admin"];
   const DEFAULT_ADMIN_SCHEDULE_STATUS = "Draft";
   const TIME_OFF_STATUS = {
     REQUESTED: "Time Off Requested",
@@ -99,13 +99,6 @@
       subtitle: "Repaired pens that are ready for release back to the customer.",
       countClass: "bg-[#dcfce7]",
       cardClass: "bg-[#f0fdf4]"
-    },
-    {
-      key: "completed",
-      title: "Discharged",
-      subtitle: "Completed repairs that have already gone back out.",
-      countClass: "bg-[#f3e8ff]",
-      cardClass: "bg-[#faf5ff]"
     }
   ];
   const STANDARD_SIZE_UNIT = 103;
@@ -709,8 +702,14 @@
       return (b?.rowNumber || 0) - (a?.rowNumber || 0);
     });
   };
+  const isActivePenHospitalCase = (caseRow) => {
+    return normalizePenHospitalStatus(caseRow?.status) !== PEN_HOSPITAL_STATUS.DISCHARGED;
+  };
+  const getActivePenHospitalCases = (cases) => {
+    return (Array.isArray(cases) ? cases : []).filter(isActivePenHospitalCase);
+  };
   const buildPenHospitalSummary = (cases) => {
-    const safeCases = Array.isArray(cases) ? cases : [];
+    const safeCases = getActivePenHospitalCases(cases);
     return PEN_HOSPITAL_BOARD_SECTIONS.map((section) => ({
       ...section,
       count: safeCases.filter((caseRow) => getPenHospitalBoardKey(caseRow?.status) === section.key).length
@@ -1628,7 +1627,7 @@
     title = "Pen Hospital Overview",
     subtitle = ""
   }) => {
-    const summary = buildPenHospitalSummary(penHospitalCases).filter((section) => section.key !== "completed").map((section) => ({
+    const summary = buildPenHospitalSummary(penHospitalCases).map((section) => ({
       ...section,
       displayTitle: section.key === "ready" ? "Ready" : section.title
     }));
@@ -1833,12 +1832,12 @@
     onUpdateStatus,
     emptyMessage = "No Pen Hospital cases yet."
   }) => {
-    const sortedCases = sortPenHospitalCases(penHospitalCases);
+    const sortedCases = sortPenHospitalCases(getActivePenHospitalCases(penHospitalCases));
     const summary = buildPenHospitalSummary(sortedCases);
     if (sortedCases.length === 0) {
       return /* @__PURE__ */ React.createElement("div", { className: "h-full min-h-[360px] rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-10 text-center text-sm md:text-base font-bold text-gray-400 flex items-center justify-center" }, emptyMessage);
     }
-    return /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 xl:grid-cols-4 gap-2.5" }, summary.map((section) => /* @__PURE__ */ React.createElement("div", { key: section.key, className: `public-summary-row ${section.countClass}` }, /* @__PURE__ */ React.createElement("div", { className: "text-[9px] uppercase font-bold text-gray-500" }, section.title), /* @__PURE__ */ React.createElement("div", { className: "font-bold font-poppins text-lg text-[#060606] mt-1" }, section.count)))), /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, PEN_HOSPITAL_BOARD_SECTIONS.map((section) => {
+    return /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-2.5" }, summary.map((section) => /* @__PURE__ */ React.createElement("div", { key: section.key, className: `public-summary-row ${section.countClass}` }, /* @__PURE__ */ React.createElement("div", { className: "text-[9px] uppercase font-bold text-gray-500" }, section.title), /* @__PURE__ */ React.createElement("div", { className: "font-bold font-poppins text-lg text-[#060606] mt-1" }, section.count)))), /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, PEN_HOSPITAL_BOARD_SECTIONS.map((section) => {
       const sectionCases = sortedCases.filter((caseRow) => getPenHospitalBoardKey(caseRow?.status) === section.key);
       return /* @__PURE__ */ React.createElement("div", { key: section.key, className: `brutal-card ${section.cardClass} p-4 md:p-5` }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h4", { className: "card-title" }, section.title), /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, section.subtitle)), /* @__PURE__ */ React.createElement("div", { className: `status-chip self-start ${section.countClass}` }, sectionCases.length, " case", sectionCases.length === 1 ? "" : "s")), sectionCases.length === 0 ? /* @__PURE__ */ React.createElement("div", { className: "rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-6 text-center text-sm font-bold text-gray-400" }, "No cases in this lane.") : /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, sectionCases.map((caseRow) => /* @__PURE__ */ React.createElement(
         PenHospitalCaseCard,
@@ -1925,7 +1924,7 @@
       },
       /* @__PURE__ */ React.createElement("i", { className: `fas ${isFetchingPenHospital ? "fa-circle-notch spinner" : "fa-rotate-right"} text-[#0f766e]` }),
       /* @__PURE__ */ React.createElement("span", null, isFetchingPenHospital ? "Refreshing..." : "Refresh")
-    ))), /* @__PURE__ */ React.createElement("div", { className: "grid lg:grid-cols-[360px_minmax(0,1fr)] gap-4 min-h-0 flex-1" }, /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "brutal-card bg-white p-4 md:p-5" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-start justify-between gap-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h4", { className: "text-lg font-bold font-poppins text-[#060606]" }, "Open A Case"), /* @__PURE__ */ React.createElement("p", { className: "text-xs font-bold text-gray-500 mt-1" }, "Admins start each repair case here. New cases begin as diagnosed.")), /* @__PURE__ */ React.createElement("div", { className: "surface-rounded border-2 border-black bg-[#ccfbf1] px-3 py-1 text-xs font-bold uppercase" }, penHospitalCases.length, " total")), /* @__PURE__ */ React.createElement("div", { className: "space-y-3 mt-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2" }, "Customer Name"), /* @__PURE__ */ React.createElement(
+    ))), /* @__PURE__ */ React.createElement("div", { className: "grid lg:grid-cols-[360px_minmax(0,1fr)] gap-4 min-h-0 flex-1" }, /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "brutal-card bg-white p-4 md:p-5" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-start justify-between gap-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h4", { className: "text-lg font-bold font-poppins text-[#060606]" }, "Open A Case"), /* @__PURE__ */ React.createElement("p", { className: "text-xs font-bold text-gray-500 mt-1" }, "Admins start each repair case here. New cases begin as diagnosed.")), /* @__PURE__ */ React.createElement("div", { className: "surface-rounded border-2 border-black bg-[#ccfbf1] px-3 py-1 text-xs font-bold uppercase" }, getActivePenHospitalCases(penHospitalCases).length, " active")), /* @__PURE__ */ React.createElement("div", { className: "space-y-3 mt-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs font-bold uppercase tracking-wide text-[#060606] mb-2" }, "Customer Name"), /* @__PURE__ */ React.createElement(
       "input",
       {
         type: "text",
@@ -2455,10 +2454,9 @@
         onChange: (e) => updateDraft("role", e.target.value),
         className: "brutal-input w-full px-3 py-2.5"
       },
-      /* @__PURE__ */ React.createElement("option", { value: "employee" }, "Employee"),
+      /* @__PURE__ */ React.createElement("option", { value: "supervisor" }, "Supervisor"),
       /* @__PURE__ */ React.createElement("option", { value: "admin" }, "Admin"),
-      /* @__PURE__ */ React.createElement("option", { value: "manager" }, "Manager"),
-      /* @__PURE__ */ React.createElement("option", { value: "owner" }, "Owner")
+      /* @__PURE__ */ React.createElement("option", { value: "employee" }, "Employee")
     )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs md:text-sm font-bold font-poppins text-[#060606] mb-2" }, "Active"), /* @__PURE__ */ React.createElement(
       "select",
       {

@@ -59,7 +59,8 @@ const { useState, useEffect, useRef } = React;
             return new Date(dateObj.getFullYear(), dateObj.getMonth(), diff);
         };
 
-        const ADMIN_ROLES = ['admin', 'manager', 'owner'];
+        const EMPLOYEE_ROLE_OPTIONS = ['supervisor', 'admin', 'employee'];
+        const ADMIN_ROLES = ['supervisor', 'admin'];
         const DEFAULT_ADMIN_SCHEDULE_STATUS = 'Draft';
         const TIME_OFF_STATUS = {
             REQUESTED: 'Time Off Requested',
@@ -112,13 +113,6 @@ const { useState, useEffect, useRef } = React;
                 subtitle: 'Repaired pens that are ready for release back to the customer.',
                 countClass: 'bg-[#dcfce7]',
                 cardClass: 'bg-[#f0fdf4]',
-            },
-            {
-                key: 'completed',
-                title: 'Discharged',
-                subtitle: 'Completed repairs that have already gone back out.',
-                countClass: 'bg-[#f3e8ff]',
-                cardClass: 'bg-[#faf5ff]',
             },
         ];
         const STANDARD_SIZE_UNIT = 103;
@@ -867,8 +861,16 @@ const { useState, useEffect, useRef } = React;
             });
         };
 
+        const isActivePenHospitalCase = (caseRow) => {
+            return normalizePenHospitalStatus(caseRow?.status) !== PEN_HOSPITAL_STATUS.DISCHARGED;
+        };
+
+        const getActivePenHospitalCases = (cases) => {
+            return (Array.isArray(cases) ? cases : []).filter(isActivePenHospitalCase);
+        };
+
         const buildPenHospitalSummary = (cases) => {
-            const safeCases = Array.isArray(cases) ? cases : [];
+            const safeCases = getActivePenHospitalCases(cases);
             return PEN_HOSPITAL_BOARD_SECTIONS.map(section => ({
                 ...section,
                 count: safeCases.filter(caseRow => getPenHospitalBoardKey(caseRow?.status) === section.key).length,
