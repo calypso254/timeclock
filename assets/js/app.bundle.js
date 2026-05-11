@@ -1990,7 +1990,6 @@
     showMeta = true
   }) => {
     const queue = shippingQueue && typeof shippingQueue === "object" ? shippingQueue : {};
-    const readyCount = Math.max(0, Number(queue.readyCount || 0));
     const documents = queue.documents || {};
     const documentActions = [
       { key: "packingSlips", label: "Packing Slips", icon: "fa-file-invoice" },
@@ -1998,63 +1997,17 @@
       { key: "manifest", label: "Manifest", icon: "fa-clipboard-list" }
     ];
     const updatedLabel = queue.lastUpdated || "";
-    const escapePrintHelperHtml = (value) => String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    const allDocumentsAvailable = documentActions.every((documentConfig) => {
+      const documentRecord = documents?.[documentConfig.key] || {};
+      return Boolean(documentRecord.printUrl || documentRecord.viewUrl);
+    });
     const openPrintHelper = (documentConfig) => {
       const documentRecord = documents?.[documentConfig.key] || {};
       const pdfUrl = documentRecord.printUrl || documentRecord.viewUrl || "";
       if (!pdfUrl) return;
-      const printWindow = window.open("", "_blank");
-      if (!printWindow) {
-        window.open(pdfUrl, "_blank");
-        return;
-      }
-      printWindow.opener = null;
-      const helperTitle = `${documentConfig.label} - Print`;
-      printWindow.document.open();
-      printWindow.document.write(`
-                    <!doctype html>
-                    <html>
-                        <head>
-                            <meta charset="utf-8">
-                            <title>${escapePrintHelperHtml(helperTitle)}</title>
-                            <style>
-                                html, body { margin: 0; width: 100%; height: 100%; background: #f8fafc; font-family: Arial, sans-serif; }
-                                .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 2px solid #000; background: #fff; }
-                                .title { font-weight: 700; color: #060606; }
-                                .actions { display: flex; gap: 8px; }
-                                button, a { border: 2px solid #000; border-radius: 8px; background: #fff; color: #060606; padding: 8px 12px; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
-                                iframe { width: 100%; height: calc(100vh - 58px); border: 0; background: #fff; }
-                                @media print {
-                                    .toolbar { display: none; }
-                                    iframe { height: 100vh; }
-                                }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="toolbar">
-                                <div class="title">${escapePrintHelperHtml(helperTitle)}</div>
-                                <div class="actions">
-                                    <button type="button" onclick="window.print()">Print</button>
-                                    <a href="${escapePrintHelperHtml(pdfUrl)}" target="_blank" rel="noopener noreferrer">Open PDF</a>
-                                </div>
-                            </div>
-                            <iframe id="pdf-frame" src="${escapePrintHelperHtml(pdfUrl)}" title="${escapePrintHelperHtml(helperTitle)}"></iframe>
-                            <script>
-                                let didPrint = false;
-                                const printAfterLoad = () => {
-                                    if (didPrint) return;
-                                    didPrint = true;
-                                    setTimeout(() => window.print(), 700);
-                                };
-                                document.getElementById('pdf-frame').addEventListener('load', printAfterLoad, { once: true });
-                                setTimeout(printAfterLoad, 2500);
-                            <\/script>
-                        </body>
-                    </html>
-                `);
-      printWindow.document.close();
+      window.open(pdfUrl, "_blank", "noopener,noreferrer");
     };
-    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#16a34a]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), subtitle && /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, subtitle)), /* @__PURE__ */ React.createElement("div", { className: "status-chip public-overview-status-chip bg-[#dcfce7] self-start md:self-auto" }, readyCount, " ", readyCount === 1 ? "order" : "orders")), showActions && /* @__PURE__ */ React.createElement("div", { className: "shipping-print-actions" }, documentActions.map((documentConfig) => {
+    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#16a34a]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), subtitle && /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, subtitle)), /* @__PURE__ */ React.createElement("div", { className: `status-chip public-overview-status-chip self-start md:self-auto ${allDocumentsAvailable ? "bg-[#bbf7d0]" : "bg-[#fecaca]"}` }, allDocumentsAvailable ? "Ready" : "Missing")), showActions && /* @__PURE__ */ React.createElement("div", { className: "shipping-print-actions" }, documentActions.map((documentConfig) => {
       const documentRecord = documents?.[documentConfig.key] || {};
       const canPrint = Boolean(documentRecord.printUrl || documentRecord.viewUrl);
       return /* @__PURE__ */ React.createElement(

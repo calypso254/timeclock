@@ -1339,23 +1339,7 @@ function getShippingQueue_() {
   var sheet = getOrCreateShippingQueueSheet_();
   ensureShippingQueueSheetStructure_(sheet);
 
-  var rawRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.NOTES).getValues()[0];
-  var displayRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.NOTES).getDisplayValues()[0];
-  var readyCountText = String(displayRow[SHIPPING_QUEUE_COL.READY_COUNT - 1] || "").replace(/,/g, "");
-  var readyCount = Math.max(0, parseInt(readyCountText, 10) || 0);
-  var lastUpdatedValue = rawRow[SHIPPING_QUEUE_COL.LAST_UPDATED - 1];
-  var lastUpdatedIso = dateValueToIsoString_(lastUpdatedValue);
-  var documents = buildShippingQueueDocuments_();
-
-  return jsonResponse_({
-    readyCount: readyCount,
-    lastUpdated: String(displayRow[SHIPPING_QUEUE_COL.LAST_UPDATED - 1] || "").trim(),
-    lastUpdatedIso: lastUpdatedIso,
-    notes: String(displayRow[SHIPPING_QUEUE_COL.NOTES - 1] || "").trim(),
-    folderId: SHIPPING_PRINT_QUEUE_FOLDER_ID,
-    folderUrl: "https://drive.google.com/drive/folders/" + SHIPPING_PRINT_QUEUE_FOLDER_ID,
-    documents: documents
-  });
+  return jsonResponse_(buildShippingQueuePayload_(sheet));
 }
 
 function buildShippingQueueDocuments_() {
@@ -1368,6 +1352,24 @@ function buildShippingQueueDocuments_() {
   }
 
   return documents;
+}
+
+function buildShippingQueuePayload_(sheet) {
+  var rawRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.NOTES).getValues()[0];
+  var displayRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.NOTES).getDisplayValues()[0];
+  var readyCountText = String(displayRow[SHIPPING_QUEUE_COL.READY_COUNT - 1] || "").replace(/,/g, "");
+  var readyCount = Math.max(0, parseInt(readyCountText, 10) || 0);
+  var lastUpdatedValue = rawRow[SHIPPING_QUEUE_COL.LAST_UPDATED - 1];
+
+  return {
+    readyCount: readyCount,
+    lastUpdated: String(displayRow[SHIPPING_QUEUE_COL.LAST_UPDATED - 1] || "").trim(),
+    lastUpdatedIso: dateValueToIsoString_(lastUpdatedValue),
+    notes: String(displayRow[SHIPPING_QUEUE_COL.NOTES - 1] || "").trim(),
+    folderId: SHIPPING_PRINT_QUEUE_FOLDER_ID,
+    folderUrl: "https://drive.google.com/drive/folders/" + SHIPPING_PRINT_QUEUE_FOLDER_ID,
+    documents: buildShippingQueueDocuments_()
+  };
 }
 
 function buildShippingQueueDocument_(folder, config) {
