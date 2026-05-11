@@ -909,17 +909,13 @@
                             <h3 className={`section-title ${eyebrow ? 'mt-1' : ''}`}>{title}</h3>
                             {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
-                        <div className="status-chip bg-[#e0f2fe] self-start">
+                        <div className="status-chip public-overview-status-chip bg-[#e0f2fe] self-start">
                             {todayShifts.length} {todayShifts.length === 1 ? 'shift' : 'shifts'}
                         </div>
                     </div>
 
-                    <div className="public-schedule-wrap shadow-safe-2" style={{ width: `min(100%, ${scheduleGridWidth})` }}>
-                        {todayShifts.length === 0 ? (
-                            <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400">
-                                No published shifts.
-                            </div>
-                        ) : (
+                    {todayShifts.length > 0 && (
+                        <div className="public-schedule-wrap shadow-safe-2" style={{ width: `min(100%, ${scheduleGridWidth})` }}>
                             <div
                                 className="public-schedule-grid"
                                 style={{ width: `min(100%, ${scheduleGridWidth})` }}
@@ -942,8 +938,8 @@
                                     </div>
                                 ))}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -955,7 +951,6 @@
             subtitle = '',
         }) => {
             const { openRows, totals } = buildInventorySnapshotSummary(inventoryRows);
-            const inventorySubtitle = subtitle || 'Active needs grouped into one quick summary.';
 
             return (
                 <div className="section-width flex flex-col h-auto min-h-0 animate-fade-in">
@@ -963,9 +958,9 @@
                         <div>
                             {eyebrow && <div className="card-eyebrow text-[#f97316]">{eyebrow}</div>}
                             <h3 className={`section-title ${eyebrow ? 'mt-1' : ''}`}>{title}</h3>
-                            <p className="section-subtitle mt-1">{inventorySubtitle}</p>
+                            {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
-                        <div className="status-chip bg-[#fef3c7] self-start md:self-auto">
+                        <div className="status-chip public-overview-status-chip bg-[#fef3c7] self-start md:self-auto">
                             {openRows.length} open
                         </div>
                     </div>
@@ -985,12 +980,8 @@
                         </div>
                     </div>
 
-                    <div className="message-thread-scroll-auto no-scrollbar shadow-safe-2">
-                        {openRows.length === 0 ? (
-                            <div className="rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white">
-                                No open inventory tasks right now.
-                            </div>
-                        ) : (
+                    {openRows.length > 0 && (
+                        <div className="message-thread-scroll-auto no-scrollbar shadow-safe-2">
                             <div className="space-y-2.5">
                                 {openRows.map(row => (
                                     <div key={row.rowNumber} className="public-summary-row flex items-start justify-between gap-3">
@@ -1011,8 +1002,8 @@
                                     </div>
                                 ))}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -1027,9 +1018,8 @@
                 .map(section => ({
                     ...section,
                     displayTitle: section.key === 'ready' ? 'Ready' : section.title,
-                }));
+            }));
             const activeCount = summary.reduce((sum, section) => sum + section.count, 0);
-            const overviewSubtitle = subtitle || 'Repair queue counts by lane.';
 
             return (
                 <div className="section-width flex flex-col h-auto min-h-0 animate-fade-in">
@@ -1037,9 +1027,9 @@
                         <div>
                             {eyebrow && <div className="card-eyebrow text-[#0f766e]">{eyebrow}</div>}
                             <h3 className={`section-title ${eyebrow ? 'mt-1' : ''}`}>{title}</h3>
-                            <p className="section-subtitle mt-1">{overviewSubtitle}</p>
+                            {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
-                        <div className="status-chip bg-[#ccfbf1] self-start md:self-auto">
+                        <div className="status-chip public-overview-status-chip bg-[#ccfbf1] self-start md:self-auto">
                             {activeCount} active
                         </div>
                     </div>
@@ -1611,7 +1601,171 @@
             );
         };
 
-        const PublicOverviewPanel = ({ sheetData, inventoryRows, penHospitalCases, messages }) => {
+        const ShippingQueuePanel = ({
+            shippingQueue,
+            isFetching = false,
+            eyebrow = '',
+            title = 'Ready to Ship',
+            subtitle = '',
+            showActions = true,
+            showMeta = true,
+        }) => {
+            const queue = shippingQueue && typeof shippingQueue === 'object' ? shippingQueue : {};
+            const readyCount = Math.max(0, Number(queue.readyCount || 0));
+            const documents = queue.documents || {};
+            const documentActions = [
+                { key: 'packingSlips', label: 'Packing Slips', icon: 'fa-file-invoice' },
+                { key: 'shippingLabels', label: 'Shipping Labels', icon: 'fa-tags' },
+                { key: 'manifest', label: 'Manifest', icon: 'fa-clipboard-list' },
+            ];
+            const updatedLabel = queue.lastUpdated || '';
+
+            const escapePrintHelperHtml = (value) => String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+
+            const openPrintHelper = (documentConfig) => {
+                const documentRecord = documents?.[documentConfig.key] || {};
+                const pdfUrl = documentRecord.printUrl || documentRecord.viewUrl || '';
+                if (!pdfUrl) return;
+
+                const printWindow = window.open('', '_blank');
+                if (!printWindow) {
+                    window.open(pdfUrl, '_blank');
+                    return;
+                }
+
+                printWindow.opener = null;
+                const helperTitle = `${documentConfig.label} - Print`;
+                printWindow.document.open();
+                printWindow.document.write(`
+                    <!doctype html>
+                    <html>
+                        <head>
+                            <meta charset="utf-8">
+                            <title>${escapePrintHelperHtml(helperTitle)}</title>
+                            <style>
+                                html, body { margin: 0; width: 100%; height: 100%; background: #f8fafc; font-family: Arial, sans-serif; }
+                                .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 2px solid #000; background: #fff; }
+                                .title { font-weight: 700; color: #060606; }
+                                .actions { display: flex; gap: 8px; }
+                                button, a { border: 2px solid #000; border-radius: 8px; background: #fff; color: #060606; padding: 8px 12px; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
+                                iframe { width: 100%; height: calc(100vh - 58px); border: 0; background: #fff; }
+                                @media print {
+                                    .toolbar { display: none; }
+                                    iframe { height: 100vh; }
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="toolbar">
+                                <div class="title">${escapePrintHelperHtml(helperTitle)}</div>
+                                <div class="actions">
+                                    <button type="button" onclick="window.print()">Print</button>
+                                    <a href="${escapePrintHelperHtml(pdfUrl)}" target="_blank" rel="noopener noreferrer">Open PDF</a>
+                                </div>
+                            </div>
+                            <iframe id="pdf-frame" src="${escapePrintHelperHtml(pdfUrl)}" title="${escapePrintHelperHtml(helperTitle)}"></iframe>
+                            <script>
+                                let didPrint = false;
+                                const printAfterLoad = () => {
+                                    if (didPrint) return;
+                                    didPrint = true;
+                                    setTimeout(() => window.print(), 700);
+                                };
+                                document.getElementById('pdf-frame').addEventListener('load', printAfterLoad, { once: true });
+                                setTimeout(printAfterLoad, 2500);
+                            <\/script>
+                        </body>
+                    </html>
+                `);
+                printWindow.document.close();
+            };
+
+            return (
+                <div className="section-width flex flex-col h-auto min-h-0 animate-fade-in">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0">
+                        <div>
+                            {eyebrow && <div className="card-eyebrow text-[#16a34a]">{eyebrow}</div>}
+                            <h3 className={`section-title ${eyebrow ? 'mt-1' : ''}`}>{title}</h3>
+                            {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
+                        </div>
+                        <div className="status-chip public-overview-status-chip bg-[#dcfce7] self-start md:self-auto">
+                            {readyCount} {readyCount === 1 ? 'order' : 'orders'}
+                        </div>
+                    </div>
+
+                    {showActions && (
+                        <div className="shipping-print-actions">
+                            {documentActions.map(documentConfig => {
+                                const documentRecord = documents?.[documentConfig.key] || {};
+                                const canPrint = Boolean(documentRecord.printUrl || documentRecord.viewUrl);
+                                return (
+                                    <button
+                                        key={documentConfig.key}
+                                        type="button"
+                                        onClick={() => openPrintHelper(documentConfig)}
+                                        disabled={isFetching || !canPrint}
+                                        className={`brutal-btn shipping-print-button bg-white ${canPrint ? 'hover:bg-[#f0fdf4]' : 'opacity-50 cursor-not-allowed'}`}
+                                    >
+                                        <i className={`fas ${isFetching ? 'fa-circle-notch spinner' : documentConfig.icon} text-[#16a34a]`}></i>
+                                        <span>{documentConfig.label}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {showMeta && (updatedLabel || queue.notes) && (
+                        <div className="card-meta mt-3">
+                            {updatedLabel && <span>Updated {updatedLabel}</span>}
+                            {updatedLabel && queue.notes && <span> · </span>}
+                            {queue.notes && <span>{queue.notes}</span>}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const EmployeeShippingQueuePanel = ({
+            shippingQueue,
+            isFetching = false,
+            onRefresh,
+        }) => {
+            return (
+                <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4 shrink-0">
+                        <div>
+                            <h3 className="section-title">Shipping</h3>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={onRefresh}
+                                disabled={isFetching}
+                                className="brutal-btn action-button action-button-fixed action-button-iconless bg-white hover:bg-gray-50"
+                            >
+                                <i className={`fas ${isFetching ? 'fa-circle-notch spinner' : 'fa-rotate-right'} text-[#16a34a]`}></i>
+                                <span>{isFetching ? 'Refreshing...' : 'Refresh'}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="section-card panel-content-card bg-[#f0fdf4]">
+                        <ShippingQueuePanel
+                            shippingQueue={shippingQueue}
+                            isFetching={isFetching}
+                            showActions={true}
+                            showMeta={true}
+                        />
+                    </div>
+                </div>
+            );
+        };
+
+        const PublicOverviewPanel = ({ sheetData, inventoryRows, penHospitalCases, messages, shippingQueue, isFetchingShippingQueue = false }) => {
             return (
                 <div className="flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="mb-4 md:mb-6 shrink-0">
@@ -1634,6 +1788,14 @@
                                 </div>
                             </div>
                             <div className="public-overview-right-column">
+                                <div className="section-card public-overview-card public-overview-shipping-card bg-[#f0fdf4] p-3 md:p-4">
+                                    <ShippingQueuePanel
+                                        shippingQueue={shippingQueue}
+                                        isFetching={isFetchingShippingQueue}
+                                        showActions={false}
+                                        showMeta={false}
+                                    />
+                                </div>
                                 <div className="section-card public-overview-card public-overview-schedule-card bg-[#f8fafc] p-3 md:p-4">
                                     <TodaySchedulePanel sheetData={sheetData} />
                                 </div>
@@ -1642,7 +1804,6 @@
                                         messages={messages}
                                         eyebrow=""
                                         title="Messages"
-                                        subtitle="Read-only view of the shared staff notes board."
                                         readOnly={true}
                                         newestFirst={true}
                                         autoHeight={true}

@@ -6,8 +6,10 @@ var INVENTORY_SHEET_NAME = "Inventory";
 var INVENTORY_LOG_SHEET_NAME = "Inventory Log";
 var MESSAGES_SHEET_NAME = "Messages";
 var PEN_HOSPITAL_SHEET_NAME = "Pen Hospital";
+var SHIPPING_QUEUE_SHEET_NAME = "Shipping Queue";
 var EMPLOYEE_ROLE_OPTIONS = ["supervisor", "admin", "employee"];
 var SHOPIFY_API_VERSION = "2025-10";
+var SHIPPING_PRINT_QUEUE_FOLDER_ID = "1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF";
 
 /*
  * COLUMN MAPPING (Timesheet):
@@ -113,7 +115,19 @@ var PEN_HOSPITAL_COL = {
   DISCHARGED_BY: 13
 };
 
+var SHIPPING_QUEUE_COL = {
+  READY_COUNT: 1,
+  LAST_UPDATED: 2,
+  NOTES: 3
+};
+
 var MESSAGE_FETCH_LIMIT = 120;
+
+var SHIPPING_QUEUE_DOCUMENTS = [
+  { key: "packingSlips", label: "Packing Slips", fileName: "packing-slips.pdf" },
+  { key: "shippingLabels", label: "Shipping Labels", fileName: "shipping-labels.pdf" },
+  { key: "manifest", label: "Manifest", fileName: "manifest.pdf" }
+];
 
 var INVENTORY_STATUS = {
   OPEN: "Open",
@@ -152,6 +166,10 @@ function doGet(e) {
 
   if (type === "pen_hospital") {
     return getPenHospital_();
+  }
+
+  if (type === "shipping_queue") {
+    return getShippingQueue_();
   }
 
   return getEmployees_();
@@ -1291,6 +1309,95 @@ function getOrCreateMessagesSheet_() {
 function getOrCreatePenHospitalSheet_() {
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   return spreadsheet.getSheetByName(PEN_HOSPITAL_SHEET_NAME) || spreadsheet.insertSheet(PEN_HOSPITAL_SHEET_NAME);
+}
+
+function getOrCreateShippingQueueSheet_() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  return spreadsheet.getSheetByName(SHIPPING_QUEUE_SHEET_NAME) || spreadsheet.insertSheet(SHIPPING_QUEUE_SHEET_NAME);
+}
+
+function ensureShippingQueueSheetStructure_(sheet) {
+  var headers = [[
+    "Ready Count",
+    "Last Updated",
+    "Notes"
+  ]];
+
+  if (sheet.getMaxColumns() < headers[0].length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers[0].length - sheet.getMaxColumns());
+  }
+
+  sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
+  sheet.setFrozenRows(1);
+
+  if (sheet.getLastRow() < 2) {
+    sheet.getRange(2, SHIPPING_QUEUE_COL.READY_COUNT, 1, headers[0].length).setValues([[0, "", ""]]);
+  }
+}
+
+function getShippingQueue_() {
+  var sheet = getOrCreateShippingQueueSheet_();
+  ensureShippingQueueSheetStructure_(sheet);
+
+  var rawRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.NOTES).getValues()[0];
+  var displayRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.NOTES).getDisplayValues()[0];
+  var readyCountText = String(displayRow[SHIPPING_QUEUE_COL.READY_COUNT - 1] || "").replace(/,/g, "");
+  var readyCount = Math.max(0, parseInt(readyCountText, 10) || 0);
+  var lastUpdatedValue = rawRow[SHIPPING_QUEUE_COL.LAST_UPDATED - 1];
+  var lastUpdatedIso = dateValueToIsoString_(lastUpdatedValue);
+  var documents = buildShippingQueueDocuments_();
+
+  return jsonResponse_({
+    readyCount: readyCount,
+    lastUpdated: String(displayRow[SHIPPING_QUEUE_COL.LAST_UPDATED - 1] || "").trim(),
+    lastUpdatedIso: lastUpdatedIso,
+    notes: String(displayRow[SHIPPING_QUEUE_COL.NOTES - 1] || "").trim(),
+    folderId: SHIPPING_PRINT_QUEUE_FOLDER_ID,
+    folderUrl: "https://drive.google.com/drive/folders/" + SHIPPING_PRINT_QUEUE_FOLDER_ID,
+    documents: documents
+  });
+}
+
+function buildShippingQueueDocuments_() {
+  var folder = DriveApp.getFolderById(SHIPPING_PRINT_QUEUE_FOLDER_ID);
+  var documents = {};
+
+  for (var i = 0; i < SHIPPING_QUEUE_DOCUMENTS.length; i++) {
+    var config = SHIPPING_QUEUE_DOCUMENTS[i];
+    documents[config.key] = buildShippingQueueDocument_(folder, config);
+  }
+
+  return documents;
+}
+
+function buildShippingQueueDocument_(folder, config) {
+  var files = folder.getFilesByName(config.fileName);
+  if (!files.hasNext()) {
+    return {
+      key: config.key,
+      label: config.label,
+      fileName: config.fileName,
+      missing: true
+    };
+  }
+
+  var file = files.next();
+  var fileId = file.getId();
+  var lastUpdated = file.getLastUpdated();
+  return {
+    key: config.key,
+    label: config.label,
+    fileName: config.fileName,
+    fileId: fileId,
+    name: file.getName(),
+    mimeType: file.getMimeType(),
+    missing: false,
+    viewUrl: "https://drive.google.com/file/d/" + fileId + "/view?usp=sharing",
+    printUrl: "https://drive.google.com/file/d/" + fileId + "/preview",
+    downloadUrl: "https://drive.google.com/uc?export=download&id=" + fileId,
+    lastUpdated: Utilities.formatDate(lastUpdated, Session.getScriptTimeZone(), "M/d/yyyy h:mm:ss a"),
+    lastUpdatedIso: lastUpdated.toISOString()
+  };
 }
 
 function ensureMessagesSheetStructure_(sheet) {

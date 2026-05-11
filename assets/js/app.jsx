@@ -46,6 +46,7 @@ function App() {
             const [isFetchingInventory, setIsFetchingInventory] = useState(false);
             const [isFetchingMessages, setIsFetchingMessages] = useState(false);
             const [isFetchingPenHospital, setIsFetchingPenHospital] = useState(false);
+            const [isFetchingShippingQueue, setIsFetchingShippingQueue] = useState(false);
             const [isSubmittingAction, setIsSubmittingAction] = useState(false);
             const [isSubmittingInventory, setIsSubmittingInventory] = useState(false);
             const [isSubmittingAdminSchedule, setIsSubmittingAdminSchedule] = useState(false);
@@ -64,6 +65,7 @@ function App() {
             const [inventoryRows, setInventoryRows] = useState([]);
             const [messages, setMessages] = useState([]);
             const [penHospitalCases, setPenHospitalCases] = useState([]);
+            const [shippingQueue, setShippingQueue] = useState(null);
             const [messageDraft, setMessageDraft] = useState('');
             const [browserNotificationPermission, setBrowserNotificationPermission] = useState(
                 notificationApiAvailable ? Notification.permission : 'unsupported'
@@ -215,25 +217,45 @@ function App() {
                 }
             };
 
+            const refreshShippingQueue = async ({ showSpinner = true } = {}) => {
+                if (showSpinner) setIsFetchingShippingQueue(true);
+                try {
+                    const response = await fetch(buildApiUrl('shipping_queue'), { cache: 'no-store' });
+                    if (!response.ok) throw new Error('Failed to fetch shipping queue');
+                    const queueData = await response.json();
+                    const nextQueue = queueData && typeof queueData === 'object' ? queueData : null;
+                    setShippingQueue(nextQueue);
+                    return nextQueue;
+                } catch (error) {
+                    console.error("Error refreshing shipping queue:", error);
+                    return null;
+                } finally {
+                    if (showSpinner) setIsFetchingShippingQueue(false);
+                }
+            };
+
             const refreshSheetData = async (showToast = false, { showSpinner = true, isInitialLoad = false } = {}) => {
                 const hadEmployees = employees.length > 0;
                 if (showSpinner) setIsFetchingLogs(true);
                 if (showSpinner) setIsFetchingInventory(true);
                 if (showSpinner) setIsFetchingMessages(true);
                 if (showSpinner) setIsFetchingPenHospital(true);
+                if (showSpinner) setIsFetchingShippingQueue(true);
 
                 let rows = null;
                 let inventory = null;
                 let messageRows = null;
                 let penHospital = null;
+                let queue = null;
                 try {
-                    const [employeesResult, settingsResult, logsResult, inventoryResult, messagesResult, penHospitalResult] = await Promise.allSettled([
+                    const [employeesResult, settingsResult, logsResult, inventoryResult, messagesResult, penHospitalResult, shippingQueueResult] = await Promise.allSettled([
                         refreshEmployees(),
                         refreshSettings(),
                         refreshLogs({ showSpinner: false }),
                         refreshInventory({ showSpinner: false }),
                         refreshMessages({ showSpinner: false }),
                         refreshPenHospital({ showSpinner: false }),
+                        refreshShippingQueue({ showSpinner: false }),
                     ]);
 
                     if (employeesResult.status === 'rejected') {
@@ -255,25 +277,31 @@ function App() {
                         console.error("Error refreshing Pen Hospital:", penHospitalResult.reason);
                     }
 
+                    if (shippingQueueResult.status === 'rejected') {
+                        console.error("Error refreshing shipping queue:", shippingQueueResult.reason);
+                    }
+
                     rows = logsResult.status === 'fulfilled' ? logsResult.value : null;
                     inventory = inventoryResult.status === 'fulfilled' ? inventoryResult.value : null;
                     messageRows = messagesResult.status === 'fulfilled' ? messagesResult.value : null;
                     penHospital = penHospitalResult.status === 'fulfilled' ? penHospitalResult.value : null;
+                    queue = shippingQueueResult.status === 'fulfilled' ? shippingQueueResult.value : null;
                 } finally {
                     if (showSpinner) setIsFetchingLogs(false);
                     if (showSpinner) setIsFetchingInventory(false);
                     if (showSpinner) setIsFetchingMessages(false);
                     if (showSpinner) setIsFetchingPenHospital(false);
+                    if (showSpinner) setIsFetchingShippingQueue(false);
                     if (isInitialLoad) setIsLoadingEmployees(false);
                 }
 
                 if (showToast) {
-                    setNotification((rows || inventory || messageRows || penHospital)
+                    setNotification((rows || inventory || messageRows || penHospital || queue)
                         ? { type: 'info', message: "Latest spreadsheet updates loaded" }
                         : { type: 'error', message: "Could not pull the latest spreadsheet updates." }
                     );
                 }
-                return { rows, inventory, messages: messageRows, penHospital };
+                return { rows, inventory, messages: messageRows, penHospital, shippingQueue: queue };
             };
 
             const persistBrowserAlertPreference = (nextValue) => {
@@ -1307,6 +1335,15 @@ function App() {
                 const rows = await refreshPenHospital({ showSpinner: false });
                 if (rows === null) {
                     setNotification({ type: 'error', message: "Could not load the Pen Hospital board right now." });
+                }
+            };
+
+            const handleOpenEmployeeShipping = async () => {
+                setEmployeeTimeOffDraft(null);
+                setViewMode('SHIPPING');
+                const queue = await refreshShippingQueue({ showSpinner: false });
+                if (queue === null) {
+                    setNotification({ type: 'error', message: "Could not load the shipping print queue right now." });
                 }
             };
 
@@ -2584,6 +2621,15 @@ function App() {
                                             <span>Messages</span>
                                         </button>
                                         <button
+                                            onClick={handleOpenEmployeeShipping}
+                                            className={`brutal-btn standard-unit-button stacked-action-button text-[#060606] ${
+                                                viewMode === 'SHIPPING' ? 'bg-[#dcfce7] hover:bg-[#bbf7d0]' : 'bg-white hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <i className="fas fa-truck-fast text-[#16a34a]"></i>
+                                            <span>Shipping</span>
+                                        </button>
+                                        <button
                                             onClick={handleLogout}
                                             className="brutal-btn standard-unit-button stacked-action-button bg-white hover:bg-gray-50 text-[#060606]"
                                         >
@@ -2706,7 +2752,14 @@ function App() {
                                             </p>
                                         </div>
                                     ) : (
-                                        <PublicOverviewPanel sheetData={sheetData} inventoryRows={inventoryRows} penHospitalCases={penHospitalCases} messages={messages} />
+                                        <PublicOverviewPanel
+                                            sheetData={sheetData}
+                                            inventoryRows={inventoryRows}
+                                            penHospitalCases={penHospitalCases}
+                                            messages={messages}
+                                            shippingQueue={shippingQueue}
+                                            isFetchingShippingQueue={isFetchingShippingQueue}
+                                        />
                                     )
                                 ) : (
                                     <div className="flex-1 min-h-0 overflow-hidden">
@@ -2765,6 +2818,13 @@ function App() {
                                                 isSubmittingPenHospital={isSubmittingPenHospital}
                                                 onRefresh={() => refreshPenHospital({ showSpinner: true })}
                                                 onUpdateStatus={handleUpdatePenHospitalStatus}
+                                            />
+                                        )}
+                                        {viewMode === 'SHIPPING' && (
+                                            <EmployeeShippingQueuePanel
+                                                shippingQueue={shippingQueue}
+                                                isFetching={isFetchingShippingQueue}
+                                                onRefresh={() => refreshShippingQueue({ showSpinner: true })}
                                             />
                                         )}
                                         {viewMode === 'MESSAGES' && (

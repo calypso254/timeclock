@@ -515,6 +515,10 @@
             width: 100%;
             max-width: var(--size-panel-2);
         }
+        .public-overview-shipping-card {
+            width: 100%;
+            max-width: var(--size-panel-2);
+        }
         .public-overview-inventory-card {
             width: 100%;
             max-width: var(--size-panel-4);
@@ -571,6 +575,30 @@
             box-shadow: 2px 2px 0px 0px #000000;
             background: #ffffff;
             padding: 0.8rem 0.9rem;
+        }
+        .public-overview-status-chip {
+            min-width: 5.75rem;
+            justify-content: center;
+            flex-shrink: 0;
+            padding-left: 0.45rem;
+            padding-right: 0.45rem;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .shipping-print-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.65rem;
+        }
+        .shipping-print-button {
+            width: 100%;
+            min-height: 46px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 0.65rem;
+            padding: 0.7rem 0.85rem;
+            font-size: 0.78rem;
         }
         .message-thread-scroll {
             flex: 1;
@@ -1050,6 +1078,7 @@
             .public-overview-right-column,
             .public-overview-schedule-card,
             .public-overview-message-card,
+            .public-overview-shipping-card,
             .public-overview-inventory-card,
             .public-overview-pen-hospital-card {
                 max-width: none;

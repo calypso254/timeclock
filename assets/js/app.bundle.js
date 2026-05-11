@@ -1594,7 +1594,7 @@
     const todayShifts = getTodayPublishedShifts(sheetData);
     const scheduleColumnCount = Math.min(Math.max(todayShifts.length, 1), 4);
     const scheduleGridWidth = `${scheduleColumnCount * STANDARD_SIZE_UNIT + (scheduleColumnCount - 1) * STANDARD_SIZE_GAP}px`;
-    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-start justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#38bdf8]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), subtitle && /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, subtitle)), /* @__PURE__ */ React.createElement("div", { className: "status-chip bg-[#e0f2fe] self-start" }, todayShifts.length, " ", todayShifts.length === 1 ? "shift" : "shifts")), /* @__PURE__ */ React.createElement("div", { className: "public-schedule-wrap shadow-safe-2", style: { width: `min(100%, ${scheduleGridWidth})` } }, todayShifts.length === 0 ? /* @__PURE__ */ React.createElement("div", { className: "rounded-xl border-2 border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400" }, "No published shifts.") : /* @__PURE__ */ React.createElement(
+    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-start justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#38bdf8]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), subtitle && /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, subtitle)), /* @__PURE__ */ React.createElement("div", { className: "status-chip public-overview-status-chip bg-[#e0f2fe] self-start" }, todayShifts.length, " ", todayShifts.length === 1 ? "shift" : "shifts")), todayShifts.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "public-schedule-wrap shadow-safe-2", style: { width: `min(100%, ${scheduleGridWidth})` } }, /* @__PURE__ */ React.createElement(
       "div",
       {
         className: "public-schedule-grid",
@@ -1618,8 +1618,7 @@
     subtitle = ""
   }) => {
     const { openRows, totals } = buildInventorySnapshotSummary(inventoryRows);
-    const inventorySubtitle = subtitle || "Active needs grouped into one quick summary.";
-    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#f97316]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, inventorySubtitle)), /* @__PURE__ */ React.createElement("div", { className: "status-chip bg-[#fef3c7] self-start md:self-auto" }, openRows.length, " open")), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-3 gap-2.5 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", { className: "public-summary-row bg-[#f0fdf4]" }, /* @__PURE__ */ React.createElement("div", { className: "text-[9px] uppercase font-bold text-gray-500" }, "Still Needed"), /* @__PURE__ */ React.createElement("div", { className: "font-bold font-poppins text-lg text-[#060606] mt-1" }, totals.stillNeeded)), /* @__PURE__ */ React.createElement("div", { className: "public-summary-row bg-[#ecfccb]" }, /* @__PURE__ */ React.createElement("div", { className: "text-[9px] uppercase font-bold text-gray-500" }, "In Process"), /* @__PURE__ */ React.createElement("div", { className: "font-bold font-poppins text-lg text-[#060606] mt-1" }, totals.inProcess)), /* @__PURE__ */ React.createElement("div", { className: "public-summary-row bg-[#fff7ed]" }, /* @__PURE__ */ React.createElement("div", { className: "text-[9px] uppercase font-bold text-gray-500" }, "Awaiting"), /* @__PURE__ */ React.createElement("div", { className: "font-bold font-poppins text-lg text-[#060606] mt-1" }, totals.awaitingApproval))), /* @__PURE__ */ React.createElement("div", { className: "message-thread-scroll-auto no-scrollbar shadow-safe-2" }, openRows.length === 0 ? /* @__PURE__ */ React.createElement("div", { className: "rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center text-sm md:text-base font-bold text-gray-400 bg-white" }, "No open inventory tasks right now.") : /* @__PURE__ */ React.createElement("div", { className: "space-y-2.5" }, openRows.map((row) => /* @__PURE__ */ React.createElement("div", { key: row.rowNumber, className: "public-summary-row flex items-start justify-between gap-3" }, /* @__PURE__ */ React.createElement("div", { className: "min-w-0" }, /* @__PURE__ */ React.createElement("div", { className: "inventory-card-sku", title: getInventorySkuText(row) }, getInventorySkuText(row)), /* @__PURE__ */ React.createElement("div", { className: "font-bold font-poppins text-[#060606] text-sm leading-tight mt-1 break-words" }, getInventoryNameText(row)), /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-2" }, "Updated ", formatInventoryTimestamp(row.lastUpdated))), /* @__PURE__ */ React.createElement("div", { className: "inventory-status-chip shrink-0 rounded-full border-2 border-black bg-[#fef3c7] font-bold uppercase text-center text-[#060606]" }, row.status))))));
+    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#f97316]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), subtitle && /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, subtitle)), /* @__PURE__ */ React.createElement("div", { className: "status-chip public-overview-status-chip bg-[#fef3c7] self-start md:self-auto" }, openRows.length, " open")), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-3 gap-2.5 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", { className: "public-summary-row bg-[#f0fdf4]" }, /* @__PURE__ */ React.createElement("div", { className: "text-[9px] uppercase font-bold text-gray-500" }, "Still Needed"), /* @__PURE__ */ React.createElement("div", { className: "font-bold font-poppins text-lg text-[#060606] mt-1" }, totals.stillNeeded)), /* @__PURE__ */ React.createElement("div", { className: "public-summary-row bg-[#ecfccb]" }, /* @__PURE__ */ React.createElement("div", { className: "text-[9px] uppercase font-bold text-gray-500" }, "In Process"), /* @__PURE__ */ React.createElement("div", { className: "font-bold font-poppins text-lg text-[#060606] mt-1" }, totals.inProcess)), /* @__PURE__ */ React.createElement("div", { className: "public-summary-row bg-[#fff7ed]" }, /* @__PURE__ */ React.createElement("div", { className: "text-[9px] uppercase font-bold text-gray-500" }, "Awaiting"), /* @__PURE__ */ React.createElement("div", { className: "font-bold font-poppins text-lg text-[#060606] mt-1" }, totals.awaitingApproval))), openRows.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "message-thread-scroll-auto no-scrollbar shadow-safe-2" }, /* @__PURE__ */ React.createElement("div", { className: "space-y-2.5" }, openRows.map((row) => /* @__PURE__ */ React.createElement("div", { key: row.rowNumber, className: "public-summary-row flex items-start justify-between gap-3" }, /* @__PURE__ */ React.createElement("div", { className: "min-w-0" }, /* @__PURE__ */ React.createElement("div", { className: "inventory-card-sku", title: getInventorySkuText(row) }, getInventorySkuText(row)), /* @__PURE__ */ React.createElement("div", { className: "font-bold font-poppins text-[#060606] text-sm leading-tight mt-1 break-words" }, getInventoryNameText(row)), /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-2" }, "Updated ", formatInventoryTimestamp(row.lastUpdated))), /* @__PURE__ */ React.createElement("div", { className: "inventory-status-chip shrink-0 rounded-full border-2 border-black bg-[#fef3c7] font-bold uppercase text-center text-[#060606]" }, row.status))))));
   };
   const PenHospitalOverviewPanel = ({
     penHospitalCases,
@@ -1632,8 +1631,7 @@
       displayTitle: section.key === "ready" ? "Ready" : section.title
     }));
     const activeCount = summary.reduce((sum, section) => sum + section.count, 0);
-    const overviewSubtitle = subtitle || "Repair queue counts by lane.";
-    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#0f766e]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, overviewSubtitle)), /* @__PURE__ */ React.createElement("div", { className: "status-chip bg-[#ccfbf1] self-start md:self-auto" }, activeCount, " active")), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-3 gap-2.5" }, summary.map((section) => /* @__PURE__ */ React.createElement("div", { key: section.key, className: `public-summary-row ${section.countClass}` }, /* @__PURE__ */ React.createElement("div", { className: "text-[9px] uppercase font-bold text-gray-500" }, section.displayTitle), /* @__PURE__ */ React.createElement("div", { className: "font-bold font-poppins text-lg text-[#060606] mt-1" }, section.count)))));
+    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#0f766e]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), subtitle && /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, subtitle)), /* @__PURE__ */ React.createElement("div", { className: "status-chip public-overview-status-chip bg-[#ccfbf1] self-start md:self-auto" }, activeCount, " active")), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-3 gap-2.5" }, summary.map((section) => /* @__PURE__ */ React.createElement("div", { key: section.key, className: `public-summary-row ${section.countClass}` }, /* @__PURE__ */ React.createElement("div", { className: "text-[9px] uppercase font-bold text-gray-500" }, section.displayTitle), /* @__PURE__ */ React.createElement("div", { className: "font-bold font-poppins text-lg text-[#060606] mt-1" }, section.count)))));
   };
   const MessageBoardPanel = ({
     messages,
@@ -1982,7 +1980,122 @@
       }
     ))));
   };
-  const PublicOverviewPanel = ({ sheetData, inventoryRows, penHospitalCases, messages }) => {
+  const ShippingQueuePanel = ({
+    shippingQueue,
+    isFetching = false,
+    eyebrow = "",
+    title = "Ready to Ship",
+    subtitle = "",
+    showActions = true,
+    showMeta = true
+  }) => {
+    const queue = shippingQueue && typeof shippingQueue === "object" ? shippingQueue : {};
+    const readyCount = Math.max(0, Number(queue.readyCount || 0));
+    const documents = queue.documents || {};
+    const documentActions = [
+      { key: "packingSlips", label: "Packing Slips", icon: "fa-file-invoice" },
+      { key: "shippingLabels", label: "Shipping Labels", icon: "fa-tags" },
+      { key: "manifest", label: "Manifest", icon: "fa-clipboard-list" }
+    ];
+    const updatedLabel = queue.lastUpdated || "";
+    const escapePrintHelperHtml = (value) => String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    const openPrintHelper = (documentConfig) => {
+      const documentRecord = documents?.[documentConfig.key] || {};
+      const pdfUrl = documentRecord.printUrl || documentRecord.viewUrl || "";
+      if (!pdfUrl) return;
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        window.open(pdfUrl, "_blank");
+        return;
+      }
+      printWindow.opener = null;
+      const helperTitle = `${documentConfig.label} - Print`;
+      printWindow.document.open();
+      printWindow.document.write(`
+                    <!doctype html>
+                    <html>
+                        <head>
+                            <meta charset="utf-8">
+                            <title>${escapePrintHelperHtml(helperTitle)}</title>
+                            <style>
+                                html, body { margin: 0; width: 100%; height: 100%; background: #f8fafc; font-family: Arial, sans-serif; }
+                                .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 2px solid #000; background: #fff; }
+                                .title { font-weight: 700; color: #060606; }
+                                .actions { display: flex; gap: 8px; }
+                                button, a { border: 2px solid #000; border-radius: 8px; background: #fff; color: #060606; padding: 8px 12px; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
+                                iframe { width: 100%; height: calc(100vh - 58px); border: 0; background: #fff; }
+                                @media print {
+                                    .toolbar { display: none; }
+                                    iframe { height: 100vh; }
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="toolbar">
+                                <div class="title">${escapePrintHelperHtml(helperTitle)}</div>
+                                <div class="actions">
+                                    <button type="button" onclick="window.print()">Print</button>
+                                    <a href="${escapePrintHelperHtml(pdfUrl)}" target="_blank" rel="noopener noreferrer">Open PDF</a>
+                                </div>
+                            </div>
+                            <iframe id="pdf-frame" src="${escapePrintHelperHtml(pdfUrl)}" title="${escapePrintHelperHtml(helperTitle)}"></iframe>
+                            <script>
+                                let didPrint = false;
+                                const printAfterLoad = () => {
+                                    if (didPrint) return;
+                                    didPrint = true;
+                                    setTimeout(() => window.print(), 700);
+                                };
+                                document.getElementById('pdf-frame').addEventListener('load', printAfterLoad, { once: true });
+                                setTimeout(printAfterLoad, 2500);
+                            <\/script>
+                        </body>
+                    </html>
+                `);
+      printWindow.document.close();
+    };
+    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#16a34a]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), subtitle && /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, subtitle)), /* @__PURE__ */ React.createElement("div", { className: "status-chip public-overview-status-chip bg-[#dcfce7] self-start md:self-auto" }, readyCount, " ", readyCount === 1 ? "order" : "orders")), showActions && /* @__PURE__ */ React.createElement("div", { className: "shipping-print-actions" }, documentActions.map((documentConfig) => {
+      const documentRecord = documents?.[documentConfig.key] || {};
+      const canPrint = Boolean(documentRecord.printUrl || documentRecord.viewUrl);
+      return /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          key: documentConfig.key,
+          type: "button",
+          onClick: () => openPrintHelper(documentConfig),
+          disabled: isFetching || !canPrint,
+          className: `brutal-btn shipping-print-button bg-white ${canPrint ? "hover:bg-[#f0fdf4]" : "opacity-50 cursor-not-allowed"}`
+        },
+        /* @__PURE__ */ React.createElement("i", { className: `fas ${isFetching ? "fa-circle-notch spinner" : documentConfig.icon} text-[#16a34a]` }),
+        /* @__PURE__ */ React.createElement("span", null, documentConfig.label)
+      );
+    })), showMeta && (updatedLabel || queue.notes) && /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-3" }, updatedLabel && /* @__PURE__ */ React.createElement("span", null, "Updated ", updatedLabel), updatedLabel && queue.notes && /* @__PURE__ */ React.createElement("span", null, " \xB7 "), queue.notes && /* @__PURE__ */ React.createElement("span", null, queue.notes)));
+  };
+  const EmployeeShippingQueuePanel = ({
+    shippingQueue,
+    isFetching = false,
+    onRefresh
+  }) => {
+    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-full animate-fade-in overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", { className: "section-title" }, "Shipping")), /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap gap-2" }, /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: onRefresh,
+        disabled: isFetching,
+        className: "brutal-btn action-button action-button-fixed action-button-iconless bg-white hover:bg-gray-50"
+      },
+      /* @__PURE__ */ React.createElement("i", { className: `fas ${isFetching ? "fa-circle-notch spinner" : "fa-rotate-right"} text-[#16a34a]` }),
+      /* @__PURE__ */ React.createElement("span", null, isFetching ? "Refreshing..." : "Refresh")
+    ))), /* @__PURE__ */ React.createElement("div", { className: "section-card panel-content-card bg-[#f0fdf4]" }, /* @__PURE__ */ React.createElement(
+      ShippingQueuePanel,
+      {
+        shippingQueue,
+        isFetching,
+        showActions: true,
+        showMeta: true
+      }
+    )));
+  };
+  const PublicOverviewPanel = ({ sheetData, inventoryRows, penHospitalCases, messages, shippingQueue, isFetchingShippingQueue = false }) => {
     return /* @__PURE__ */ React.createElement("div", { className: "flex flex-col h-full animate-fade-in overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "mb-4 md:mb-6 shrink-0" }, /* @__PURE__ */ React.createElement("h2", { className: "page-title" }, "Today at a Glance")), /* @__PURE__ */ React.createElement("div", { className: "min-h-0 flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pt-1 pb-4 pr-2" }, /* @__PURE__ */ React.createElement("div", { className: "public-overview-masonry" }, /* @__PURE__ */ React.createElement("div", { className: "public-overview-left-column" }, /* @__PURE__ */ React.createElement("div", { className: "section-card public-overview-card public-overview-inventory-card bg-[#fff7ed] p-3 md:p-4" }, /* @__PURE__ */ React.createElement(
       InventorySnapshotPanel,
       {
@@ -1994,13 +2107,20 @@
       {
         penHospitalCases
       }
-    ))), /* @__PURE__ */ React.createElement("div", { className: "public-overview-right-column" }, /* @__PURE__ */ React.createElement("div", { className: "section-card public-overview-card public-overview-schedule-card bg-[#f8fafc] p-3 md:p-4" }, /* @__PURE__ */ React.createElement(TodaySchedulePanel, { sheetData })), /* @__PURE__ */ React.createElement("div", { className: "section-card public-overview-card public-overview-message-card bg-[#fdf2f8] p-3 md:p-4" }, /* @__PURE__ */ React.createElement(
+    ))), /* @__PURE__ */ React.createElement("div", { className: "public-overview-right-column" }, /* @__PURE__ */ React.createElement("div", { className: "section-card public-overview-card public-overview-shipping-card bg-[#f0fdf4] p-3 md:p-4" }, /* @__PURE__ */ React.createElement(
+      ShippingQueuePanel,
+      {
+        shippingQueue,
+        isFetching: isFetchingShippingQueue,
+        showActions: false,
+        showMeta: false
+      }
+    )), /* @__PURE__ */ React.createElement("div", { className: "section-card public-overview-card public-overview-schedule-card bg-[#f8fafc] p-3 md:p-4" }, /* @__PURE__ */ React.createElement(TodaySchedulePanel, { sheetData })), /* @__PURE__ */ React.createElement("div", { className: "section-card public-overview-card public-overview-message-card bg-[#fdf2f8] p-3 md:p-4" }, /* @__PURE__ */ React.createElement(
       MessageBoardPanel,
       {
         messages,
         eyebrow: "",
         title: "Messages",
-        subtitle: "Read-only view of the shared staff notes board.",
         readOnly: true,
         newestFirst: true,
         autoHeight: true,
@@ -2970,6 +3090,7 @@
     const [isFetchingInventory, setIsFetchingInventory] = useState(false);
     const [isFetchingMessages, setIsFetchingMessages] = useState(false);
     const [isFetchingPenHospital, setIsFetchingPenHospital] = useState(false);
+    const [isFetchingShippingQueue, setIsFetchingShippingQueue] = useState(false);
     const [isSubmittingAction, setIsSubmittingAction] = useState(false);
     const [isSubmittingInventory, setIsSubmittingInventory] = useState(false);
     const [isSubmittingAdminSchedule, setIsSubmittingAdminSchedule] = useState(false);
@@ -2986,6 +3107,7 @@
     const [inventoryRows, setInventoryRows] = useState([]);
     const [messages, setMessages] = useState([]);
     const [penHospitalCases, setPenHospitalCases] = useState([]);
+    const [shippingQueue, setShippingQueue] = useState(null);
     const [messageDraft, setMessageDraft] = useState("");
     const [browserNotificationPermission, setBrowserNotificationPermission] = useState(
       notificationApiAvailable ? Notification.permission : "unsupported"
@@ -3117,24 +3239,43 @@
         if (showSpinner) setIsFetchingPenHospital(false);
       }
     };
+    const refreshShippingQueue = async ({ showSpinner = true } = {}) => {
+      if (showSpinner) setIsFetchingShippingQueue(true);
+      try {
+        const response = await fetch(buildApiUrl("shipping_queue"), { cache: "no-store" });
+        if (!response.ok) throw new Error("Failed to fetch shipping queue");
+        const queueData = await response.json();
+        const nextQueue = queueData && typeof queueData === "object" ? queueData : null;
+        setShippingQueue(nextQueue);
+        return nextQueue;
+      } catch (error) {
+        console.error("Error refreshing shipping queue:", error);
+        return null;
+      } finally {
+        if (showSpinner) setIsFetchingShippingQueue(false);
+      }
+    };
     const refreshSheetData = async (showToast = false, { showSpinner = true, isInitialLoad = false } = {}) => {
       const hadEmployees = employees.length > 0;
       if (showSpinner) setIsFetchingLogs(true);
       if (showSpinner) setIsFetchingInventory(true);
       if (showSpinner) setIsFetchingMessages(true);
       if (showSpinner) setIsFetchingPenHospital(true);
+      if (showSpinner) setIsFetchingShippingQueue(true);
       let rows = null;
       let inventory = null;
       let messageRows = null;
       let penHospital = null;
+      let queue = null;
       try {
-        const [employeesResult, settingsResult, logsResult, inventoryResult, messagesResult, penHospitalResult] = await Promise.allSettled([
+        const [employeesResult, settingsResult, logsResult, inventoryResult, messagesResult, penHospitalResult, shippingQueueResult] = await Promise.allSettled([
           refreshEmployees(),
           refreshSettings(),
           refreshLogs({ showSpinner: false }),
           refreshInventory({ showSpinner: false }),
           refreshMessages({ showSpinner: false }),
-          refreshPenHospital({ showSpinner: false })
+          refreshPenHospital({ showSpinner: false }),
+          refreshShippingQueue({ showSpinner: false })
         ]);
         if (employeesResult.status === "rejected") {
           console.error("Error fetching employees:", employeesResult.reason);
@@ -3151,23 +3292,28 @@
         if (penHospitalResult.status === "rejected") {
           console.error("Error refreshing Pen Hospital:", penHospitalResult.reason);
         }
+        if (shippingQueueResult.status === "rejected") {
+          console.error("Error refreshing shipping queue:", shippingQueueResult.reason);
+        }
         rows = logsResult.status === "fulfilled" ? logsResult.value : null;
         inventory = inventoryResult.status === "fulfilled" ? inventoryResult.value : null;
         messageRows = messagesResult.status === "fulfilled" ? messagesResult.value : null;
         penHospital = penHospitalResult.status === "fulfilled" ? penHospitalResult.value : null;
+        queue = shippingQueueResult.status === "fulfilled" ? shippingQueueResult.value : null;
       } finally {
         if (showSpinner) setIsFetchingLogs(false);
         if (showSpinner) setIsFetchingInventory(false);
         if (showSpinner) setIsFetchingMessages(false);
         if (showSpinner) setIsFetchingPenHospital(false);
+        if (showSpinner) setIsFetchingShippingQueue(false);
         if (isInitialLoad) setIsLoadingEmployees(false);
       }
       if (showToast) {
         setNotification(
-          rows || inventory || messageRows || penHospital ? { type: "info", message: "Latest spreadsheet updates loaded" } : { type: "error", message: "Could not pull the latest spreadsheet updates." }
+          rows || inventory || messageRows || penHospital || queue ? { type: "info", message: "Latest spreadsheet updates loaded" } : { type: "error", message: "Could not pull the latest spreadsheet updates." }
         );
       }
-      return { rows, inventory, messages: messageRows, penHospital };
+      return { rows, inventory, messages: messageRows, penHospital, shippingQueue: queue };
     };
     const persistBrowserAlertPreference = (nextValue) => {
       setBrowserAlertsEnabled(nextValue);
@@ -3989,6 +4135,14 @@
       const rows = await refreshPenHospital({ showSpinner: false });
       if (rows === null) {
         setNotification({ type: "error", message: "Could not load the Pen Hospital board right now." });
+      }
+    };
+    const handleOpenEmployeeShipping = async () => {
+      setEmployeeTimeOffDraft(null);
+      setViewMode("SHIPPING");
+      const queue = await refreshShippingQueue({ showSpinner: false });
+      if (queue === null) {
+        setNotification({ type: "error", message: "Could not load the shipping print queue right now." });
       }
     };
     const handleOpenEmployeeMessages = async () => {
@@ -5015,6 +5169,14 @@
     ), /* @__PURE__ */ React.createElement(
       "button",
       {
+        onClick: handleOpenEmployeeShipping,
+        className: `brutal-btn standard-unit-button stacked-action-button text-[#060606] ${viewMode === "SHIPPING" ? "bg-[#dcfce7] hover:bg-[#bbf7d0]" : "bg-white hover:bg-gray-50"}`
+      },
+      /* @__PURE__ */ React.createElement("i", { className: "fas fa-truck-fast text-[#16a34a]" }),
+      /* @__PURE__ */ React.createElement("span", null, "Shipping")
+    ), /* @__PURE__ */ React.createElement(
+      "button",
+      {
         onClick: handleLogout,
         className: "brutal-btn standard-unit-button stacked-action-button bg-white hover:bg-gray-50 text-[#060606]"
       },
@@ -5084,7 +5246,17 @@
       },
       /* @__PURE__ */ React.createElement("i", { className: "fas fa-check" }),
       " Yes, I'm still here"
-    ))), !selectedId ? directoryMode === "admin" ? /* @__PURE__ */ React.createElement("div", { className: "h-full flex flex-col items-center justify-center text-gray-400 animate-fade-in" }, /* @__PURE__ */ React.createElement("i", { className: "fas fa-user-shield text-4xl md:text-6xl mb-4 md:mb-6 opacity-30 text-[#060606]" }), /* @__PURE__ */ React.createElement("p", { className: "font-bold font-poppins text-lg md:text-2xl text-[#060606] opacity-30" }, "Select an admin account to continue")) : /* @__PURE__ */ React.createElement(PublicOverviewPanel, { sheetData, inventoryRows, penHospitalCases, messages }) : /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-h-0 overflow-hidden" }, viewMode === "PINPAD" && /* @__PURE__ */ React.createElement(PinPad, { pinInput, handlePinPress, handlePinBackspace, handlePinClear, selectedEmployee: selectedUser, onCancel: handleSelectionCancel }), viewMode === "TIMESHEET" && /* @__PURE__ */ React.createElement(
+    ))), !selectedId ? directoryMode === "admin" ? /* @__PURE__ */ React.createElement("div", { className: "h-full flex flex-col items-center justify-center text-gray-400 animate-fade-in" }, /* @__PURE__ */ React.createElement("i", { className: "fas fa-user-shield text-4xl md:text-6xl mb-4 md:mb-6 opacity-30 text-[#060606]" }), /* @__PURE__ */ React.createElement("p", { className: "font-bold font-poppins text-lg md:text-2xl text-[#060606] opacity-30" }, "Select an admin account to continue")) : /* @__PURE__ */ React.createElement(
+      PublicOverviewPanel,
+      {
+        sheetData,
+        inventoryRows,
+        penHospitalCases,
+        messages,
+        shippingQueue,
+        isFetchingShippingQueue
+      }
+    ) : /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-h-0 overflow-hidden" }, viewMode === "PINPAD" && /* @__PURE__ */ React.createElement(PinPad, { pinInput, handlePinPress, handlePinBackspace, handlePinClear, selectedEmployee: selectedUser, onCancel: handleSelectionCancel }), viewMode === "TIMESHEET" && /* @__PURE__ */ React.createElement(
       PersonalDashboard,
       {
         personalData,
@@ -5139,6 +5311,13 @@
         isSubmittingPenHospital,
         onRefresh: () => refreshPenHospital({ showSpinner: true }),
         onUpdateStatus: handleUpdatePenHospitalStatus
+      }
+    ), viewMode === "SHIPPING" && /* @__PURE__ */ React.createElement(
+      EmployeeShippingQueuePanel,
+      {
+        shippingQueue,
+        isFetching: isFetchingShippingQueue,
+        onRefresh: () => refreshShippingQueue({ showSpinner: true })
       }
     ), viewMode === "MESSAGES" && /* @__PURE__ */ React.createElement(
       MessageBoardPanel,
