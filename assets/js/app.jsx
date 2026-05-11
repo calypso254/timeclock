@@ -79,6 +79,7 @@ function App() {
             const [isSubmittingTimeOff, setIsSubmittingTimeOff] = useState(false);
             const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
             const [isSubmittingPenHospital, setIsSubmittingPenHospital] = useState(false);
+            const [isCompletingShippingQueue, setIsCompletingShippingQueue] = useState(false);
             const [reactingMessageRowNumber, setReactingMessageRowNumber] = useState(null);
             const [fetchError, setFetchError] = useState(null);
 
@@ -160,6 +161,13 @@ function App() {
                     lastUpdated: base.lastUpdated || '',
                     lastUpdatedIso: base.lastUpdatedIso || '',
                     notes: base.notes || '',
+                    completedAt: base.completedAt || '',
+                    completedAtIso: base.completedAtIso || '',
+                    completedBy: base.completedBy || '',
+                    latestDocumentUpdatedIso: base.latestDocumentUpdatedIso || '',
+                    allDocumentsAvailable: base.allDocumentsAvailable !== undefined ? Boolean(base.allDocumentsAvailable) : true,
+                    isComplete: Boolean(base.isComplete),
+                    status: base.status || (base.isComplete ? 'Complete' : 'Ready'),
                     folderId: base.folderId || '1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF',
                     folderUrl: base.folderUrl || 'https://drive.google.com/drive/folders/1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF',
                     documents: Object.fromEntries(
@@ -1386,6 +1394,45 @@ function App() {
                     return false;
                 } finally {
                     setIsSubmittingPenHospital(false);
+                }
+            };
+
+            const completeShippingQueue = async () => {
+                const activeUser = adminUser || selectedEmployee;
+                if (!activeUser || isCompletingShippingQueue) return false;
+
+                lastActivityRef.current = Date.now();
+                setIsCompletingShippingQueue(true);
+
+                try {
+                    const timestamp = buildActionTimestamp();
+                    const result = await sendToSheet({
+                        action: "SHIPPING_QUEUE_COMPLETE",
+                        editorName: activeUser.name,
+                        editorRole: activeUser.role || (adminUser ? 'admin' : 'employee'),
+                        submittedAt: timestamp.isoTimestamp,
+                        timezone: timestamp.timezone,
+                        timezoneOffsetMinutes: timestamp.timezoneOffsetMinutes,
+                    });
+
+                    if (!result.ok) {
+                        setNotification({ type: 'error', message: result.error || "Could not mark the shipping documents complete." });
+                        return false;
+                    }
+
+                    const refreshedQueue = await refreshShippingQueue({ showSpinner: false });
+                    if (refreshedQueue) {
+                        setNotification({ type: 'success', message: "Shipping documents marked complete." });
+                    } else {
+                        setNotification({ type: 'info', message: "Shipping documents marked complete. The latest queue could not be reloaded automatically." });
+                    }
+                    return true;
+                } catch (err) {
+                    console.error("Shipping queue completion failed:", err);
+                    setNotification({ type: 'error', message: err?.message || "An unexpected error interrupted the shipping queue update." });
+                    return false;
+                } finally {
+                    setIsCompletingShippingQueue(false);
                 }
             };
 
@@ -2890,7 +2937,9 @@ function App() {
                                             <EmployeeShippingQueuePanel
                                                 shippingQueue={shippingQueue}
                                                 isFetching={isFetchingShippingQueue}
+                                                isCompleting={isCompletingShippingQueue}
                                                 onRefresh={() => refreshShippingQueue({ showSpinner: true })}
+                                                onComplete={completeShippingQueue}
                                             />
                                         )}
                                         {viewMode === 'MESSAGES' && (

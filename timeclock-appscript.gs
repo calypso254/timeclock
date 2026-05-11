@@ -118,7 +118,9 @@ var PEN_HOSPITAL_COL = {
 var SHIPPING_QUEUE_COL = {
   READY_COUNT: 1,
   LAST_UPDATED: 2,
-  NOTES: 3
+  NOTES: 3,
+  COMPLETED_AT: 4,
+  COMPLETED_BY: 5
 };
 
 var MESSAGE_FETCH_LIMIT = 120;
@@ -238,6 +240,10 @@ function doPost(e) {
 
     if (data.action === "PEN_HOSPITAL_UPDATE_STATUS") {
       return handleUpdatePenHospitalStatus_(data);
+    }
+
+    if (data.action === "SHIPPING_QUEUE_COMPLETE") {
+      return handleShippingQueueComplete_(data);
     }
 
     if (data.action === "SAVE_SHIFT_TEMPLATES") {
@@ -1320,7 +1326,9 @@ function ensureShippingQueueSheetStructure_(sheet) {
   var headers = [[
     "Ready Count",
     "Last Updated",
-    "Notes"
+    "Notes",
+    "Completed At",
+    "Completed By"
   ]];
 
   if (sheet.getMaxColumns() < headers[0].length) {
@@ -1342,6 +1350,30 @@ function getShippingQueue_() {
   return jsonResponse_(buildShippingQueuePayload_(sheet));
 }
 
+function handleShippingQueueComplete_(data) {
+  validateRequiredFields_(data, ["editorName", "editorRole"]);
+
+  var editorName = String(data.editorName || "").trim();
+  if (!editorName) {
+    throw new Error("Missing required field: editorName");
+  }
+
+  var sheet = getOrCreateShippingQueueSheet_();
+  ensureShippingQueueSheetStructure_(sheet);
+
+  var completedAt = new Date();
+  sheet.getRange(2, SHIPPING_QUEUE_COL.LAST_UPDATED).setValue(completedAt);
+  sheet.getRange(2, SHIPPING_QUEUE_COL.NOTES).setValue("Completed by " + editorName);
+  sheet.getRange(2, SHIPPING_QUEUE_COL.COMPLETED_AT).setValue(completedAt);
+  sheet.getRange(2, SHIPPING_QUEUE_COL.COMPLETED_BY).setValue(editorName);
+
+  return jsonResponse_({
+    status: "success",
+    action: "SHIPPING_QUEUE_COMPLETE",
+    shippingQueue: buildShippingQueuePayload_(sheet)
+  });
+}
+
 function buildShippingQueueDocuments_() {
   var folder = DriveApp.getFolderById(SHIPPING_PRINT_QUEUE_FOLDER_ID);
   var documents = {};
@@ -1355,20 +1387,49 @@ function buildShippingQueueDocuments_() {
 }
 
 function buildShippingQueuePayload_(sheet) {
-  var rawRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.NOTES).getValues()[0];
-  var displayRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.NOTES).getDisplayValues()[0];
+  var rawRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.COMPLETED_BY).getValues()[0];
+  var displayRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.COMPLETED_BY).getDisplayValues()[0];
   var readyCountText = String(displayRow[SHIPPING_QUEUE_COL.READY_COUNT - 1] || "").replace(/,/g, "");
   var readyCount = Math.max(0, parseInt(readyCountText, 10) || 0);
   var lastUpdatedValue = rawRow[SHIPPING_QUEUE_COL.LAST_UPDATED - 1];
+  var completedAtValue = rawRow[SHIPPING_QUEUE_COL.COMPLETED_AT - 1];
+  var completedAtDate = toValidDateOrBlank_(completedAtValue);
+  var documents = buildShippingQueueDocuments_();
+  var allDocumentsAvailable = true;
+  var latestDocumentUpdated = null;
+
+  for (var i = 0; i < SHIPPING_QUEUE_DOCUMENTS.length; i++) {
+    var documentConfig = SHIPPING_QUEUE_DOCUMENTS[i];
+    var documentRecord = documents[documentConfig.key];
+    if (!documentRecord || documentRecord.missing || !documentRecord.fileId) {
+      allDocumentsAvailable = false;
+      continue;
+    }
+    var documentUpdated = toValidDateOrBlank_(documentRecord.lastUpdatedIso);
+    if (documentUpdated && (!latestDocumentUpdated || documentUpdated.getTime() > latestDocumentUpdated.getTime())) {
+      latestDocumentUpdated = documentUpdated;
+    }
+  }
+
+  var isComplete = Boolean(allDocumentsAvailable && completedAtDate &&
+    (!latestDocumentUpdated || completedAtDate.getTime() >= latestDocumentUpdated.getTime()));
+  var queueStatus = !allDocumentsAvailable ? "Missing" : isComplete ? "Complete" : "Ready";
 
   return {
     readyCount: readyCount,
     lastUpdated: String(displayRow[SHIPPING_QUEUE_COL.LAST_UPDATED - 1] || "").trim(),
     lastUpdatedIso: dateValueToIsoString_(lastUpdatedValue),
     notes: String(displayRow[SHIPPING_QUEUE_COL.NOTES - 1] || "").trim(),
+    completedAt: String(displayRow[SHIPPING_QUEUE_COL.COMPLETED_AT - 1] || "").trim(),
+    completedAtIso: dateValueToIsoString_(completedAtValue),
+    completedBy: String(displayRow[SHIPPING_QUEUE_COL.COMPLETED_BY - 1] || "").trim(),
+    latestDocumentUpdatedIso: latestDocumentUpdated ? latestDocumentUpdated.toISOString() : "",
+    allDocumentsAvailable: allDocumentsAvailable,
+    isComplete: isComplete,
+    status: queueStatus,
     folderId: SHIPPING_PRINT_QUEUE_FOLDER_ID,
     folderUrl: "https://drive.google.com/drive/folders/" + SHIPPING_PRINT_QUEUE_FOLDER_ID,
-    documents: buildShippingQueueDocuments_()
+    documents: documents
   };
 }
 

@@ -2001,13 +2001,57 @@
       const documentRecord = documents?.[documentConfig.key] || {};
       return Boolean(documentRecord.printUrl || documentRecord.viewUrl);
     });
+    const queueStatus = String(queue.status || "").trim() || (!allDocumentsAvailable ? "Missing" : queue.isComplete ? "Complete" : "Ready");
+    const isComplete = queueStatus.toLowerCase() === "complete";
+    const isMissing = queueStatus.toLowerCase() === "missing";
+    const statusClass = isComplete ? "bg-[#bbf7d0]" : isMissing ? "bg-[#fecaca]" : "bg-[#fde68a]";
     const openPrintHelper = (documentConfig) => {
       const documentRecord = documents?.[documentConfig.key] || {};
       const pdfUrl = documentRecord.printUrl || documentRecord.viewUrl || "";
       if (!pdfUrl) return;
-      window.open(pdfUrl, "_blank", "noopener,noreferrer");
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        window.open(pdfUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
+      const escapePrintHelperHtml = (value) => String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      const helperTitle = `${documentConfig.label} - Print`;
+      printWindow.opener = null;
+      printWindow.document.open();
+      printWindow.document.write(`
+                    <!doctype html>
+                    <html>
+                        <head>
+                            <meta charset="utf-8">
+                            <title>${escapePrintHelperHtml(helperTitle)}</title>
+                            <style>
+                                html, body { margin: 0; width: 100%; height: 100%; background: #f8fafc; font-family: Arial, sans-serif; }
+                                .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 2px solid #000; background: #fff; }
+                                .title { font-weight: 700; color: #060606; }
+                                .actions { display: flex; gap: 8px; }
+                                button, a { border: 2px solid #000; border-radius: 8px; background: #fff; color: #060606; padding: 8px 12px; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
+                                iframe { width: 100%; height: calc(100vh - 58px); border: 0; background: #fff; }
+                                @media print {
+                                    .toolbar { display: none; }
+                                    iframe { height: 100vh; }
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="toolbar">
+                                <div class="title">${escapePrintHelperHtml(helperTitle)}</div>
+                                <div class="actions">
+                                    <button type="button" onclick="window.print()">Print</button>
+                                    <a href="${escapePrintHelperHtml(pdfUrl)}" target="_blank" rel="noopener noreferrer">Open PDF</a>
+                                </div>
+                            </div>
+                            <iframe src="${escapePrintHelperHtml(pdfUrl)}" title="${escapePrintHelperHtml(helperTitle)}"></iframe>
+                        </body>
+                    </html>
+                `);
+      printWindow.document.close();
     };
-    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#16a34a]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), subtitle && /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, subtitle)), /* @__PURE__ */ React.createElement("div", { className: `status-chip public-overview-status-chip self-start md:self-auto ${allDocumentsAvailable ? "bg-[#bbf7d0]" : "bg-[#fecaca]"}` }, allDocumentsAvailable ? "Ready" : "Missing")), showActions && /* @__PURE__ */ React.createElement("div", { className: "shipping-print-actions" }, documentActions.map((documentConfig) => {
+    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#16a34a]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), subtitle && /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, subtitle)), /* @__PURE__ */ React.createElement("div", { className: `status-chip public-overview-status-chip self-start md:self-auto ${statusClass}` }, queueStatus)), showActions && /* @__PURE__ */ React.createElement("div", { className: "shipping-print-actions" }, documentActions.map((documentConfig) => {
       const documentRecord = documents?.[documentConfig.key] || {};
       const canPrint = Boolean(documentRecord.printUrl || documentRecord.viewUrl);
       return /* @__PURE__ */ React.createElement(
@@ -2027,8 +2071,11 @@
   const EmployeeShippingQueuePanel = ({
     shippingQueue,
     isFetching = false,
-    onRefresh
+    isCompleting = false,
+    onRefresh,
+    onComplete
   }) => {
+    const canComplete = Boolean(shippingQueue?.allDocumentsAvailable) && !shippingQueue?.isComplete;
     return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-full animate-fade-in overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", { className: "section-title" }, "Shipping")), /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap gap-2" }, /* @__PURE__ */ React.createElement(
       "button",
       {
@@ -2042,11 +2089,21 @@
       ShippingQueuePanel,
       {
         shippingQueue,
-        isFetching,
+        isFetching: isFetching || isCompleting,
         showActions: true,
         showMeta: true
       }
-    )));
+    ), /* @__PURE__ */ React.createElement("div", { className: "mt-4 flex flex-col sm:flex-row sm:justify-end gap-2" }, /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        onClick: onComplete,
+        disabled: isFetching || isCompleting || !canComplete,
+        className: "brutal-btn action-button action-button-fluid bg-[#bbf7d0] hover:bg-[#86efac]"
+      },
+      /* @__PURE__ */ React.createElement("i", { className: `fas ${isCompleting ? "fa-circle-notch spinner" : "fa-check"} text-[#16a34a]` }),
+      /* @__PURE__ */ React.createElement("span", null, isCompleting ? "Completing..." : "Mark Complete")
+    ))));
   };
   const PublicOverviewPanel = ({ sheetData, inventoryRows, penHospitalCases, messages, shippingQueue, isFetchingShippingQueue = false }) => {
     return /* @__PURE__ */ React.createElement("div", { className: "flex flex-col h-full animate-fade-in overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "mb-4 md:mb-6 shrink-0" }, /* @__PURE__ */ React.createElement("h2", { className: "page-title" }, "Today at a Glance")), /* @__PURE__ */ React.createElement("div", { className: "min-h-0 flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pt-1 pb-4 pr-2" }, /* @__PURE__ */ React.createElement("div", { className: "public-overview-masonry" }, /* @__PURE__ */ React.createElement("div", { className: "public-overview-left-column" }, /* @__PURE__ */ React.createElement("div", { className: "section-card public-overview-card public-overview-inventory-card bg-[#fff7ed] p-3 md:p-4" }, /* @__PURE__ */ React.createElement(
@@ -3076,6 +3133,7 @@
     const [isSubmittingTimeOff, setIsSubmittingTimeOff] = useState(false);
     const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
     const [isSubmittingPenHospital, setIsSubmittingPenHospital] = useState(false);
+    const [isCompletingShippingQueue, setIsCompletingShippingQueue] = useState(false);
     const [reactingMessageRowNumber, setReactingMessageRowNumber] = useState(null);
     const [fetchError, setFetchError] = useState(null);
     const [employees, setEmployees] = useState([]);
@@ -3140,6 +3198,13 @@
         lastUpdated: base.lastUpdated || "",
         lastUpdatedIso: base.lastUpdatedIso || "",
         notes: base.notes || "",
+        completedAt: base.completedAt || "",
+        completedAtIso: base.completedAtIso || "",
+        completedBy: base.completedBy || "",
+        latestDocumentUpdatedIso: base.latestDocumentUpdatedIso || "",
+        allDocumentsAvailable: base.allDocumentsAvailable !== void 0 ? Boolean(base.allDocumentsAvailable) : true,
+        isComplete: Boolean(base.isComplete),
+        status: base.status || (base.isComplete ? "Complete" : "Ready"),
         folderId: base.folderId || "1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF",
         folderUrl: base.folderUrl || "https://drive.google.com/drive/folders/1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF",
         documents: Object.fromEntries(
@@ -4137,6 +4202,40 @@
         return false;
       } finally {
         setIsSubmittingPenHospital(false);
+      }
+    };
+    const completeShippingQueue = async () => {
+      const activeUser = adminUser || selectedEmployee;
+      if (!activeUser || isCompletingShippingQueue) return false;
+      lastActivityRef.current = Date.now();
+      setIsCompletingShippingQueue(true);
+      try {
+        const timestamp = buildActionTimestamp();
+        const result = await sendToSheet({
+          action: "SHIPPING_QUEUE_COMPLETE",
+          editorName: activeUser.name,
+          editorRole: activeUser.role || (adminUser ? "admin" : "employee"),
+          submittedAt: timestamp.isoTimestamp,
+          timezone: timestamp.timezone,
+          timezoneOffsetMinutes: timestamp.timezoneOffsetMinutes
+        });
+        if (!result.ok) {
+          setNotification({ type: "error", message: result.error || "Could not mark the shipping documents complete." });
+          return false;
+        }
+        const refreshedQueue = await refreshShippingQueue({ showSpinner: false });
+        if (refreshedQueue) {
+          setNotification({ type: "success", message: "Shipping documents marked complete." });
+        } else {
+          setNotification({ type: "info", message: "Shipping documents marked complete. The latest queue could not be reloaded automatically." });
+        }
+        return true;
+      } catch (err) {
+        console.error("Shipping queue completion failed:", err);
+        setNotification({ type: "error", message: err?.message || "An unexpected error interrupted the shipping queue update." });
+        return false;
+      } finally {
+        setIsCompletingShippingQueue(false);
       }
     };
     const handleOpenEmployeeInventory = async () => {
@@ -5332,7 +5431,9 @@
       {
         shippingQueue,
         isFetching: isFetchingShippingQueue,
-        onRefresh: () => refreshShippingQueue({ showSpinner: true })
+        isCompleting: isCompletingShippingQueue,
+        onRefresh: () => refreshShippingQueue({ showSpinner: true }),
+        onComplete: completeShippingQueue
       }
     ), viewMode === "MESSAGES" && /* @__PURE__ */ React.createElement(
       MessageBoardPanel,

@@ -1622,13 +1622,68 @@
                 const documentRecord = documents?.[documentConfig.key] || {};
                 return Boolean(documentRecord.printUrl || documentRecord.viewUrl);
             });
+            const queueStatus = String(queue.status || '').trim() || (!allDocumentsAvailable ? 'Missing' : queue.isComplete ? 'Complete' : 'Ready');
+            const isComplete = queueStatus.toLowerCase() === 'complete';
+            const isMissing = queueStatus.toLowerCase() === 'missing';
+            const statusClass = isComplete
+                ? 'bg-[#bbf7d0]'
+                : isMissing
+                    ? 'bg-[#fecaca]'
+                    : 'bg-[#fde68a]';
 
             const openPrintHelper = (documentConfig) => {
                 const documentRecord = documents?.[documentConfig.key] || {};
                 const pdfUrl = documentRecord.printUrl || documentRecord.viewUrl || '';
                 if (!pdfUrl) return;
 
-                window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+                const printWindow = window.open('', '_blank');
+                if (!printWindow) {
+                    window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+                    return;
+                }
+
+                const escapePrintHelperHtml = (value) => String(value || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+                const helperTitle = `${documentConfig.label} - Print`;
+
+                printWindow.opener = null;
+                printWindow.document.open();
+                printWindow.document.write(`
+                    <!doctype html>
+                    <html>
+                        <head>
+                            <meta charset="utf-8">
+                            <title>${escapePrintHelperHtml(helperTitle)}</title>
+                            <style>
+                                html, body { margin: 0; width: 100%; height: 100%; background: #f8fafc; font-family: Arial, sans-serif; }
+                                .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 2px solid #000; background: #fff; }
+                                .title { font-weight: 700; color: #060606; }
+                                .actions { display: flex; gap: 8px; }
+                                button, a { border: 2px solid #000; border-radius: 8px; background: #fff; color: #060606; padding: 8px 12px; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
+                                iframe { width: 100%; height: calc(100vh - 58px); border: 0; background: #fff; }
+                                @media print {
+                                    .toolbar { display: none; }
+                                    iframe { height: 100vh; }
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="toolbar">
+                                <div class="title">${escapePrintHelperHtml(helperTitle)}</div>
+                                <div class="actions">
+                                    <button type="button" onclick="window.print()">Print</button>
+                                    <a href="${escapePrintHelperHtml(pdfUrl)}" target="_blank" rel="noopener noreferrer">Open PDF</a>
+                                </div>
+                            </div>
+                            <iframe src="${escapePrintHelperHtml(pdfUrl)}" title="${escapePrintHelperHtml(helperTitle)}"></iframe>
+                        </body>
+                    </html>
+                `);
+                printWindow.document.close();
             };
 
             return (
@@ -1639,8 +1694,8 @@
                             <h3 className={`section-title ${eyebrow ? 'mt-1' : ''}`}>{title}</h3>
                             {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
-                        <div className={`status-chip public-overview-status-chip self-start md:self-auto ${allDocumentsAvailable ? 'bg-[#bbf7d0]' : 'bg-[#fecaca]'}`}>
-                            {allDocumentsAvailable ? 'Ready' : 'Missing'}
+                        <div className={`status-chip public-overview-status-chip self-start md:self-auto ${statusClass}`}>
+                            {queueStatus}
                         </div>
                     </div>
 
@@ -1679,8 +1734,12 @@
         const EmployeeShippingQueuePanel = ({
             shippingQueue,
             isFetching = false,
+            isCompleting = false,
             onRefresh,
+            onComplete,
         }) => {
+            const canComplete = Boolean(shippingQueue?.allDocumentsAvailable) && !shippingQueue?.isComplete;
+
             return (
                 <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4 shrink-0">
@@ -1702,10 +1761,21 @@
                     <div className="section-card panel-content-card bg-[#f0fdf4]">
                         <ShippingQueuePanel
                             shippingQueue={shippingQueue}
-                            isFetching={isFetching}
+                            isFetching={isFetching || isCompleting}
                             showActions={true}
                             showMeta={true}
                         />
+                        <div className="mt-4 flex flex-col sm:flex-row sm:justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={onComplete}
+                                disabled={isFetching || isCompleting || !canComplete}
+                                className="brutal-btn action-button action-button-fluid bg-[#bbf7d0] hover:bg-[#86efac]"
+                            >
+                                <i className={`fas ${isCompleting ? 'fa-circle-notch spinner' : 'fa-check'} text-[#16a34a]`}></i>
+                                <span>{isCompleting ? 'Completing...' : 'Mark Complete'}</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             );
