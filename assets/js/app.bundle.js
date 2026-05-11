@@ -3052,6 +3052,29 @@
     const scriptUrl = "https://script.google.com/macros/s/AKfycbyQipNZW0DC8R0Etm_-giUXx-5pSt1bZTrUjikY7kgxmRyminft4xAiVNBpdHBb_NxgpA/exec";
     const employeeFetchErrorMessage = "Could not load employees. Please check the Google Sheet setup.";
     const BROWSER_ALERT_REFRESH_MS = 3e4;
+    const SHIPPING_QUEUE_FALLBACK_DOCUMENTS = {
+      packingSlips: {
+        key: "packingSlips",
+        label: "Packing Slips",
+        fileName: "packing-slips.pdf",
+        fileId: "1R_t2fK1EvjtPsFwfHLFH5qLbM7wpmpqi",
+        name: "packing-slips.pdf"
+      },
+      shippingLabels: {
+        key: "shippingLabels",
+        label: "Shipping Labels",
+        fileName: "shipping-labels.pdf",
+        fileId: "1GEjgjrSy_d_NT0vpLwYOtUbHprAopVfF",
+        name: "shipping-labels.pdf"
+      },
+      manifest: {
+        key: "manifest",
+        label: "Manifest",
+        fileName: "manifest.pdf",
+        fileId: "1IcrheoOyQb6MiN8P5_7YdyIeXZYkvDNN",
+        name: "manifest.pdf"
+      }
+    };
     const notificationApiAvailable = typeof window !== "undefined" && "Notification" in window;
     const readStoredBrowserAlertPreference = () => {
       return notificationApiAvailable && Notification.permission === "granted";
@@ -3146,6 +3169,43 @@
     const [notification, setNotification] = useState(null);
     const [reasonValidationTriggered, setReasonValidationTriggered] = useState(false);
     const buildApiUrl = (type) => `${scriptUrl}?type=${encodeURIComponent(type)}&_=${Date.now()}`;
+    const buildShippingDocumentUrls = (documentRecord) => {
+      const fileId = String(documentRecord?.fileId || "").trim();
+      if (!fileId) return documentRecord;
+      return {
+        ...documentRecord,
+        missing: false,
+        viewUrl: documentRecord.viewUrl || `https://drive.google.com/file/d/${fileId}/view?usp=sharing`,
+        printUrl: documentRecord.printUrl || `https://drive.google.com/file/d/${fileId}/preview`,
+        downloadUrl: documentRecord.downloadUrl || `https://drive.google.com/uc?export=download&id=${fileId}`
+      };
+    };
+    const buildFallbackShippingQueue = (baseQueue = null) => {
+      const base = baseQueue && typeof baseQueue === "object" && !Array.isArray(baseQueue) ? baseQueue : {};
+      return {
+        readyCount: Math.max(0, Number(base.readyCount || 0)),
+        lastUpdated: base.lastUpdated || "",
+        lastUpdatedIso: base.lastUpdatedIso || "",
+        notes: base.notes || "",
+        folderId: base.folderId || "1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF",
+        folderUrl: base.folderUrl || "https://drive.google.com/drive/folders/1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF",
+        documents: Object.fromEntries(
+          Object.entries(SHIPPING_QUEUE_FALLBACK_DOCUMENTS).map(([key, documentRecord]) => [
+            key,
+            buildShippingDocumentUrls({
+              ...documentRecord,
+              ...base.documents?.[key] || {}
+            })
+          ])
+        )
+      };
+    };
+    const normalizeShippingQueueResponse = (queueData) => {
+      if (!queueData || typeof queueData !== "object" || Array.isArray(queueData)) {
+        return buildFallbackShippingQueue(shippingQueue);
+      }
+      return buildFallbackShippingQueue(queueData);
+    };
     const refreshEmployees = async () => {
       const response = await fetch(buildApiUrl("employees"), { cache: "no-store" });
       if (!response.ok) throw new Error("Failed to fetch employees");
@@ -3245,12 +3305,14 @@
         const response = await fetch(buildApiUrl("shipping_queue"), { cache: "no-store" });
         if (!response.ok) throw new Error("Failed to fetch shipping queue");
         const queueData = await response.json();
-        const nextQueue = queueData && typeof queueData === "object" ? queueData : null;
+        const nextQueue = normalizeShippingQueueResponse(queueData);
         setShippingQueue(nextQueue);
         return nextQueue;
       } catch (error) {
         console.error("Error refreshing shipping queue:", error);
-        return null;
+        const fallbackQueue = buildFallbackShippingQueue(shippingQueue);
+        setShippingQueue(fallbackQueue);
+        return fallbackQueue;
       } finally {
         if (showSpinner) setIsFetchingShippingQueue(false);
       }
