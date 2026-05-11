@@ -513,6 +513,9 @@
                     return String(a.name || '').localeCompare(String(b.name || ''));
                 });
             const normalizedHighlightName = String(highlightName || '').trim();
+            const visiblePublishedRows = normalizedHighlightName
+                ? publishedRows.filter(row => String(row.name || '').trim() === normalizedHighlightName)
+                : publishedRows;
             const showTimeOffRequestHint = Boolean(allowTimeOffRequests && normalizedHighlightName && onSelectDate);
             const weeksToShow = compact ? Math.min(2, weekCount) : weekCount;
             const visibleWeeks = Array.from({ length: weeksToShow }).map((_, weekIndex) => {
@@ -520,7 +523,7 @@
                 const days = buildWeekDays(startDate);
                 const weekStartKey = normalizeDate(startDate);
                 const weekEndKey = normalizeDate(days[6]);
-                const shiftCount = publishedRows.filter(row => {
+                const shiftCount = visiblePublishedRows.filter(row => {
                     const rowKey = normalizeDate(row.date);
                     return rowKey >= weekStartKey && rowKey <= weekEndKey;
                 }).length;
@@ -579,7 +582,7 @@
                                     <div className="schedule-week-grid employee-schedule-grid">
                                         {week.days.map(dayObj => {
                                             const dayKey = normalizeDate(dayObj);
-                                            const dayShifts = publishedRows.filter(row => normalizeDate(row.date) === dayKey);
+                                            const dayShifts = visiblePublishedRows.filter(row => normalizeDate(row.date) === dayKey);
                                             const isToday = dayKey === normalizeDate(new Date());
                                             const timeOffRow = normalizedHighlightName
                                                 ? getTimeOffRowForEmployeeDate(allRows, normalizedHighlightName, dayKey)
@@ -602,7 +605,7 @@
                                                     : 'bg-[#f8fafc]';
                                             const personalCardTitle = timeOffRow
                                                 ? getTimeOffStatusLabel(timeOffRow)
-                                                : 'Your shift';
+                                                : String(personalShift?.name || normalizedHighlightName || '').trim();
                                             const personalCardValue = timeOffRow
                                                 ? getTimeOffRangeLabel(timeOffRow, timeOffMeta)
                                                 : (personalShift ? `${personalShift.schedIn} - ${personalShift.schedOut}` : '');
@@ -666,7 +669,7 @@
                                                                 No published shifts.
                                                             </div>
                                                         )}
-                                                        {dayShifts.length > 0 ? dayShifts.map((shift, index) => {
+                                                        {!normalizedHighlightName && dayShifts.length > 0 ? dayShifts.map((shift, index) => {
                                                             const isHighlighted = normalizedHighlightName && String(shift.name || '').trim() === normalizedHighlightName;
                                                             return (
                                                                 <div
