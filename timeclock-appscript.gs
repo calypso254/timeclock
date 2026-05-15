@@ -10,6 +10,7 @@ var SHIPPING_QUEUE_SHEET_NAME = "Shipping Queue";
 var EMPLOYEE_ROLE_OPTIONS = ["supervisor", "admin", "employee"];
 var SHOPIFY_API_VERSION = "2025-10";
 var SHIPPING_PRINT_QUEUE_FOLDER_ID = "1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF";
+var SHIPPING_PRINT_QUEUE_README_FILE_NAME = "README - Shipping File Naming.txt";
 
 /*
  * COLUMN MAPPING (Timesheet):
@@ -1485,6 +1486,51 @@ function buildShippingQueueDocument_(folder, config) {
     lastUpdated: Utilities.formatDate(lastUpdated, Session.getScriptTimeZone(), "M/d/yyyy h:mm:ss a"),
     lastUpdatedIso: lastUpdated.toISOString()
   };
+}
+
+function createOrUpdateShippingFolderReadme() {
+  var folder = DriveApp.getFolderById(SHIPPING_PRINT_QUEUE_FOLDER_ID);
+  var readmeContent = [
+    "Shipping File Naming Convention",
+    "",
+    "This folder is for current shipping PDFs only. The app reads the files in this folder to show employees what is ready to print and complete.",
+    "",
+    "Batch files",
+    "Use the same batch ID for the packing slips and shipping labels that belong together.",
+    "",
+    "Recommended format:",
+    "YYYY-MM-DD-### packing slips.pdf",
+    "YYYY-MM-DD-### shipping labels.pdf",
+    "",
+    "Example:",
+    "2026-05-15-001 packing slips.pdf",
+    "2026-05-15-001 shipping labels.pdf",
+    "",
+    "Manifest files",
+    "Manifests are tracked separately because one manifest can apply to more than one batch.",
+    "",
+    "Recommended format:",
+    "manifest YYYY-MM-DD-###.pdf",
+    "",
+    "Examples:",
+    "manifest 2026-05-15-001.pdf",
+    "manifest 2026-05-15-001 to 003.pdf",
+    "",
+    "Cleanup",
+    "Keep shipping PDFs in this folder for two days after they are created, then delete them from this folder to keep it clean.",
+    "",
+    "Deleting completed PDFs from this folder will not remove the tracking history from the app's sheet. Completed items whose source files have been deleted should be hidden from the employee interface."
+  ].join("\n");
+
+  var files = folder.getFilesByName(SHIPPING_PRINT_QUEUE_README_FILE_NAME);
+  if (files.hasNext()) {
+    var file = files.next();
+    file.setContent(readmeContent);
+    return "Updated " + SHIPPING_PRINT_QUEUE_README_FILE_NAME;
+  }
+
+  folder.createFile(SHIPPING_PRINT_QUEUE_README_FILE_NAME, readmeContent, MimeType.PLAIN_TEXT);
+  return "Created " + SHIPPING_PRINT_QUEUE_README_FILE_NAME;
 }
 
 function ensureMessagesSheetStructure_(sheet) {
