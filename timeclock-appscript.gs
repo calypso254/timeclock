@@ -1910,6 +1910,11 @@ function createOrUpdateShippingFolderReadme() {
   return "Created " + SHIPPING_PRINT_QUEUE_README_FILE_NAME;
 }
 
+function authorizeShippingDriveAccess() {
+  var folder = DriveApp.getFolderById(SHIPPING_PRINT_QUEUE_FOLDER_ID);
+  return "Authorized shipping folder access for " + folder.getName();
+}
+
 function ensureMessagesSheetStructure_(sheet) {
   var headers = [[
     "Timestamp",
