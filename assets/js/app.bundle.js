@@ -2008,8 +2008,7 @@
     const statusClass = isComplete ? "bg-[#bbf7d0]" : isMissing ? "bg-[#fecaca]" : "bg-[#fde68a]";
     const openPrintPdf = (documentConfig) => {
       const documentRecord = documents?.[documentConfig.key] || {};
-      const printUrl = String(documentRecord.printUrl || "");
-      const pdfUrl = printUrl.includes("/preview") ? documentRecord.downloadUrl || documentRecord.viewUrl || printUrl : printUrl || documentRecord.downloadUrl || documentRecord.viewUrl || "";
+      const pdfUrl = documentRecord.viewUrl || documentRecord.printUrl || documentRecord.downloadUrl || "";
       if (!pdfUrl) return;
       window.open(pdfUrl, "_blank", "noopener,noreferrer");
     };
@@ -2026,7 +2025,7 @@
           className: `brutal-btn shipping-print-button bg-white ${canPrint ? "hover:bg-[#f0fdf4]" : "opacity-50 cursor-not-allowed"}`
         },
         /* @__PURE__ */ React.createElement("i", { className: `fas ${isFetching ? "fa-circle-notch spinner" : documentConfig.icon} text-[#16a34a]` }),
-        /* @__PURE__ */ React.createElement("span", null, documentConfig.label, " PDF")
+        /* @__PURE__ */ React.createElement("span", null, "Open ", documentConfig.label)
       );
     })), showMeta && (updatedLabel || queue.notes) && /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-3" }, updatedLabel && /* @__PURE__ */ React.createElement("span", null, "Updated ", updatedLabel), updatedLabel && queue.notes && /* @__PURE__ */ React.createElement("span", null, " \xB7 "), queue.notes && /* @__PURE__ */ React.createElement("span", null, queue.notes)));
   };
@@ -3149,7 +3148,7 @@
         ...documentRecord,
         missing: false,
         viewUrl: documentRecord.viewUrl || `https://drive.google.com/file/d/${fileId}/view?usp=sharing`,
-        printUrl: documentRecord.printUrl || `https://drive.google.com/uc?export=view&id=${fileId}`,
+        printUrl: documentRecord.printUrl || `https://drive.google.com/file/d/${fileId}/view?usp=sharing`,
         downloadUrl: documentRecord.downloadUrl || `https://drive.google.com/uc?export=download&id=${fileId}`
       };
     };

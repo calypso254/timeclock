@@ -1636,10 +1636,7 @@
 
             const openPrintPdf = (documentConfig) => {
                 const documentRecord = documents?.[documentConfig.key] || {};
-                const printUrl = String(documentRecord.printUrl || '');
-                const pdfUrl = printUrl.includes('/preview')
-                    ? (documentRecord.downloadUrl || documentRecord.viewUrl || printUrl)
-                    : (printUrl || documentRecord.downloadUrl || documentRecord.viewUrl || '');
+                const pdfUrl = documentRecord.viewUrl || documentRecord.printUrl || documentRecord.downloadUrl || '';
                 if (!pdfUrl) return;
 
                 window.open(pdfUrl, '_blank', 'noopener,noreferrer');
@@ -1672,7 +1669,7 @@
                                         className={`brutal-btn shipping-print-button bg-white ${canPrint ? 'hover:bg-[#f0fdf4]' : 'opacity-50 cursor-not-allowed'}`}
                                     >
                                         <i className={`fas ${isFetching ? 'fa-circle-notch spinner' : documentConfig.icon} text-[#16a34a]`}></i>
-                                        <span>{documentConfig.label} PDF</span>
+                                        <span>Open {documentConfig.label}</span>
                                     </button>
                                 );
                             })}
