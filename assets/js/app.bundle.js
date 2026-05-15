@@ -2006,66 +2006,27 @@
     const isComplete = queueStatus.toLowerCase() === "complete";
     const isMissing = queueStatus.toLowerCase() === "missing";
     const statusClass = isComplete ? "bg-[#bbf7d0]" : isMissing ? "bg-[#fecaca]" : "bg-[#fde68a]";
-    const openPrintHelper = (documentConfig) => {
+    const openPrintPdf = (documentConfig) => {
       const documentRecord = documents?.[documentConfig.key] || {};
-      const pdfUrl = documentRecord.printUrl || documentRecord.viewUrl || "";
+      const printUrl = String(documentRecord.printUrl || "");
+      const pdfUrl = printUrl.includes("/preview") ? documentRecord.downloadUrl || documentRecord.viewUrl || printUrl : printUrl || documentRecord.downloadUrl || documentRecord.viewUrl || "";
       if (!pdfUrl) return;
-      const printWindow = window.open("", "_blank");
-      if (!printWindow) {
-        window.open(pdfUrl, "_blank", "noopener,noreferrer");
-        return;
-      }
-      const escapePrintHelperHtml = (value) => String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-      const helperTitle = `${documentConfig.label} - Print`;
-      printWindow.opener = null;
-      printWindow.document.open();
-      printWindow.document.write(`
-                    <!doctype html>
-                    <html>
-                        <head>
-                            <meta charset="utf-8">
-                            <title>${escapePrintHelperHtml(helperTitle)}</title>
-                            <style>
-                                html, body { margin: 0; width: 100%; height: 100%; background: #f8fafc; font-family: Arial, sans-serif; }
-                                .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 2px solid #000; background: #fff; }
-                                .title { font-weight: 700; color: #060606; }
-                                .actions { display: flex; gap: 8px; }
-                                button, a { border: 2px solid #000; border-radius: 8px; background: #fff; color: #060606; padding: 8px 12px; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
-                                iframe { width: 100%; height: calc(100vh - 58px); border: 0; background: #fff; }
-                                @media print {
-                                    .toolbar { display: none; }
-                                    iframe { height: 100vh; }
-                                }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="toolbar">
-                                <div class="title">${escapePrintHelperHtml(helperTitle)}</div>
-                                <div class="actions">
-                                    <button type="button" onclick="window.print()">Print</button>
-                                    <a href="${escapePrintHelperHtml(pdfUrl)}" target="_blank" rel="noopener noreferrer">Open PDF</a>
-                                </div>
-                            </div>
-                            <iframe src="${escapePrintHelperHtml(pdfUrl)}" title="${escapePrintHelperHtml(helperTitle)}"></iframe>
-                        </body>
-                    </html>
-                `);
-      printWindow.document.close();
+      window.open(pdfUrl, "_blank", "noopener,noreferrer");
     };
     return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#16a34a]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), subtitle && /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, subtitle)), /* @__PURE__ */ React.createElement("div", { className: `status-chip public-overview-status-chip self-start md:self-auto ${statusClass}` }, queueStatus)), showActions && /* @__PURE__ */ React.createElement("div", { className: "shipping-print-actions" }, documentActions.map((documentConfig) => {
       const documentRecord = documents?.[documentConfig.key] || {};
-      const canPrint = Boolean(documentRecord.printUrl || documentRecord.viewUrl);
+      const canPrint = Boolean(documentRecord.printUrl || documentRecord.downloadUrl || documentRecord.viewUrl);
       return /* @__PURE__ */ React.createElement(
         "button",
         {
           key: documentConfig.key,
           type: "button",
-          onClick: () => openPrintHelper(documentConfig),
+          onClick: () => openPrintPdf(documentConfig),
           disabled: isFetching || !canPrint,
           className: `brutal-btn shipping-print-button bg-white ${canPrint ? "hover:bg-[#f0fdf4]" : "opacity-50 cursor-not-allowed"}`
         },
         /* @__PURE__ */ React.createElement("i", { className: `fas ${isFetching ? "fa-circle-notch spinner" : documentConfig.icon} text-[#16a34a]` }),
-        /* @__PURE__ */ React.createElement("span", null, documentConfig.label)
+        /* @__PURE__ */ React.createElement("span", null, documentConfig.label, " PDF")
       );
     })), showMeta && (updatedLabel || queue.notes) && /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-3" }, updatedLabel && /* @__PURE__ */ React.createElement("span", null, "Updated ", updatedLabel), updatedLabel && queue.notes && /* @__PURE__ */ React.createElement("span", null, " \xB7 "), queue.notes && /* @__PURE__ */ React.createElement("span", null, queue.notes)));
   };
@@ -3188,7 +3149,7 @@
         ...documentRecord,
         missing: false,
         viewUrl: documentRecord.viewUrl || `https://drive.google.com/file/d/${fileId}/view?usp=sharing`,
-        printUrl: documentRecord.printUrl || `https://drive.google.com/file/d/${fileId}/preview`,
+        printUrl: documentRecord.printUrl || `https://drive.google.com/uc?export=view&id=${fileId}`,
         downloadUrl: documentRecord.downloadUrl || `https://drive.google.com/uc?export=download&id=${fileId}`
       };
     };

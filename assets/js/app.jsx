@@ -149,7 +149,7 @@ function App() {
                     ...documentRecord,
                     missing: false,
                     viewUrl: documentRecord.viewUrl || `https://drive.google.com/file/d/${fileId}/view?usp=sharing`,
-                    printUrl: documentRecord.printUrl || `https://drive.google.com/file/d/${fileId}/preview`,
+                    printUrl: documentRecord.printUrl || `https://drive.google.com/uc?export=view&id=${fileId}`,
                     downloadUrl: documentRecord.downloadUrl || `https://drive.google.com/uc?export=download&id=${fileId}`,
                 };
             };

@@ -192,6 +192,7 @@ function doPost(e) {
     }
 
     var data = JSON.parse(e.postData.contents);
+    data.action = normalizeActionName_(data.action);
     var sheet = getLogsSheet_();
 
     if (data.action === "CLOCK_IN") {
@@ -297,6 +298,10 @@ function doPost(e) {
       lock.releaseLock();
     }
   }
+}
+
+function normalizeActionName_(action) {
+  return String(action || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
 }
 
 function getSettings_() {
@@ -1456,7 +1461,7 @@ function buildShippingQueueDocument_(folder, config) {
     mimeType: file.getMimeType(),
     missing: false,
     viewUrl: "https://drive.google.com/file/d/" + fileId + "/view?usp=sharing",
-    printUrl: "https://drive.google.com/file/d/" + fileId + "/preview",
+    printUrl: "https://drive.google.com/uc?export=view&id=" + fileId,
     downloadUrl: "https://drive.google.com/uc?export=download&id=" + fileId,
     lastUpdated: Utilities.formatDate(lastUpdated, Session.getScriptTimeZone(), "M/d/yyyy h:mm:ss a"),
     lastUpdatedIso: lastUpdated.toISOString()
