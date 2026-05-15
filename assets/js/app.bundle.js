@@ -3279,7 +3279,7 @@
         if (showSpinner) setIsFetchingPenHospital(false);
       }
     };
-    const refreshShippingQueue = async ({ showSpinner = true } = {}) => {
+    const refreshShippingQueue = async ({ showSpinner = true, fallbackQueue = null } = {}) => {
       if (showSpinner) setIsFetchingShippingQueue(true);
       try {
         const response = await fetch(buildApiUrl("shipping_queue"), { cache: "no-store" });
@@ -3293,9 +3293,9 @@
         return nextQueue;
       } catch (error) {
         console.error("Error refreshing shipping queue:", error);
-        const fallbackQueue = buildFallbackShippingQueue(shippingQueue);
-        setShippingQueue(fallbackQueue);
-        return fallbackQueue;
+        const nextFallbackQueue = buildFallbackShippingQueue(fallbackQueue || shippingQueue);
+        setShippingQueue(nextFallbackQueue);
+        return nextFallbackQueue;
       } finally {
         if (showSpinner) setIsFetchingShippingQueue(false);
       }
@@ -4188,13 +4188,18 @@
           setNotification({ type: "error", message: result.error || "Could not mark the shipping documents complete." });
           return false;
         }
+        let completedQueue = null;
         if (result.parsed?.shippingQueue) {
+          completedQueue = normalizeShippingQueueResponse({
+            ...shippingQueue || {},
+            ...result.parsed.shippingQueue
+          });
           setShippingQueue((prevQueue) => normalizeShippingQueueResponse({
             ...prevQueue || {},
             ...result.parsed.shippingQueue
           }));
         }
-        const refreshedQueue = await refreshShippingQueue({ showSpinner: false });
+        const refreshedQueue = await refreshShippingQueue({ showSpinner: false, fallbackQueue: completedQueue });
         if (refreshedQueue) {
           setNotification({ type: "success", message: "Shipping documents marked complete." });
         } else {

@@ -1436,9 +1436,9 @@ function buildShippingQueuePayload_(sheet) {
     }
   }
 
-  var isComplete = Boolean(allDocumentsAvailable && completedAtDate &&
+  var isComplete = Boolean(completedAtDate &&
     (!latestDocumentUpdated || completedAtDate.getTime() >= latestDocumentUpdated.getTime()));
-  var queueStatus = !allDocumentsAvailable ? "Not Ready" : isComplete ? "Complete" : "Ready";
+  var queueStatus = isComplete ? "Complete" : !allDocumentsAvailable ? "Not Ready" : "Ready";
 
   return {
     readyCount: readyCount,
