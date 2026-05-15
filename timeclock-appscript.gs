@@ -1375,8 +1375,27 @@ function handleShippingQueueComplete_(data) {
   return jsonResponse_({
     status: "success",
     action: "SHIPPING_QUEUE_COMPLETE",
-    shippingQueue: buildShippingQueuePayload_(sheet)
+    shippingQueue: buildShippingQueueCompletionPayload_(sheet)
   });
+}
+
+function buildShippingQueueCompletionPayload_(sheet) {
+  var rawRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.COMPLETED_BY).getValues()[0];
+  var displayRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.COMPLETED_BY).getDisplayValues()[0];
+  var readyCountText = String(displayRow[SHIPPING_QUEUE_COL.READY_COUNT - 1] || "").replace(/,/g, "");
+  var completedAtValue = rawRow[SHIPPING_QUEUE_COL.COMPLETED_AT - 1];
+
+  return {
+    readyCount: Math.max(0, parseInt(readyCountText, 10) || 0),
+    lastUpdated: String(displayRow[SHIPPING_QUEUE_COL.LAST_UPDATED - 1] || "").trim(),
+    lastUpdatedIso: dateValueToIsoString_(rawRow[SHIPPING_QUEUE_COL.LAST_UPDATED - 1]),
+    notes: String(displayRow[SHIPPING_QUEUE_COL.NOTES - 1] || "").trim(),
+    completedAt: String(displayRow[SHIPPING_QUEUE_COL.COMPLETED_AT - 1] || "").trim(),
+    completedAtIso: dateValueToIsoString_(completedAtValue),
+    completedBy: String(displayRow[SHIPPING_QUEUE_COL.COMPLETED_BY - 1] || "").trim(),
+    isComplete: true,
+    status: "Complete"
+  };
 }
 
 function buildShippingQueueDocuments_() {
@@ -1418,7 +1437,7 @@ function buildShippingQueuePayload_(sheet) {
 
   var isComplete = Boolean(allDocumentsAvailable && completedAtDate &&
     (!latestDocumentUpdated || completedAtDate.getTime() >= latestDocumentUpdated.getTime()));
-  var queueStatus = !allDocumentsAvailable ? "Missing" : isComplete ? "Complete" : "Ready";
+  var queueStatus = !allDocumentsAvailable ? "Not Ready" : isComplete ? "Complete" : "Ready";
 
   return {
     readyCount: readyCount,

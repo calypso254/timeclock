@@ -2002,10 +2002,10 @@
       const documentRecord = documents?.[documentConfig.key] || {};
       return Boolean(documentRecord.printUrl || documentRecord.viewUrl);
     });
-    const queueStatus = String(queue.status || "").trim() || (!allDocumentsAvailable ? "Missing" : queue.isComplete ? "Complete" : "Ready");
+    const queueStatus = String(queue.status || "").trim() || (!allDocumentsAvailable ? "Not Ready" : queue.isComplete ? "Complete" : "Ready");
     const isComplete = queueStatus.toLowerCase() === "complete";
-    const isMissing = queueStatus.toLowerCase() === "missing";
-    const statusClass = isComplete ? "bg-[#bbf7d0]" : isMissing ? "bg-[#fecaca]" : "bg-[#fde68a]";
+    const isNotReady = queueStatus.toLowerCase() === "not ready";
+    const statusClass = isComplete ? "bg-[#bbf7d0]" : isNotReady ? "bg-[#fecaca]" : "bg-[#fde68a]";
     const openPrintPdf = (documentConfig) => {
       const documentRecord = documents?.[documentConfig.key] || {};
       const pdfUrl = documentRecord.viewUrl || documentRecord.printUrl || documentRecord.downloadUrl || "";
@@ -3154,6 +3154,7 @@
     };
     const buildFallbackShippingQueue = (baseQueue = null) => {
       const base = baseQueue && typeof baseQueue === "object" && !Array.isArray(baseQueue) ? baseQueue : {};
+      const allDocumentsAvailable = base.allDocumentsAvailable !== void 0 ? Boolean(base.allDocumentsAvailable) : true;
       return {
         readyCount: Math.max(0, Number(base.readyCount || 0)),
         lastUpdated: base.lastUpdated || "",
@@ -3163,9 +3164,9 @@
         completedAtIso: base.completedAtIso || "",
         completedBy: base.completedBy || "",
         latestDocumentUpdatedIso: base.latestDocumentUpdatedIso || "",
-        allDocumentsAvailable: base.allDocumentsAvailable !== void 0 ? Boolean(base.allDocumentsAvailable) : true,
+        allDocumentsAvailable,
         isComplete: Boolean(base.isComplete),
-        status: base.status || (base.isComplete ? "Complete" : "Ready"),
+        status: base.status || (!allDocumentsAvailable ? "Not Ready" : base.isComplete ? "Complete" : "Ready"),
         folderId: base.folderId || "1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF",
         folderUrl: base.folderUrl || "https://drive.google.com/drive/folders/1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF",
         documents: Object.fromEntries(
@@ -3284,6 +3285,9 @@
         const response = await fetch(buildApiUrl("shipping_queue"), { cache: "no-store" });
         if (!response.ok) throw new Error("Failed to fetch shipping queue");
         const queueData = await response.json();
+        if (String(queueData?.status || "").toLowerCase() === "error") {
+          throw new Error(queueData.message || "Failed to fetch shipping queue");
+        }
         const nextQueue = normalizeShippingQueueResponse(queueData);
         setShippingQueue(nextQueue);
         return nextQueue;
@@ -4183,6 +4187,12 @@
         if (!result.ok) {
           setNotification({ type: "error", message: result.error || "Could not mark the shipping documents complete." });
           return false;
+        }
+        if (result.parsed?.shippingQueue) {
+          setShippingQueue((prevQueue) => normalizeShippingQueueResponse({
+            ...prevQueue || {},
+            ...result.parsed.shippingQueue
+          }));
         }
         const refreshedQueue = await refreshShippingQueue({ showSpinner: false });
         if (refreshedQueue) {

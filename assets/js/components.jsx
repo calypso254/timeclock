@@ -1625,12 +1625,12 @@
                 const documentRecord = documents?.[documentConfig.key] || {};
                 return Boolean(documentRecord.printUrl || documentRecord.viewUrl);
             });
-            const queueStatus = String(queue.status || '').trim() || (!allDocumentsAvailable ? 'Missing' : queue.isComplete ? 'Complete' : 'Ready');
+            const queueStatus = String(queue.status || '').trim() || (!allDocumentsAvailable ? 'Not Ready' : queue.isComplete ? 'Complete' : 'Ready');
             const isComplete = queueStatus.toLowerCase() === 'complete';
-            const isMissing = queueStatus.toLowerCase() === 'missing';
+            const isNotReady = queueStatus.toLowerCase() === 'not ready';
             const statusClass = isComplete
                 ? 'bg-[#bbf7d0]'
-                : isMissing
+                : isNotReady
                     ? 'bg-[#fecaca]'
                     : 'bg-[#fde68a]';
 

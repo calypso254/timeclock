@@ -156,6 +156,7 @@ function App() {
 
             const buildFallbackShippingQueue = (baseQueue = null) => {
                 const base = baseQueue && typeof baseQueue === 'object' && !Array.isArray(baseQueue) ? baseQueue : {};
+                const allDocumentsAvailable = base.allDocumentsAvailable !== undefined ? Boolean(base.allDocumentsAvailable) : true;
                 return {
                     readyCount: Math.max(0, Number(base.readyCount || 0)),
                     lastUpdated: base.lastUpdated || '',
@@ -165,9 +166,9 @@ function App() {
                     completedAtIso: base.completedAtIso || '',
                     completedBy: base.completedBy || '',
                     latestDocumentUpdatedIso: base.latestDocumentUpdatedIso || '',
-                    allDocumentsAvailable: base.allDocumentsAvailable !== undefined ? Boolean(base.allDocumentsAvailable) : true,
+                    allDocumentsAvailable,
                     isComplete: Boolean(base.isComplete),
-                    status: base.status || (base.isComplete ? 'Complete' : 'Ready'),
+                    status: base.status || (!allDocumentsAvailable ? 'Not Ready' : base.isComplete ? 'Complete' : 'Ready'),
                     folderId: base.folderId || '1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF',
                     folderUrl: base.folderUrl || 'https://drive.google.com/drive/folders/1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF',
                     documents: Object.fromEntries(
@@ -295,6 +296,9 @@ function App() {
                     const response = await fetch(buildApiUrl('shipping_queue'), { cache: 'no-store' });
                     if (!response.ok) throw new Error('Failed to fetch shipping queue');
                     const queueData = await response.json();
+                    if (String(queueData?.status || '').toLowerCase() === 'error') {
+                        throw new Error(queueData.message || 'Failed to fetch shipping queue');
+                    }
                     const nextQueue = normalizeShippingQueueResponse(queueData);
                     setShippingQueue(nextQueue);
                     return nextQueue;
@@ -1418,6 +1422,13 @@ function App() {
                     if (!result.ok) {
                         setNotification({ type: 'error', message: result.error || "Could not mark the shipping documents complete." });
                         return false;
+                    }
+
+                    if (result.parsed?.shippingQueue) {
+                        setShippingQueue(prevQueue => normalizeShippingQueueResponse({
+                            ...(prevQueue || {}),
+                            ...result.parsed.shippingQueue,
+                        }));
                     }
 
                     const refreshedQueue = await refreshShippingQueue({ showSpinner: false });
