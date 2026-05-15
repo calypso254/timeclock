@@ -1344,7 +1344,7 @@ function ensureShippingQueueSheetStructure_(sheet) {
   sheet.setFrozenRows(1);
 
   if (sheet.getLastRow() < 2) {
-    sheet.getRange(2, SHIPPING_QUEUE_COL.READY_COUNT, 1, headers[0].length).setValues([[0, "", ""]]);
+    sheet.getRange(2, SHIPPING_QUEUE_COL.READY_COUNT, 1, headers[0].length).setValues([[0, "", "", "", ""]]);
   }
 }
 
