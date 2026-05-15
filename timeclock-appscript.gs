@@ -7,6 +7,7 @@ var INVENTORY_LOG_SHEET_NAME = "Inventory Log";
 var MESSAGES_SHEET_NAME = "Messages";
 var PEN_HOSPITAL_SHEET_NAME = "Pen Hospital";
 var SHIPPING_QUEUE_SHEET_NAME = "Shipping Queue";
+var SHIPPING_DOCUMENTS_SHEET_NAME = "Shipping Documents";
 var EMPLOYEE_ROLE_OPTIONS = ["supervisor", "admin", "employee"];
 var SHOPIFY_API_VERSION = "2025-10";
 var SHIPPING_PRINT_QUEUE_FOLDER_ID = "1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF";
@@ -122,6 +123,23 @@ var SHIPPING_QUEUE_COL = {
   NOTES: 3,
   COMPLETED_AT: 4,
   COMPLETED_BY: 5
+};
+
+var SHIPPING_DOCUMENT_COL = {
+  ITEM_ID: 1,
+  ITEM_TYPE: 2,
+  BATCH_ID: 3,
+  DATE: 4,
+  NUMBER: 5,
+  FILE_ID: 6,
+  FILE_NAME: 7,
+  VIEW_URL: 8,
+  STATUS: 9,
+  COMPLETED_AT: 10,
+  COMPLETED_BY: 11,
+  REOPENED_AT: 12,
+  REOPENED_BY: 13,
+  LAST_SEEN_AT: 14
 };
 
 var MESSAGE_FETCH_LIMIT = 120;
@@ -246,6 +264,11 @@ function doPost(e) {
 
     if (data.action === "SHIPPING_QUEUE_COMPLETE") {
       return handleShippingQueueComplete_(data);
+    }
+
+    if (data.action === "SHIPPING_BATCH_COMPLETE" || data.action === "SHIPPING_BATCH_REOPEN" ||
+        data.action === "SHIPPING_MANIFEST_COMPLETE" || data.action === "SHIPPING_MANIFEST_REOPEN") {
+      return handleShippingDocumentStatusAction_(data);
     }
 
     if (data.action === "SAVE_SHIFT_TEMPLATES") {
@@ -1328,6 +1351,11 @@ function getOrCreateShippingQueueSheet_() {
   return spreadsheet.getSheetByName(SHIPPING_QUEUE_SHEET_NAME) || spreadsheet.insertSheet(SHIPPING_QUEUE_SHEET_NAME);
 }
 
+function getOrCreateShippingDocumentsSheet_() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  return spreadsheet.getSheetByName(SHIPPING_DOCUMENTS_SHEET_NAME) || spreadsheet.insertSheet(SHIPPING_DOCUMENTS_SHEET_NAME);
+}
+
 function ensureShippingQueueSheetStructure_(sheet) {
   var headers = [[
     "Ready Count",
@@ -1347,6 +1375,32 @@ function ensureShippingQueueSheetStructure_(sheet) {
   if (sheet.getLastRow() < 2) {
     sheet.getRange(2, SHIPPING_QUEUE_COL.READY_COUNT, 1, headers[0].length).setValues([[0, "", "", "", ""]]);
   }
+}
+
+function ensureShippingDocumentsSheetStructure_(sheet) {
+  var headers = [[
+    "Item ID",
+    "Item Type",
+    "Batch ID",
+    "Date",
+    "Number",
+    "File ID",
+    "File Name",
+    "View URL",
+    "Status",
+    "Completed At",
+    "Completed By",
+    "Reopened At",
+    "Reopened By",
+    "Last Seen At"
+  ]];
+
+  if (sheet.getMaxColumns() < headers[0].length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers[0].length - sheet.getMaxColumns());
+  }
+
+  sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
+  sheet.setFrozenRows(1);
 }
 
 function getShippingQueue_() {
@@ -1399,19 +1453,59 @@ function buildShippingQueueCompletionPayload_(sheet) {
   };
 }
 
-function buildShippingQueueDocuments_() {
-  var folder = DriveApp.getFolderById(SHIPPING_PRINT_QUEUE_FOLDER_ID);
-  var documents = {};
+function handleShippingDocumentStatusAction_(data) {
+  validateRequiredFields_(data, ["editorName", "editorRole", "itemId"]);
 
-  for (var i = 0; i < SHIPPING_QUEUE_DOCUMENTS.length; i++) {
-    var config = SHIPPING_QUEUE_DOCUMENTS[i];
-    documents[config.key] = buildShippingQueueDocument_(folder, config);
+  var action = String(data.action || "");
+  var itemId = String(data.itemId || "").trim();
+  var editorName = String(data.editorName || "").trim();
+  var isReopen = action.indexOf("_REOPEN") !== -1;
+  var itemType = action.indexOf("MANIFEST") !== -1 ? "manifest" : "batch";
+  if (!editorName) {
+    throw new Error("Missing required field: editorName");
   }
 
-  return documents;
+  var scan = scanShippingSourceFolder_();
+  var currentItem = getCurrentShippingItemById_(scan, itemId, itemType);
+  if (!currentItem) {
+    throw new Error("This shipping item no longer exists in the source folder.");
+  }
+  if (!isReopen && itemType === "batch" && !currentItem.isReady) {
+    throw new Error("This batch is not ready yet. Packing slips and shipping labels are both required.");
+  }
+
+  var documentsSheet = getOrCreateShippingDocumentsSheet_();
+  ensureShippingDocumentsSheetStructure_(documentsSheet);
+  var trackingMap = getShippingTrackingMap_(documentsSheet);
+  var rowInfo = upsertShippingTrackingRow_(documentsSheet, trackingMap, currentItem, new Date());
+  var timestamp = new Date();
+  var nextStatus = isReopen ? "open" : "completed";
+
+  documentsSheet.getRange(rowInfo.rowNumber, SHIPPING_DOCUMENT_COL.STATUS).setValue(nextStatus);
+  if (isReopen) {
+    documentsSheet.getRange(rowInfo.rowNumber, SHIPPING_DOCUMENT_COL.REOPENED_AT).setValue(timestamp);
+    documentsSheet.getRange(rowInfo.rowNumber, SHIPPING_DOCUMENT_COL.REOPENED_BY).setValue(editorName);
+    documentsSheet.getRange(rowInfo.rowNumber, SHIPPING_DOCUMENT_COL.COMPLETED_AT).setValue("");
+    documentsSheet.getRange(rowInfo.rowNumber, SHIPPING_DOCUMENT_COL.COMPLETED_BY).setValue("");
+  } else {
+    documentsSheet.getRange(rowInfo.rowNumber, SHIPPING_DOCUMENT_COL.COMPLETED_AT).setValue(timestamp);
+    documentsSheet.getRange(rowInfo.rowNumber, SHIPPING_DOCUMENT_COL.COMPLETED_BY).setValue(editorName);
+  }
+
+  var payload = buildShippingQueuePayload_();
+  return jsonResponse_({
+    status: "success",
+    action: action,
+    shippingQueue: payload
+  });
 }
 
-function buildShippingQueuePayload_(sheet) {
+function buildShippingQueuePayload_() {
+  var sheet = getOrCreateShippingQueueSheet_();
+  ensureShippingQueueSheetStructure_(sheet);
+  var documentsSheet = getOrCreateShippingDocumentsSheet_();
+  ensureShippingDocumentsSheetStructure_(documentsSheet);
+
   var rawRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.COMPLETED_BY).getValues()[0];
   var displayRow = sheet.getRange(2, 1, 1, SHIPPING_QUEUE_COL.COMPLETED_BY).getDisplayValues()[0];
   var readyCountText = String(displayRow[SHIPPING_QUEUE_COL.READY_COUNT - 1] || "").replace(/,/g, "");
@@ -1419,26 +1513,20 @@ function buildShippingQueuePayload_(sheet) {
   var lastUpdatedValue = rawRow[SHIPPING_QUEUE_COL.LAST_UPDATED - 1];
   var completedAtValue = rawRow[SHIPPING_QUEUE_COL.COMPLETED_AT - 1];
   var completedAtDate = toValidDateOrBlank_(completedAtValue);
-  var documents = buildShippingQueueDocuments_();
-  var allDocumentsAvailable = true;
-  var latestDocumentUpdated = null;
-
-  for (var i = 0; i < SHIPPING_QUEUE_DOCUMENTS.length; i++) {
-    var documentConfig = SHIPPING_QUEUE_DOCUMENTS[i];
-    var documentRecord = documents[documentConfig.key];
-    if (!documentRecord || documentRecord.missing || !documentRecord.fileId) {
-      allDocumentsAvailable = false;
-      continue;
-    }
-    var documentUpdated = toValidDateOrBlank_(documentRecord.lastUpdatedIso);
-    if (documentUpdated && (!latestDocumentUpdated || documentUpdated.getTime() > latestDocumentUpdated.getTime())) {
-      latestDocumentUpdated = documentUpdated;
-    }
-  }
-
-  var isComplete = Boolean(completedAtDate &&
-    (!latestDocumentUpdated || completedAtDate.getTime() >= latestDocumentUpdated.getTime()));
-  var queueStatus = isComplete ? "Complete" : !allDocumentsAvailable ? "Not Ready" : "Ready";
+  var scan = scanShippingSourceFolder_();
+  var trackingMap = getShippingTrackingMap_(documentsSheet);
+  syncCurrentShippingItems_(documentsSheet, trackingMap, scan);
+  trackingMap = getShippingTrackingMap_(documentsSheet);
+  var manifests = buildShippingManifestPayloads_(scan.manifests, trackingMap);
+  var batches = buildShippingBatchPayloads_(scan.batches, trackingMap);
+  var allDocumentsAvailable = batches.every(function(batch) { return batch.isReady; });
+  var completedCount = manifests.filter(function(item) { return item.isComplete; }).length +
+    batches.filter(function(item) { return item.isComplete; }).length;
+  var openCount = manifests.length + batches.length - completedCount;
+  var notReadyCount = batches.filter(function(item) { return !item.isReady; }).length;
+  var totalVisibleItems = manifests.length + batches.length;
+  var queueStatus = totalVisibleItems === 0 ? "Not Ready" : openCount === 0 && completedCount > 0 ? "Complete" : notReadyCount > 0 ? "Not Ready" : "Ready";
+  var legacyDocuments = buildLegacyShippingDocumentsFromPayload_(manifests, batches);
 
   return {
     readyCount: readyCount,
@@ -1448,34 +1536,107 @@ function buildShippingQueuePayload_(sheet) {
     completedAt: String(displayRow[SHIPPING_QUEUE_COL.COMPLETED_AT - 1] || "").trim(),
     completedAtIso: dateValueToIsoString_(completedAtValue),
     completedBy: String(displayRow[SHIPPING_QUEUE_COL.COMPLETED_BY - 1] || "").trim(),
-    latestDocumentUpdatedIso: latestDocumentUpdated ? latestDocumentUpdated.toISOString() : "",
+    latestDocumentUpdatedIso: "",
     allDocumentsAvailable: allDocumentsAvailable,
-    isComplete: isComplete,
+    isComplete: Boolean(completedAtDate),
     status: queueStatus,
     folderId: SHIPPING_PRINT_QUEUE_FOLDER_ID,
     folderUrl: "https://drive.google.com/drive/folders/" + SHIPPING_PRINT_QUEUE_FOLDER_ID,
-    documents: documents
+    documents: legacyDocuments,
+    manifests: manifests,
+    batches: batches,
+    summary: {
+      manifestCount: manifests.length,
+      batchCount: batches.length,
+      completedCount: completedCount,
+      openCount: openCount,
+      notReadyCount: notReadyCount
+    }
   };
 }
 
-function buildShippingQueueDocument_(folder, config) {
-  var files = folder.getFilesByName(config.fileName);
-  if (!files.hasNext()) {
+function scanShippingSourceFolder_() {
+  var folder = DriveApp.getFolderById(SHIPPING_PRINT_QUEUE_FOLDER_ID);
+  var files = folder.getFiles();
+  var batches = {};
+  var manifests = [];
+
+  while (files.hasNext()) {
+    var file = files.next();
+    var parsed = parseShippingSourceFileName_(file.getName());
+    if (!parsed) {
+      continue;
+    }
+
+    var documentRecord = buildShippingDocumentRecord_(file, parsed.documentKey, parsed.label);
+    if (parsed.itemType === "manifest") {
+      manifests.push(buildShippingManifestItem_(parsed, documentRecord));
+      continue;
+    }
+
+    if (!batches[parsed.itemId]) {
+      batches[parsed.itemId] = buildShippingBatchItem_(parsed);
+    }
+    batches[parsed.itemId][parsed.documentKey] = documentRecord;
+    batches[parsed.itemId].documents[parsed.documentKey] = documentRecord;
+    if (!batches[parsed.itemId].latestDocumentUpdatedIso ||
+        String(documentRecord.lastUpdatedIso || "") > String(batches[parsed.itemId].latestDocumentUpdatedIso || "")) {
+      batches[parsed.itemId].latestDocumentUpdatedIso = documentRecord.lastUpdatedIso || "";
+    }
+  }
+
+  return {
+    batches: Object.keys(batches).map(function(key) { return batches[key]; }).sort(sortShippingItems_),
+    manifests: manifests.sort(sortShippingItems_)
+  };
+}
+
+function parseShippingSourceFileName_(fileName) {
+  var name = String(fileName || "").trim();
+  var batchMatch = name.match(/^(\d{4})-(\d{2})-(\d{2})-(\d{3})\s+(packing slips|shipping labels)\.pdf$/i);
+  if (batchMatch) {
+    var dateKey = batchMatch[1] + "-" + batchMatch[2] + "-" + batchMatch[3];
+    var number = batchMatch[4];
+    var kind = String(batchMatch[5] || "").toLowerCase();
+    var documentKey = kind.indexOf("packing") === 0 ? "packingSlips" : "shippingLabels";
     return {
-      key: config.key,
-      label: config.label,
-      fileName: config.fileName,
-      missing: true
+      itemType: "batch",
+      itemId: "batch:" + dateKey + "-" + number,
+      batchId: dateKey + "-" + number,
+      date: dateKey,
+      number: number,
+      documentKey: documentKey,
+      label: documentKey === "packingSlips" ? "Packing Slips" : "Shipping Labels",
+      displayName: "Batch " + number + " - " + formatShippingDisplayDate_(dateKey)
     };
   }
 
-  var file = files.next();
+  var manifestMatch = name.match(/^manifest\s+(\d{4})-(\d{2})-(\d{2})-(\d{3})(?:\s+.*)?\.pdf$/i);
+  if (manifestMatch) {
+    var manifestDate = manifestMatch[1] + "-" + manifestMatch[2] + "-" + manifestMatch[3];
+    var manifestNumber = manifestMatch[4];
+    return {
+      itemType: "manifest",
+      itemId: "manifest:" + manifestDate + "-" + manifestNumber,
+      batchId: manifestDate + "-" + manifestNumber,
+      date: manifestDate,
+      number: manifestNumber,
+      documentKey: "manifest",
+      label: "Manifest",
+      displayName: "Manifest " + manifestNumber + " - " + formatShippingDisplayDate_(manifestDate)
+    };
+  }
+
+  return null;
+}
+
+function buildShippingDocumentRecord_(file, key, label) {
   var fileId = file.getId();
   var lastUpdated = file.getLastUpdated();
   return {
-    key: config.key,
-    label: config.label,
-    fileName: config.fileName,
+    key: key,
+    label: label,
+    fileName: file.getName(),
     fileId: fileId,
     name: file.getName(),
     mimeType: file.getMimeType(),
@@ -1486,6 +1647,222 @@ function buildShippingQueueDocument_(folder, config) {
     lastUpdated: Utilities.formatDate(lastUpdated, Session.getScriptTimeZone(), "M/d/yyyy h:mm:ss a"),
     lastUpdatedIso: lastUpdated.toISOString()
   };
+}
+
+function buildShippingBatchItem_(parsed) {
+  return {
+    itemId: parsed.itemId,
+    itemType: "batch",
+    batchId: parsed.batchId,
+    date: parsed.date,
+    number: parsed.number,
+    displayName: parsed.displayName,
+    documents: {},
+    packingSlips: null,
+    shippingLabels: null,
+    latestDocumentUpdatedIso: ""
+  };
+}
+
+function buildShippingManifestItem_(parsed, documentRecord) {
+  return {
+    itemId: parsed.itemId,
+    itemType: "manifest",
+    batchId: parsed.batchId,
+    date: parsed.date,
+    number: parsed.number,
+    displayName: parsed.displayName,
+    document: documentRecord,
+    latestDocumentUpdatedIso: documentRecord.lastUpdatedIso || ""
+  };
+}
+
+function getCurrentShippingItemById_(scan, itemId, itemType) {
+  var list = itemType === "manifest" ? scan.manifests : scan.batches;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].itemId === itemId) {
+      return list[i];
+    }
+  }
+  return null;
+}
+
+function getShippingTrackingMap_(sheet) {
+  var map = {};
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return map;
+  }
+
+  var rows = sheet.getRange(2, 1, lastRow - 1, SHIPPING_DOCUMENT_COL.LAST_SEEN_AT).getValues();
+  var displayRows = sheet.getRange(2, 1, lastRow - 1, SHIPPING_DOCUMENT_COL.LAST_SEEN_AT).getDisplayValues();
+  for (var i = 0; i < rows.length; i++) {
+    var itemId = String(rows[i][SHIPPING_DOCUMENT_COL.ITEM_ID - 1] || "").trim();
+    if (!itemId) {
+      continue;
+    }
+    map[itemId] = {
+      rowNumber: i + 2,
+      values: rows[i],
+      displayValues: displayRows[i],
+      status: String(rows[i][SHIPPING_DOCUMENT_COL.STATUS - 1] || "open").trim().toLowerCase() || "open",
+      completedAt: rows[i][SHIPPING_DOCUMENT_COL.COMPLETED_AT - 1],
+      completedAtDisplay: String(displayRows[i][SHIPPING_DOCUMENT_COL.COMPLETED_AT - 1] || "").trim(),
+      completedBy: String(rows[i][SHIPPING_DOCUMENT_COL.COMPLETED_BY - 1] || "").trim(),
+      reopenedAt: rows[i][SHIPPING_DOCUMENT_COL.REOPENED_AT - 1],
+      reopenedAtDisplay: String(displayRows[i][SHIPPING_DOCUMENT_COL.REOPENED_AT - 1] || "").trim(),
+      reopenedBy: String(rows[i][SHIPPING_DOCUMENT_COL.REOPENED_BY - 1] || "").trim()
+    };
+  }
+  return map;
+}
+
+function syncCurrentShippingItems_(sheet, trackingMap, scan) {
+  var seenAt = new Date();
+  for (var i = 0; i < scan.manifests.length; i++) {
+    upsertShippingTrackingRow_(sheet, trackingMap, scan.manifests[i], seenAt);
+  }
+  for (var j = 0; j < scan.batches.length; j++) {
+    upsertShippingTrackingRow_(sheet, trackingMap, scan.batches[j], seenAt);
+  }
+}
+
+function upsertShippingTrackingRow_(sheet, trackingMap, item, seenAt) {
+  var existing = trackingMap[item.itemId];
+  var rowValues = buildShippingTrackingRowValues_(item, existing, seenAt);
+  if (existing && existing.rowNumber) {
+    sheet.getRange(existing.rowNumber, 1, 1, SHIPPING_DOCUMENT_COL.LAST_SEEN_AT).setValues([rowValues]);
+    return existing;
+  }
+
+  sheet.appendRow(rowValues);
+  var rowInfo = {
+    rowNumber: sheet.getLastRow(),
+    status: "open"
+  };
+  trackingMap[item.itemId] = rowInfo;
+  return rowInfo;
+}
+
+function buildShippingTrackingRowValues_(item, existing, seenAt) {
+  var fileSummary = getShippingItemFileSummary_(item);
+  var currentStatus = existing && existing.status ? existing.status : "open";
+  return [
+    item.itemId,
+    item.itemType,
+    item.batchId,
+    item.date,
+    item.number,
+    JSON.stringify(fileSummary.fileIds),
+    JSON.stringify(fileSummary.fileNames),
+    JSON.stringify(fileSummary.viewUrls),
+    currentStatus,
+    existing ? existing.values[SHIPPING_DOCUMENT_COL.COMPLETED_AT - 1] : "",
+    existing ? existing.values[SHIPPING_DOCUMENT_COL.COMPLETED_BY - 1] : "",
+    existing ? existing.values[SHIPPING_DOCUMENT_COL.REOPENED_AT - 1] : "",
+    existing ? existing.values[SHIPPING_DOCUMENT_COL.REOPENED_BY - 1] : "",
+    seenAt
+  ];
+}
+
+function getShippingItemFileSummary_(item) {
+  if (item.itemType === "manifest") {
+    return {
+      fileIds: item.document ? [item.document.fileId] : [],
+      fileNames: item.document ? [item.document.fileName] : [],
+      viewUrls: item.document ? [item.document.viewUrl] : []
+    };
+  }
+
+  var docs = [];
+  if (item.packingSlips) docs.push(item.packingSlips);
+  if (item.shippingLabels) docs.push(item.shippingLabels);
+  return {
+    fileIds: docs.map(function(doc) { return doc.fileId; }),
+    fileNames: docs.map(function(doc) { return doc.fileName; }),
+    viewUrls: docs.map(function(doc) { return doc.viewUrl; })
+  };
+}
+
+function buildShippingManifestPayloads_(manifests, trackingMap) {
+  return manifests.map(function(item) {
+    var tracking = trackingMap[item.itemId] || {};
+    var isComplete = tracking.status === "completed";
+    return {
+      itemId: item.itemId,
+      itemType: "manifest",
+      batchId: item.batchId,
+      date: item.date,
+      number: item.number,
+      displayName: item.displayName,
+      status: isComplete ? "Complete" : "Ready",
+      isComplete: isComplete,
+      isReady: true,
+      canComplete: !isComplete,
+      canReopen: isComplete,
+      completedAt: tracking.completedAtDisplay || "",
+      completedAtIso: dateValueToIsoString_(tracking.completedAt),
+      completedBy: tracking.completedBy || "",
+      document: item.document
+    };
+  }).sort(sortShippingItems_);
+}
+
+function buildShippingBatchPayloads_(batches, trackingMap) {
+  return batches.map(function(item) {
+    var tracking = trackingMap[item.itemId] || {};
+    var isComplete = tracking.status === "completed";
+    var isReady = Boolean(item.packingSlips && item.shippingLabels);
+    return {
+      itemId: item.itemId,
+      itemType: "batch",
+      batchId: item.batchId,
+      date: item.date,
+      number: item.number,
+      displayName: item.displayName,
+      status: isComplete ? "Complete" : isReady ? "Ready" : "Not Ready",
+      isComplete: isComplete,
+      isReady: isReady,
+      canComplete: !isComplete && isReady,
+      canReopen: isComplete && Boolean(item.packingSlips || item.shippingLabels),
+      completedAt: tracking.completedAtDisplay || "",
+      completedAtIso: dateValueToIsoString_(tracking.completedAt),
+      completedBy: tracking.completedBy || "",
+      packingSlips: item.packingSlips,
+      shippingLabels: item.shippingLabels,
+      documents: item.documents
+    };
+  }).sort(sortShippingItems_);
+}
+
+function buildLegacyShippingDocumentsFromPayload_(manifests, batches) {
+  var firstBatch = batches && batches.length ? batches[0] : {};
+  var firstManifest = manifests && manifests.length ? manifests[0] : {};
+  return {
+    packingSlips: firstBatch.packingSlips || { key: "packingSlips", label: "Packing Slips", missing: true },
+    shippingLabels: firstBatch.shippingLabels || { key: "shippingLabels", label: "Shipping Labels", missing: true },
+    manifest: firstManifest.document || { key: "manifest", label: "Manifest", missing: true }
+  };
+}
+
+function sortShippingItems_(a, b) {
+  var aKey = String(a.date || "") + "-" + String(a.number || "");
+  var bKey = String(b.date || "") + "-" + String(b.number || "");
+  return aKey.localeCompare(bKey);
+}
+
+function formatShippingDisplayDate_(dateKey) {
+  var parts = String(dateKey || "").split("-");
+  if (parts.length !== 3) {
+    return dateKey;
+  }
+  var date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  var day = date.getDate();
+  var suffix = "th";
+  if (day % 10 === 1 && day % 100 !== 11) suffix = "st";
+  if (day % 10 === 2 && day % 100 !== 12) suffix = "nd";
+  if (day % 10 === 3 && day % 100 !== 13) suffix = "rd";
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), "MMMM ") + day + suffix;
 }
 
 function createOrUpdateShippingFolderReadme() {

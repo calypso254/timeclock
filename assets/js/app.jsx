@@ -154,8 +154,52 @@ function App() {
                 };
             };
 
+            const normalizeShippingManifest = (manifestRecord) => {
+                const manifest = manifestRecord && typeof manifestRecord === 'object' ? manifestRecord : {};
+                return {
+                    ...manifest,
+                    itemType: 'manifest',
+                    itemId: manifest.itemId || '',
+                    displayName: manifest.displayName || 'Manifest',
+                    status: manifest.status || (manifest.isComplete ? 'Complete' : 'Ready'),
+                    isComplete: Boolean(manifest.isComplete),
+                    isReady: manifest.isReady !== undefined ? Boolean(manifest.isReady) : true,
+                    canComplete: manifest.canComplete !== undefined ? Boolean(manifest.canComplete) : !manifest.isComplete,
+                    canReopen: Boolean(manifest.canReopen),
+                    document: buildShippingDocumentUrls(manifest.document || {}),
+                };
+            };
+
+            const normalizeShippingBatch = (batchRecord) => {
+                const batch = batchRecord && typeof batchRecord === 'object' ? batchRecord : {};
+                const packingSlips = buildShippingDocumentUrls(batch.packingSlips || batch.documents?.packingSlips || {});
+                const shippingLabels = buildShippingDocumentUrls(batch.shippingLabels || batch.documents?.shippingLabels || {});
+                const isReady = batch.isReady !== undefined
+                    ? Boolean(batch.isReady)
+                    : Boolean(packingSlips?.fileId && shippingLabels?.fileId);
+                return {
+                    ...batch,
+                    itemType: 'batch',
+                    itemId: batch.itemId || '',
+                    displayName: batch.displayName || `Batch ${batch.number || ''}`.trim(),
+                    status: batch.status || (batch.isComplete ? 'Complete' : isReady ? 'Ready' : 'Not Ready'),
+                    isComplete: Boolean(batch.isComplete),
+                    isReady,
+                    canComplete: batch.canComplete !== undefined ? Boolean(batch.canComplete) : !batch.isComplete && isReady,
+                    canReopen: Boolean(batch.canReopen),
+                    packingSlips,
+                    shippingLabels,
+                    documents: {
+                        packingSlips,
+                        shippingLabels,
+                    },
+                };
+            };
+
             const buildFallbackShippingQueue = (baseQueue = null) => {
                 const base = baseQueue && typeof baseQueue === 'object' && !Array.isArray(baseQueue) ? baseQueue : {};
+                const manifests = Array.isArray(base.manifests) ? base.manifests.map(normalizeShippingManifest) : [];
+                const batches = Array.isArray(base.batches) ? base.batches.map(normalizeShippingBatch) : [];
                 const allDocumentsAvailable = base.allDocumentsAvailable !== undefined ? Boolean(base.allDocumentsAvailable) : true;
                 return {
                     readyCount: Math.max(0, Number(base.readyCount || 0)),
@@ -169,6 +213,15 @@ function App() {
                     allDocumentsAvailable,
                     isComplete: Boolean(base.isComplete),
                     status: base.status || (!allDocumentsAvailable ? 'Not Ready' : base.isComplete ? 'Complete' : 'Ready'),
+                    manifests,
+                    batches,
+                    summary: {
+                        manifestCount: Number(base.summary?.manifestCount ?? manifests.length),
+                        batchCount: Number(base.summary?.batchCount ?? batches.length),
+                        completedCount: Number(base.summary?.completedCount ?? [...manifests, ...batches].filter(item => item.isComplete).length),
+                        openCount: Number(base.summary?.openCount ?? [...manifests, ...batches].filter(item => !item.isComplete).length),
+                        notReadyCount: Number(base.summary?.notReadyCount ?? batches.filter(item => !item.isReady).length),
+                    },
                     folderId: base.folderId || '1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF',
                     folderUrl: base.folderUrl || 'https://drive.google.com/drive/folders/1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF',
                     documents: Object.fromEntries(
@@ -1401,9 +1454,14 @@ function App() {
                 }
             };
 
-            const completeShippingQueue = async () => {
+            const updateShippingDocumentStatus = async (item, nextStatus) => {
                 const activeUser = adminUser || selectedEmployee;
                 if (!activeUser || isCompletingShippingQueue) return false;
+                const itemType = item?.itemType === 'manifest' ? 'manifest' : 'batch';
+                const isReopen = nextStatus === 'open';
+                const action = itemType === 'manifest'
+                    ? (isReopen ? 'SHIPPING_MANIFEST_REOPEN' : 'SHIPPING_MANIFEST_COMPLETE')
+                    : (isReopen ? 'SHIPPING_BATCH_REOPEN' : 'SHIPPING_BATCH_COMPLETE');
 
                 lastActivityRef.current = Date.now();
                 setIsCompletingShippingQueue(true);
@@ -1411,7 +1469,9 @@ function App() {
                 try {
                     const timestamp = buildActionTimestamp();
                     const result = await sendToSheet({
-                        action: "SHIPPING_QUEUE_COMPLETE",
+                        action,
+                        itemId: item?.itemId || '',
+                        itemType,
                         editorName: activeUser.name,
                         editorRole: activeUser.role || (adminUser ? 'admin' : 'employee'),
                         submittedAt: timestamp.isoTimestamp,
@@ -1420,13 +1480,13 @@ function App() {
                     });
 
                     if (!result.ok) {
-                        setNotification({ type: 'error', message: result.error || "Could not mark the shipping documents complete." });
+                        setNotification({ type: 'error', message: result.error || "Could not update the shipping item." });
                         return false;
                     }
 
-                    let completedQueue = null;
+                    let nextQueue = null;
                     if (result.parsed?.shippingQueue) {
-                        completedQueue = normalizeShippingQueueResponse({
+                        nextQueue = normalizeShippingQueueResponse({
                             ...(shippingQueue || {}),
                             ...result.parsed.shippingQueue,
                         });
@@ -1436,11 +1496,19 @@ function App() {
                         }));
                     }
 
-                    const refreshedQueue = await refreshShippingQueue({ showSpinner: false, fallbackQueue: completedQueue });
+                    const refreshedQueue = await refreshShippingQueue({ showSpinner: false, fallbackQueue: nextQueue });
                     if (refreshedQueue) {
-                        setNotification({ type: 'success', message: "Shipping documents marked complete." });
+                        setNotification({
+                            type: 'success',
+                            message: isReopen ? "Shipping item reopened." : "Shipping item marked complete.",
+                        });
                     } else {
-                        setNotification({ type: 'info', message: "Shipping documents marked complete. The latest queue could not be reloaded automatically." });
+                        setNotification({
+                            type: 'info',
+                            message: isReopen
+                                ? "Shipping item reopened. The latest queue could not be reloaded automatically."
+                                : "Shipping item marked complete. The latest queue could not be reloaded automatically.",
+                        });
                     }
                     return true;
                 } catch (err) {
@@ -2955,7 +3023,7 @@ function App() {
                                                 isFetching={isFetchingShippingQueue}
                                                 isCompleting={isCompletingShippingQueue}
                                                 onRefresh={() => refreshShippingQueue({ showSpinner: true })}
-                                                onComplete={completeShippingQueue}
+                                                onUpdateStatus={updateShippingDocumentStatus}
                                             />
                                         )}
                                         {viewMode === 'MESSAGES' && (

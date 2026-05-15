@@ -1607,25 +1607,21 @@
         const ShippingQueuePanel = ({
             shippingQueue,
             isFetching = false,
+            isCompleting = false,
             eyebrow = '',
             title = 'Ready to Ship',
             subtitle = '',
             showActions = true,
             showMeta = true,
+            onUpdateStatus,
         }) => {
             const queue = shippingQueue && typeof shippingQueue === 'object' ? shippingQueue : {};
-            const documents = queue.documents || {};
-            const documentActions = [
-                { key: 'packingSlips', label: 'Packing Slips', icon: 'fa-file-invoice' },
-                { key: 'shippingLabels', label: 'Shipping Labels', icon: 'fa-tags' },
-                { key: 'manifest', label: 'Manifest', icon: 'fa-clipboard-list' },
-            ];
+            const manifests = Array.isArray(queue.manifests) ? queue.manifests : [];
+            const batches = Array.isArray(queue.batches) ? queue.batches : [];
+            const summary = queue.summary || {};
+            const itemCount = manifests.length + batches.length;
             const updatedLabel = queue.lastUpdated || '';
-            const allDocumentsAvailable = documentActions.every(documentConfig => {
-                const documentRecord = documents?.[documentConfig.key] || {};
-                return Boolean(documentRecord.printUrl || documentRecord.viewUrl);
-            });
-            const queueStatus = String(queue.status || '').trim() || (!allDocumentsAvailable ? 'Not Ready' : queue.isComplete ? 'Complete' : 'Ready');
+            const queueStatus = String(queue.status || '').trim() || (itemCount ? 'Ready' : 'Not Ready');
             const isComplete = queueStatus.toLowerCase() === 'complete';
             const isNotReady = queueStatus.toLowerCase() === 'not ready';
             const statusClass = isComplete
@@ -1634,13 +1630,128 @@
                     ? 'bg-[#fecaca]'
                     : 'bg-[#fde68a]';
 
-            const openPrintPdf = (documentConfig) => {
-                const documentRecord = documents?.[documentConfig.key] || {};
+            const openPrintPdf = (documentRecord) => {
                 const pdfUrl = documentRecord.viewUrl || documentRecord.printUrl || documentRecord.downloadUrl || '';
                 if (!pdfUrl) return;
 
                 window.open(pdfUrl, '_blank', 'noopener,noreferrer');
             };
+
+            const renderDocumentButton = (documentRecord, label, icon) => {
+                const canOpen = Boolean(documentRecord?.printUrl || documentRecord?.downloadUrl || documentRecord?.viewUrl);
+                return (
+                    <button
+                        type="button"
+                        onClick={() => openPrintPdf(documentRecord || {})}
+                        disabled={isFetching || isCompleting || !canOpen}
+                        className={`brutal-btn shipping-print-button bg-white ${canOpen ? 'hover:bg-[#f0fdf4]' : 'opacity-50 cursor-not-allowed'}`}
+                    >
+                        <i className={`fas ${isFetching ? 'fa-circle-notch spinner' : icon} text-[#16a34a]`}></i>
+                        <span>Open {label}</span>
+                    </button>
+                );
+            };
+
+            const renderStatusAction = (item) => {
+                if (!showActions || !onUpdateStatus) return null;
+                const isItemComplete = Boolean(item.isComplete);
+                const canReopen = isItemComplete && Boolean(item.canReopen);
+                const canComplete = !isItemComplete && Boolean(item.canComplete);
+                const nextStatus = isItemComplete ? 'open' : 'completed';
+                const disabled = isFetching || isCompleting || (!canComplete && !canReopen);
+                return (
+                    <button
+                        type="button"
+                        onClick={() => onUpdateStatus(item, nextStatus)}
+                        disabled={disabled}
+                        className={`brutal-btn action-button action-button-fluid ${isItemComplete ? 'bg-white hover:bg-gray-50' : 'bg-[#bbf7d0] hover:bg-[#86efac]'}`}
+                    >
+                        <i className={`fas ${isCompleting ? 'fa-circle-notch spinner' : isItemComplete ? 'fa-rotate-left' : 'fa-check'} text-[#16a34a]`}></i>
+                        <span>{isCompleting ? 'Updating...' : isItemComplete ? 'Reopen' : 'Mark Complete'}</span>
+                    </button>
+                );
+            };
+
+            const renderMeta = (item) => {
+                if (!showMeta || !item.completedAt) return null;
+                return (
+                    <div className="card-meta mt-2">
+                        <span>Completed {item.completedAt}</span>
+                        {item.completedBy && <span> by {item.completedBy}</span>}
+                    </div>
+                );
+            };
+
+            const renderManifest = (manifest) => {
+                const isItemComplete = Boolean(manifest.isComplete);
+                return (
+                    <div key={manifest.itemId} className={`shipping-item-card ${isItemComplete ? 'shipping-item-card-complete' : ''}`}>
+                        <div className="shipping-item-header">
+                            <h4 className="shipping-item-title">{manifest.displayName || 'Manifest'}</h4>
+                            <div className={`status-chip public-overview-status-chip ${isItemComplete ? 'bg-[#bbf7d0]' : 'bg-[#fde68a]'}`}>
+                                {manifest.status || (isItemComplete ? 'Complete' : 'Ready')}
+                            </div>
+                        </div>
+                        <div className="shipping-print-actions">
+                            {renderDocumentButton(manifest.document, 'Manifest', 'fa-clipboard-list')}
+                        </div>
+                        {renderMeta(manifest)}
+                        {showActions && <div className="shipping-item-actions">{renderStatusAction(manifest)}</div>}
+                    </div>
+                );
+            };
+
+            const renderBatch = (batch) => {
+                const isItemComplete = Boolean(batch.isComplete);
+                const isReady = Boolean(batch.isReady);
+                return (
+                    <div key={batch.itemId} className={`shipping-item-card ${isItemComplete ? 'shipping-item-card-complete' : ''}`}>
+                        <div className="shipping-item-header">
+                            <h4 className="shipping-item-title">{batch.displayName || 'Batch'}</h4>
+                            <div className={`status-chip public-overview-status-chip ${isItemComplete ? 'bg-[#bbf7d0]' : isReady ? 'bg-[#fde68a]' : 'bg-[#fecaca]'}`}>
+                                {batch.status || (isReady ? 'Ready' : 'Not Ready')}
+                            </div>
+                        </div>
+                        <div className="shipping-print-actions">
+                            {renderDocumentButton(batch.packingSlips, 'Packing Slips', 'fa-file-invoice')}
+                            {renderDocumentButton(batch.shippingLabels, 'Shipping Labels', 'fa-tags')}
+                        </div>
+                        {renderMeta(batch)}
+                        {showActions && <div className="shipping-item-actions">{renderStatusAction(batch)}</div>}
+                    </div>
+                );
+            };
+
+            if (!showActions) {
+                return (
+                    <div className="section-width flex flex-col h-auto min-h-0 animate-fade-in">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0">
+                            <div>
+                                {eyebrow && <div className="card-eyebrow text-[#16a34a]">{eyebrow}</div>}
+                                <h3 className={`section-title ${eyebrow ? 'mt-1' : ''}`}>{title}</h3>
+                                {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
+                            </div>
+                            <div className={`status-chip public-overview-status-chip self-start md:self-auto ${statusClass}`}>
+                                {queueStatus}
+                            </div>
+                        </div>
+                        <div className="shipping-summary-grid">
+                            <div className="public-summary-row">
+                                <div className="card-eyebrow text-[#16a34a]">Manifests</div>
+                                <div className="font-black text-lg">{summary.manifestCount ?? manifests.length}</div>
+                            </div>
+                            <div className="public-summary-row">
+                                <div className="card-eyebrow text-[#16a34a]">Batches</div>
+                                <div className="font-black text-lg">{summary.batchCount ?? batches.length}</div>
+                            </div>
+                            <div className="public-summary-row">
+                                <div className="card-eyebrow text-[#16a34a]">Completed</div>
+                                <div className="font-black text-lg">{summary.completedCount ?? [...manifests, ...batches].filter(item => item.isComplete).length}</div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
 
             return (
                 <div className="section-width flex flex-col h-auto min-h-0 animate-fade-in">
@@ -1655,25 +1766,13 @@
                         </div>
                     </div>
 
-                    {showActions && (
-                        <div className="shipping-print-actions">
-                            {documentActions.map(documentConfig => {
-                                const documentRecord = documents?.[documentConfig.key] || {};
-                                const canPrint = Boolean(documentRecord.printUrl || documentRecord.downloadUrl || documentRecord.viewUrl);
-                                return (
-                                    <button
-                                        key={documentConfig.key}
-                                        type="button"
-                                        onClick={() => openPrintPdf(documentConfig)}
-                                        disabled={isFetching || !canPrint}
-                                        className={`brutal-btn shipping-print-button bg-white ${canPrint ? 'hover:bg-[#f0fdf4]' : 'opacity-50 cursor-not-allowed'}`}
-                                    >
-                                        <i className={`fas ${isFetching ? 'fa-circle-notch spinner' : documentConfig.icon} text-[#16a34a]`}></i>
-                                        <span>Open {documentConfig.label}</span>
-                                    </button>
-                                );
-                            })}
+                    {itemCount > 0 ? (
+                        <div className="shipping-item-list">
+                            {manifests.map(renderManifest)}
+                            {batches.map(renderBatch)}
                         </div>
+                    ) : (
+                        <div className="shipping-empty-state">No shipping documents are ready.</div>
                     )}
 
                     {showMeta && (updatedLabel || queue.notes) && (
@@ -1692,10 +1791,8 @@
             isFetching = false,
             isCompleting = false,
             onRefresh,
-            onComplete,
+            onUpdateStatus,
         }) => {
-            const canComplete = Boolean(shippingQueue?.allDocumentsAvailable) && !shippingQueue?.isComplete;
-
             return (
                 <div className="section-width flex flex-col h-full animate-fade-in overflow-hidden">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4 shrink-0">
@@ -1714,24 +1811,15 @@
                         </div>
                     </div>
 
-                    <div className="section-card panel-content-card bg-[#f0fdf4]">
+                    <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pt-1 pb-4 pr-1">
                         <ShippingQueuePanel
                             shippingQueue={shippingQueue}
                             isFetching={isFetching || isCompleting}
+                            isCompleting={isCompleting}
                             showActions={true}
                             showMeta={true}
+                            onUpdateStatus={onUpdateStatus}
                         />
-                        <div className="mt-4 flex flex-col sm:flex-row sm:justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={onComplete}
-                                disabled={isFetching || isCompleting || !canComplete}
-                                className="brutal-btn action-button action-button-fluid bg-[#bbf7d0] hover:bg-[#86efac]"
-                            >
-                                <i className={`fas ${isCompleting ? 'fa-circle-notch spinner' : 'fa-check'} text-[#16a34a]`}></i>
-                                <span>{isCompleting ? 'Completing...' : 'Mark Complete'}</span>
-                            </button>
-                        </div>
                     </div>
                 </div>
             );

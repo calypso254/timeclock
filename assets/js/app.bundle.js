@@ -1984,59 +1984,87 @@
   const ShippingQueuePanel = ({
     shippingQueue,
     isFetching = false,
+    isCompleting = false,
     eyebrow = "",
     title = "Ready to Ship",
     subtitle = "",
     showActions = true,
-    showMeta = true
+    showMeta = true,
+    onUpdateStatus
   }) => {
     const queue = shippingQueue && typeof shippingQueue === "object" ? shippingQueue : {};
-    const documents = queue.documents || {};
-    const documentActions = [
-      { key: "packingSlips", label: "Packing Slips", icon: "fa-file-invoice" },
-      { key: "shippingLabels", label: "Shipping Labels", icon: "fa-tags" },
-      { key: "manifest", label: "Manifest", icon: "fa-clipboard-list" }
-    ];
+    const manifests = Array.isArray(queue.manifests) ? queue.manifests : [];
+    const batches = Array.isArray(queue.batches) ? queue.batches : [];
+    const summary = queue.summary || {};
+    const itemCount = manifests.length + batches.length;
     const updatedLabel = queue.lastUpdated || "";
-    const allDocumentsAvailable = documentActions.every((documentConfig) => {
-      const documentRecord = documents?.[documentConfig.key] || {};
-      return Boolean(documentRecord.printUrl || documentRecord.viewUrl);
-    });
-    const queueStatus = String(queue.status || "").trim() || (!allDocumentsAvailable ? "Not Ready" : queue.isComplete ? "Complete" : "Ready");
+    const queueStatus = String(queue.status || "").trim() || (itemCount ? "Ready" : "Not Ready");
     const isComplete = queueStatus.toLowerCase() === "complete";
     const isNotReady = queueStatus.toLowerCase() === "not ready";
     const statusClass = isComplete ? "bg-[#bbf7d0]" : isNotReady ? "bg-[#fecaca]" : "bg-[#fde68a]";
-    const openPrintPdf = (documentConfig) => {
-      const documentRecord = documents?.[documentConfig.key] || {};
+    const openPrintPdf = (documentRecord) => {
       const pdfUrl = documentRecord.viewUrl || documentRecord.printUrl || documentRecord.downloadUrl || "";
       if (!pdfUrl) return;
       window.open(pdfUrl, "_blank", "noopener,noreferrer");
     };
-    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#16a34a]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), subtitle && /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, subtitle)), /* @__PURE__ */ React.createElement("div", { className: `status-chip public-overview-status-chip self-start md:self-auto ${statusClass}` }, queueStatus)), showActions && /* @__PURE__ */ React.createElement("div", { className: "shipping-print-actions" }, documentActions.map((documentConfig) => {
-      const documentRecord = documents?.[documentConfig.key] || {};
-      const canPrint = Boolean(documentRecord.printUrl || documentRecord.downloadUrl || documentRecord.viewUrl);
+    const renderDocumentButton = (documentRecord, label, icon) => {
+      const canOpen = Boolean(documentRecord?.printUrl || documentRecord?.downloadUrl || documentRecord?.viewUrl);
       return /* @__PURE__ */ React.createElement(
         "button",
         {
-          key: documentConfig.key,
           type: "button",
-          onClick: () => openPrintPdf(documentConfig),
-          disabled: isFetching || !canPrint,
-          className: `brutal-btn shipping-print-button bg-white ${canPrint ? "hover:bg-[#f0fdf4]" : "opacity-50 cursor-not-allowed"}`
+          onClick: () => openPrintPdf(documentRecord || {}),
+          disabled: isFetching || isCompleting || !canOpen,
+          className: `brutal-btn shipping-print-button bg-white ${canOpen ? "hover:bg-[#f0fdf4]" : "opacity-50 cursor-not-allowed"}`
         },
-        /* @__PURE__ */ React.createElement("i", { className: `fas ${isFetching ? "fa-circle-notch spinner" : documentConfig.icon} text-[#16a34a]` }),
-        /* @__PURE__ */ React.createElement("span", null, "Open ", documentConfig.label)
+        /* @__PURE__ */ React.createElement("i", { className: `fas ${isFetching ? "fa-circle-notch spinner" : icon} text-[#16a34a]` }),
+        /* @__PURE__ */ React.createElement("span", null, "Open ", label)
       );
-    })), showMeta && (updatedLabel || queue.notes) && /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-3" }, updatedLabel && /* @__PURE__ */ React.createElement("span", null, "Updated ", updatedLabel), updatedLabel && queue.notes && /* @__PURE__ */ React.createElement("span", null, " \xB7 "), queue.notes && /* @__PURE__ */ React.createElement("span", null, queue.notes)));
+    };
+    const renderStatusAction = (item) => {
+      if (!showActions || !onUpdateStatus) return null;
+      const isItemComplete = Boolean(item.isComplete);
+      const canReopen = isItemComplete && Boolean(item.canReopen);
+      const canComplete = !isItemComplete && Boolean(item.canComplete);
+      const nextStatus = isItemComplete ? "open" : "completed";
+      const disabled = isFetching || isCompleting || !canComplete && !canReopen;
+      return /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          type: "button",
+          onClick: () => onUpdateStatus(item, nextStatus),
+          disabled,
+          className: `brutal-btn action-button action-button-fluid ${isItemComplete ? "bg-white hover:bg-gray-50" : "bg-[#bbf7d0] hover:bg-[#86efac]"}`
+        },
+        /* @__PURE__ */ React.createElement("i", { className: `fas ${isCompleting ? "fa-circle-notch spinner" : isItemComplete ? "fa-rotate-left" : "fa-check"} text-[#16a34a]` }),
+        /* @__PURE__ */ React.createElement("span", null, isCompleting ? "Updating..." : isItemComplete ? "Reopen" : "Mark Complete")
+      );
+    };
+    const renderMeta = (item) => {
+      if (!showMeta || !item.completedAt) return null;
+      return /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-2" }, /* @__PURE__ */ React.createElement("span", null, "Completed ", item.completedAt), item.completedBy && /* @__PURE__ */ React.createElement("span", null, " by ", item.completedBy));
+    };
+    const renderManifest = (manifest) => {
+      const isItemComplete = Boolean(manifest.isComplete);
+      return /* @__PURE__ */ React.createElement("div", { key: manifest.itemId, className: `shipping-item-card ${isItemComplete ? "shipping-item-card-complete" : ""}` }, /* @__PURE__ */ React.createElement("div", { className: "shipping-item-header" }, /* @__PURE__ */ React.createElement("h4", { className: "shipping-item-title" }, manifest.displayName || "Manifest"), /* @__PURE__ */ React.createElement("div", { className: `status-chip public-overview-status-chip ${isItemComplete ? "bg-[#bbf7d0]" : "bg-[#fde68a]"}` }, manifest.status || (isItemComplete ? "Complete" : "Ready"))), /* @__PURE__ */ React.createElement("div", { className: "shipping-print-actions" }, renderDocumentButton(manifest.document, "Manifest", "fa-clipboard-list")), renderMeta(manifest), showActions && /* @__PURE__ */ React.createElement("div", { className: "shipping-item-actions" }, renderStatusAction(manifest)));
+    };
+    const renderBatch = (batch) => {
+      const isItemComplete = Boolean(batch.isComplete);
+      const isReady = Boolean(batch.isReady);
+      return /* @__PURE__ */ React.createElement("div", { key: batch.itemId, className: `shipping-item-card ${isItemComplete ? "shipping-item-card-complete" : ""}` }, /* @__PURE__ */ React.createElement("div", { className: "shipping-item-header" }, /* @__PURE__ */ React.createElement("h4", { className: "shipping-item-title" }, batch.displayName || "Batch"), /* @__PURE__ */ React.createElement("div", { className: `status-chip public-overview-status-chip ${isItemComplete ? "bg-[#bbf7d0]" : isReady ? "bg-[#fde68a]" : "bg-[#fecaca]"}` }, batch.status || (isReady ? "Ready" : "Not Ready"))), /* @__PURE__ */ React.createElement("div", { className: "shipping-print-actions" }, renderDocumentButton(batch.packingSlips, "Packing Slips", "fa-file-invoice"), renderDocumentButton(batch.shippingLabels, "Shipping Labels", "fa-tags")), renderMeta(batch), showActions && /* @__PURE__ */ React.createElement("div", { className: "shipping-item-actions" }, renderStatusAction(batch)));
+    };
+    if (!showActions) {
+      return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#16a34a]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), subtitle && /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, subtitle)), /* @__PURE__ */ React.createElement("div", { className: `status-chip public-overview-status-chip self-start md:self-auto ${statusClass}` }, queueStatus)), /* @__PURE__ */ React.createElement("div", { className: "shipping-summary-grid" }, /* @__PURE__ */ React.createElement("div", { className: "public-summary-row" }, /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#16a34a]" }, "Manifests"), /* @__PURE__ */ React.createElement("div", { className: "font-black text-lg" }, summary.manifestCount ?? manifests.length)), /* @__PURE__ */ React.createElement("div", { className: "public-summary-row" }, /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#16a34a]" }, "Batches"), /* @__PURE__ */ React.createElement("div", { className: "font-black text-lg" }, summary.batchCount ?? batches.length)), /* @__PURE__ */ React.createElement("div", { className: "public-summary-row" }, /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#16a34a]" }, "Completed"), /* @__PURE__ */ React.createElement("div", { className: "font-black text-lg" }, summary.completedCount ?? [...manifests, ...batches].filter((item) => item.isComplete).length))));
+    }
+    return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-auto min-h-0 animate-fade-in" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, eyebrow && /* @__PURE__ */ React.createElement("div", { className: "card-eyebrow text-[#16a34a]" }, eyebrow), /* @__PURE__ */ React.createElement("h3", { className: `section-title ${eyebrow ? "mt-1" : ""}` }, title), subtitle && /* @__PURE__ */ React.createElement("p", { className: "section-subtitle mt-1" }, subtitle)), /* @__PURE__ */ React.createElement("div", { className: `status-chip public-overview-status-chip self-start md:self-auto ${statusClass}` }, queueStatus)), itemCount > 0 ? /* @__PURE__ */ React.createElement("div", { className: "shipping-item-list" }, manifests.map(renderManifest), batches.map(renderBatch)) : /* @__PURE__ */ React.createElement("div", { className: "shipping-empty-state" }, "No shipping documents are ready."), showMeta && (updatedLabel || queue.notes) && /* @__PURE__ */ React.createElement("div", { className: "card-meta mt-3" }, updatedLabel && /* @__PURE__ */ React.createElement("span", null, "Updated ", updatedLabel), updatedLabel && queue.notes && /* @__PURE__ */ React.createElement("span", null, " \xB7 "), queue.notes && /* @__PURE__ */ React.createElement("span", null, queue.notes)));
   };
   const EmployeeShippingQueuePanel = ({
     shippingQueue,
     isFetching = false,
     isCompleting = false,
     onRefresh,
-    onComplete
+    onUpdateStatus
   }) => {
-    const canComplete = Boolean(shippingQueue?.allDocumentsAvailable) && !shippingQueue?.isComplete;
     return /* @__PURE__ */ React.createElement("div", { className: "section-width flex flex-col h-full animate-fade-in overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4 shrink-0" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", { className: "section-title" }, "Shipping")), /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap gap-2" }, /* @__PURE__ */ React.createElement(
       "button",
       {
@@ -2046,25 +2074,17 @@
       },
       /* @__PURE__ */ React.createElement("i", { className: `fas ${isFetching ? "fa-circle-notch spinner" : "fa-rotate-right"} text-[#16a34a]` }),
       /* @__PURE__ */ React.createElement("span", null, isFetching ? "Refreshing..." : "Refresh")
-    ))), /* @__PURE__ */ React.createElement("div", { className: "section-card panel-content-card bg-[#f0fdf4]" }, /* @__PURE__ */ React.createElement(
+    ))), /* @__PURE__ */ React.createElement("div", { className: "min-h-0 flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pt-1 pb-4 pr-1" }, /* @__PURE__ */ React.createElement(
       ShippingQueuePanel,
       {
         shippingQueue,
         isFetching: isFetching || isCompleting,
+        isCompleting,
         showActions: true,
-        showMeta: true
+        showMeta: true,
+        onUpdateStatus
       }
-    ), /* @__PURE__ */ React.createElement("div", { className: "mt-4 flex flex-col sm:flex-row sm:justify-end gap-2" }, /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        type: "button",
-        onClick: onComplete,
-        disabled: isFetching || isCompleting || !canComplete,
-        className: "brutal-btn action-button action-button-fluid bg-[#bbf7d0] hover:bg-[#86efac]"
-      },
-      /* @__PURE__ */ React.createElement("i", { className: `fas ${isCompleting ? "fa-circle-notch spinner" : "fa-check"} text-[#16a34a]` }),
-      /* @__PURE__ */ React.createElement("span", null, isCompleting ? "Completing..." : "Mark Complete")
-    ))));
+    )));
   };
   const PublicOverviewPanel = ({ sheetData, inventoryRows, penHospitalCases, messages, shippingQueue, isFetchingShippingQueue = false }) => {
     return /* @__PURE__ */ React.createElement("div", { className: "flex flex-col h-full animate-fade-in overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "mb-4 md:mb-6 shrink-0" }, /* @__PURE__ */ React.createElement("h2", { className: "page-title" }, "Today at a Glance")), /* @__PURE__ */ React.createElement("div", { className: "min-h-0 flex-1 overflow-y-auto no-scrollbar shadow-safe-4 pt-1 pb-4 pr-2" }, /* @__PURE__ */ React.createElement("div", { className: "public-overview-masonry" }, /* @__PURE__ */ React.createElement("div", { className: "public-overview-left-column" }, /* @__PURE__ */ React.createElement("div", { className: "section-card public-overview-card public-overview-inventory-card bg-[#fff7ed] p-3 md:p-4" }, /* @__PURE__ */ React.createElement(
@@ -3152,8 +3172,48 @@
         downloadUrl: documentRecord.downloadUrl || `https://drive.google.com/uc?export=download&id=${fileId}`
       };
     };
+    const normalizeShippingManifest = (manifestRecord) => {
+      const manifest = manifestRecord && typeof manifestRecord === "object" ? manifestRecord : {};
+      return {
+        ...manifest,
+        itemType: "manifest",
+        itemId: manifest.itemId || "",
+        displayName: manifest.displayName || "Manifest",
+        status: manifest.status || (manifest.isComplete ? "Complete" : "Ready"),
+        isComplete: Boolean(manifest.isComplete),
+        isReady: manifest.isReady !== void 0 ? Boolean(manifest.isReady) : true,
+        canComplete: manifest.canComplete !== void 0 ? Boolean(manifest.canComplete) : !manifest.isComplete,
+        canReopen: Boolean(manifest.canReopen),
+        document: buildShippingDocumentUrls(manifest.document || {})
+      };
+    };
+    const normalizeShippingBatch = (batchRecord) => {
+      const batch = batchRecord && typeof batchRecord === "object" ? batchRecord : {};
+      const packingSlips = buildShippingDocumentUrls(batch.packingSlips || batch.documents?.packingSlips || {});
+      const shippingLabels = buildShippingDocumentUrls(batch.shippingLabels || batch.documents?.shippingLabels || {});
+      const isReady = batch.isReady !== void 0 ? Boolean(batch.isReady) : Boolean(packingSlips?.fileId && shippingLabels?.fileId);
+      return {
+        ...batch,
+        itemType: "batch",
+        itemId: batch.itemId || "",
+        displayName: batch.displayName || `Batch ${batch.number || ""}`.trim(),
+        status: batch.status || (batch.isComplete ? "Complete" : isReady ? "Ready" : "Not Ready"),
+        isComplete: Boolean(batch.isComplete),
+        isReady,
+        canComplete: batch.canComplete !== void 0 ? Boolean(batch.canComplete) : !batch.isComplete && isReady,
+        canReopen: Boolean(batch.canReopen),
+        packingSlips,
+        shippingLabels,
+        documents: {
+          packingSlips,
+          shippingLabels
+        }
+      };
+    };
     const buildFallbackShippingQueue = (baseQueue = null) => {
       const base = baseQueue && typeof baseQueue === "object" && !Array.isArray(baseQueue) ? baseQueue : {};
+      const manifests = Array.isArray(base.manifests) ? base.manifests.map(normalizeShippingManifest) : [];
+      const batches = Array.isArray(base.batches) ? base.batches.map(normalizeShippingBatch) : [];
       const allDocumentsAvailable = base.allDocumentsAvailable !== void 0 ? Boolean(base.allDocumentsAvailable) : true;
       return {
         readyCount: Math.max(0, Number(base.readyCount || 0)),
@@ -3167,6 +3227,15 @@
         allDocumentsAvailable,
         isComplete: Boolean(base.isComplete),
         status: base.status || (!allDocumentsAvailable ? "Not Ready" : base.isComplete ? "Complete" : "Ready"),
+        manifests,
+        batches,
+        summary: {
+          manifestCount: Number(base.summary?.manifestCount ?? manifests.length),
+          batchCount: Number(base.summary?.batchCount ?? batches.length),
+          completedCount: Number(base.summary?.completedCount ?? [...manifests, ...batches].filter((item) => item.isComplete).length),
+          openCount: Number(base.summary?.openCount ?? [...manifests, ...batches].filter((item) => !item.isComplete).length),
+          notReadyCount: Number(base.summary?.notReadyCount ?? batches.filter((item) => !item.isReady).length)
+        },
         folderId: base.folderId || "1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF",
         folderUrl: base.folderUrl || "https://drive.google.com/drive/folders/1ahYm1-xV7h_rTOuV-AT9tp35flG_1XaF",
         documents: Object.fromEntries(
@@ -4169,15 +4238,20 @@
         setIsSubmittingPenHospital(false);
       }
     };
-    const completeShippingQueue = async () => {
+    const updateShippingDocumentStatus = async (item, nextStatus) => {
       const activeUser = adminUser || selectedEmployee;
       if (!activeUser || isCompletingShippingQueue) return false;
+      const itemType = item?.itemType === "manifest" ? "manifest" : "batch";
+      const isReopen = nextStatus === "open";
+      const action = itemType === "manifest" ? isReopen ? "SHIPPING_MANIFEST_REOPEN" : "SHIPPING_MANIFEST_COMPLETE" : isReopen ? "SHIPPING_BATCH_REOPEN" : "SHIPPING_BATCH_COMPLETE";
       lastActivityRef.current = Date.now();
       setIsCompletingShippingQueue(true);
       try {
         const timestamp = buildActionTimestamp();
         const result = await sendToSheet({
-          action: "SHIPPING_QUEUE_COMPLETE",
+          action,
+          itemId: item?.itemId || "",
+          itemType,
           editorName: activeUser.name,
           editorRole: activeUser.role || (adminUser ? "admin" : "employee"),
           submittedAt: timestamp.isoTimestamp,
@@ -4185,12 +4259,12 @@
           timezoneOffsetMinutes: timestamp.timezoneOffsetMinutes
         });
         if (!result.ok) {
-          setNotification({ type: "error", message: result.error || "Could not mark the shipping documents complete." });
+          setNotification({ type: "error", message: result.error || "Could not update the shipping item." });
           return false;
         }
-        let completedQueue = null;
+        let nextQueue = null;
         if (result.parsed?.shippingQueue) {
-          completedQueue = normalizeShippingQueueResponse({
+          nextQueue = normalizeShippingQueueResponse({
             ...shippingQueue || {},
             ...result.parsed.shippingQueue
           });
@@ -4199,11 +4273,17 @@
             ...result.parsed.shippingQueue
           }));
         }
-        const refreshedQueue = await refreshShippingQueue({ showSpinner: false, fallbackQueue: completedQueue });
+        const refreshedQueue = await refreshShippingQueue({ showSpinner: false, fallbackQueue: nextQueue });
         if (refreshedQueue) {
-          setNotification({ type: "success", message: "Shipping documents marked complete." });
+          setNotification({
+            type: "success",
+            message: isReopen ? "Shipping item reopened." : "Shipping item marked complete."
+          });
         } else {
-          setNotification({ type: "info", message: "Shipping documents marked complete. The latest queue could not be reloaded automatically." });
+          setNotification({
+            type: "info",
+            message: isReopen ? "Shipping item reopened. The latest queue could not be reloaded automatically." : "Shipping item marked complete. The latest queue could not be reloaded automatically."
+          });
         }
         return true;
       } catch (err) {
@@ -5409,7 +5489,7 @@
         isFetching: isFetchingShippingQueue,
         isCompleting: isCompletingShippingQueue,
         onRefresh: () => refreshShippingQueue({ showSpinner: true }),
-        onComplete: completeShippingQueue
+        onUpdateStatus: updateShippingDocumentStatus
       }
     ), viewMode === "MESSAGES" && /* @__PURE__ */ React.createElement(
       MessageBoardPanel,
