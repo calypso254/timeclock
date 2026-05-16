@@ -1735,18 +1735,18 @@
                                 {queueStatus}
                             </div>
                         </div>
-                        <div className="shipping-summary-grid">
-                            <div className="public-summary-row">
-                                <div className="card-eyebrow text-[#16a34a]">Manifests</div>
-                                <div className="font-black text-lg">{summary.manifestCount ?? manifests.length}</div>
+                        <div className="shipping-summary-rows">
+                            <div className="shipping-summary-row">
+                                <span className="shipping-summary-count">{summary.manifestCount ?? manifests.length}</span>
+                                <span className="shipping-summary-label">Manifests</span>
                             </div>
-                            <div className="public-summary-row">
-                                <div className="card-eyebrow text-[#16a34a]">Batches</div>
-                                <div className="font-black text-lg">{summary.batchCount ?? batches.length}</div>
+                            <div className="shipping-summary-row">
+                                <span className="shipping-summary-count">{summary.batchCount ?? batches.length}</span>
+                                <span className="shipping-summary-label">Batches</span>
                             </div>
-                            <div className="public-summary-row">
-                                <div className="card-eyebrow text-[#16a34a]">Completed</div>
-                                <div className="font-black text-lg">{summary.completedCount ?? [...manifests, ...batches].filter(item => item.isComplete).length}</div>
+                            <div className="shipping-summary-row">
+                                <span className="shipping-summary-count">{summary.completedCount ?? [...manifests, ...batches].filter(item => item.isComplete).length}</span>
+                                <span className="shipping-summary-label">Completed</span>
                             </div>
                         </div>
                     </div>
