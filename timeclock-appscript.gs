@@ -1467,17 +1467,20 @@ function handleShippingDocumentStatusAction_(data) {
 
   var scan = scanShippingSourceFolder_();
   var currentItem = getCurrentShippingItemById_(scan, itemId, itemType);
-  if (!currentItem) {
-    throw new Error("This shipping item no longer exists in the source folder.");
-  }
-  if (!isReopen && itemType === "batch" && !isShippingBatchReady_(currentItem)) {
-    throw new Error("This batch is not ready yet. Packing slips and shipping labels are both required.");
-  }
-
   var documentsSheet = getOrCreateShippingDocumentsSheet_();
   ensureShippingDocumentsSheetStructure_(documentsSheet);
   var trackingMap = getShippingTrackingMap_(documentsSheet);
-  var rowInfo = upsertShippingTrackingRow_(documentsSheet, trackingMap, currentItem, new Date());
+  var trackedItem = trackingMap[itemId] || null;
+  if (!currentItem) {
+    throw new Error("This shipping item no longer exists in the source folder.");
+  }
+  if (!isReopen && itemType === "batch" && !isShippingBatchReady_(currentItem) && !isTrackedShippingBatchReady_(trackedItem)) {
+    throw new Error("This batch is not ready yet. Packing slips and shipping labels are both required.");
+  }
+
+  var rowInfo = !isReopen && itemType === "batch" && !isShippingBatchReady_(currentItem) && isTrackedShippingBatchReady_(trackedItem)
+    ? trackedItem
+    : upsertShippingTrackingRow_(documentsSheet, trackingMap, currentItem, new Date());
   var timestamp = new Date();
   var nextStatus = isReopen ? "open" : "completed";
 
@@ -1593,12 +1596,14 @@ function scanShippingSourceFolder_() {
 
 function parseShippingSourceFileName_(fileName) {
   var name = String(fileName || "").trim();
-  var batchMatch = name.match(/^(\d{4})-(\d{2})-(\d{2})-(\d{3})\s+(packing slips|shipping labels)\.pdf$/i);
+  var batchMatch = name.match(/^(\d{4})-(\d{2})-(\d{2})[-_\s]+(\d+)[-_\s]+(.+?)(?:\s+\(\d+\))?\.pdf$/i);
   if (batchMatch) {
     var dateKey = batchMatch[1] + "-" + batchMatch[2] + "-" + batchMatch[3];
-    var number = batchMatch[4];
-    var kind = String(batchMatch[5] || "").toLowerCase();
-    var documentKey = kind.indexOf("packing") === 0 ? "packingSlips" : "shippingLabels";
+    var number = normalizeShippingBatchNumber_(batchMatch[4]);
+    var documentKey = getShippingBatchDocumentKey_(batchMatch[5]);
+    if (!documentKey) {
+      return null;
+    }
     return {
       itemType: "batch",
       itemId: "batch:" + dateKey + "-" + number,
@@ -1627,6 +1632,33 @@ function parseShippingSourceFileName_(fileName) {
     };
   }
 
+  return null;
+}
+
+function normalizeShippingBatchNumber_(number) {
+  var text = String(number || "").replace(/\D/g, "");
+  if (!text) {
+    return "";
+  }
+  while (text.length < 3) {
+    text = "0" + text;
+  }
+  return text;
+}
+
+function getShippingBatchDocumentKey_(kind) {
+  var normalized = String(kind || "")
+    .toLowerCase()
+    .replace(/[^a-z]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (normalized.indexOf("packing") !== -1 && normalized.indexOf("slip") !== -1) {
+    return "packingSlips";
+  }
+  if ((normalized.indexOf("shipping") !== -1 || normalized.indexOf("ship") !== -1) &&
+      normalized.indexOf("label") !== -1) {
+    return "shippingLabels";
+  }
   return null;
 }
 
@@ -1705,6 +1737,7 @@ function getShippingTrackingMap_(sheet) {
       rowNumber: i + 2,
       values: rows[i],
       displayValues: displayRows[i],
+      fileNames: parseShippingTrackingJsonArray_(rows[i][SHIPPING_DOCUMENT_COL.FILE_NAME - 1]),
       status: String(rows[i][SHIPPING_DOCUMENT_COL.STATUS - 1] || "open").trim().toLowerCase() || "open",
       completedAt: rows[i][SHIPPING_DOCUMENT_COL.COMPLETED_AT - 1],
       completedAtDisplay: String(displayRows[i][SHIPPING_DOCUMENT_COL.COMPLETED_AT - 1] || "").trim(),
@@ -1715,6 +1748,37 @@ function getShippingTrackingMap_(sheet) {
     };
   }
   return map;
+}
+
+function parseShippingTrackingJsonArray_(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  try {
+    var parsed = JSON.parse(String(value || "[]"));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function isTrackedShippingBatchReady_(tracking) {
+  var fileNames = tracking && tracking.fileNames ? tracking.fileNames : [];
+  var hasPackingSlips = false;
+  var hasShippingLabels = false;
+  for (var i = 0; i < fileNames.length; i++) {
+    var parsed = parseShippingSourceFileName_(fileNames[i]);
+    if (!parsed || parsed.itemType !== "batch") {
+      continue;
+    }
+    if (parsed.documentKey === "packingSlips") {
+      hasPackingSlips = true;
+    }
+    if (parsed.documentKey === "shippingLabels") {
+      hasShippingLabels = true;
+    }
+  }
+  return hasPackingSlips && hasShippingLabels;
 }
 
 function syncCurrentShippingItems_(sheet, trackingMap, scan) {
