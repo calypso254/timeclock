@@ -1470,7 +1470,7 @@ function handleShippingDocumentStatusAction_(data) {
   if (!currentItem) {
     throw new Error("This shipping item no longer exists in the source folder.");
   }
-  if (!isReopen && itemType === "batch" && !currentItem.isReady) {
+  if (!isReopen && itemType === "batch" && !isShippingBatchReady_(currentItem)) {
     throw new Error("This batch is not ready yet. Packing slips and shipping labels are both required.");
   }
 
@@ -1812,7 +1812,7 @@ function buildShippingBatchPayloads_(batches, trackingMap) {
   return batches.map(function(item) {
     var tracking = trackingMap[item.itemId] || {};
     var isComplete = tracking.status === "completed";
-    var isReady = Boolean(item.packingSlips && item.shippingLabels);
+    var isReady = isShippingBatchReady_(item);
     return {
       itemId: item.itemId,
       itemType: "batch",
@@ -1833,6 +1833,10 @@ function buildShippingBatchPayloads_(batches, trackingMap) {
       documents: item.documents
     };
   }).sort(sortShippingItems_);
+}
+
+function isShippingBatchReady_(item) {
+  return Boolean(item && item.packingSlips && item.shippingLabels);
 }
 
 function buildLegacyShippingDocumentsFromPayload_(manifests, batches) {

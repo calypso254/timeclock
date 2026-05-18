@@ -1025,7 +1025,7 @@ function App() {
             const stagedScheduleChangeCount = Object.keys(adminScheduleDrafts).length;
             const inventoryOpenRows = sortInventoryRows(getOpenInventoryRows(inventoryRows));
             const inventoryAwaitingRows = inventoryOpenRows.filter(row => Number(row.awaitingApproval || 0) > 0);
-            const isAdminWorkspaceOpen = Boolean(isAuthenticated && adminUser && ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PEN_HOSPITAL', 'ADMIN_PAYROLL', 'ADMIN_MESSAGES', 'ADMIN_EMPLOYEES'].includes(viewMode));
+            const isAdminWorkspaceOpen = Boolean(isAuthenticated && adminUser && ['ADMIN', 'ADMIN_INVENTORY', 'ADMIN_PEN_HOSPITAL', 'ADMIN_SHIPPING', 'ADMIN_PAYROLL', 'ADMIN_MESSAGES', 'ADMIN_EMPLOYEES'].includes(viewMode));
             const editableRows = filterTimesheetRowsUpToToday(personalData)
                 .filter(row => !isEntryLocked(row))
                 .slice()
@@ -1576,6 +1576,15 @@ function App() {
                 const rows = await refreshPenHospital({ showSpinner: false });
                 if (rows === null) {
                     setNotification({ type: 'error', message: "Could not load the Pen Hospital board right now." });
+                }
+            };
+
+            const handleOpenAdminShipping = async () => {
+                setEmployeeTimeOffDraft(null);
+                setViewMode('ADMIN_SHIPPING');
+                const queue = await refreshShippingQueue({ showSpinner: false });
+                if (queue === null) {
+                    setNotification({ type: 'error', message: "Could not load the shipping print queue right now." });
                 }
             };
 
@@ -2871,6 +2880,15 @@ function App() {
                                             <span>Pen Hospital</span>
                                         </button>
                                         <button
+                                            onClick={handleOpenAdminShipping}
+                                            className={`brutal-btn standard-unit-button admin-action-button text-[#060606] ${
+                                                viewMode === 'ADMIN_SHIPPING' ? 'bg-[#dcfce7] hover:bg-[#bbf7d0]' : 'bg-white hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <i className="fas fa-truck-fast text-[#16a34a]"></i>
+                                            <span>Shipping</span>
+                                        </button>
+                                        <button
                                             onClick={handleOpenAdminPayroll}
                                             className={`brutal-btn standard-unit-button admin-action-button text-[#060606] ${
                                                 viewMode === 'ADMIN_PAYROLL' ? 'bg-[#bbf7d0] hover:bg-[#86efac]' : 'bg-white hover:bg-gray-50'
@@ -3110,6 +3128,15 @@ function App() {
                                                 onCreateCase={handleCreatePenHospitalCase}
                                                 onUpdateStatus={handleUpdatePenHospitalStatus}
                                                 onMessage={setNotification}
+                                            />
+                                        )}
+                                        {viewMode === 'ADMIN_SHIPPING' && (
+                                            <EmployeeShippingQueuePanel
+                                                shippingQueue={shippingQueue}
+                                                isFetching={isFetchingShippingQueue}
+                                                isCompleting={isCompletingShippingQueue}
+                                                onRefresh={() => refreshShippingQueue({ showSpinner: true })}
+                                                onUpdateStatus={updateShippingDocumentStatus}
                                             />
                                         )}
                                         {viewMode === 'ADMIN_MESSAGES' && (
