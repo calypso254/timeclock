@@ -1622,8 +1622,13 @@
             const itemCount = manifests.length + batches.length;
             const updatedLabel = queue.lastUpdated || '';
             const queueStatus = String(queue.status || '').trim() || (itemCount ? 'Ready' : 'Not Ready');
-            const isComplete = queueStatus.toLowerCase() === 'complete';
-            const isNotReady = queueStatus.toLowerCase() === 'not ready';
+            const readyDocumentCount = Number(summary.readyDocumentCount ?? (
+                manifests.filter(item => !item.isComplete).length +
+                (batches.filter(item => !item.isComplete && item.isReady).length * 2)
+            ));
+            const displayQueueStatus = !showActions ? (readyDocumentCount > 0 ? 'Ready' : 'Not Ready') : queueStatus;
+            const isComplete = displayQueueStatus.toLowerCase() === 'complete';
+            const isNotReady = displayQueueStatus.toLowerCase() === 'not ready';
             const statusClass = isComplete
                 ? 'bg-[#bbf7d0]'
                 : isNotReady
@@ -1732,21 +1737,21 @@
                                 {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                             </div>
                             <div className={`status-chip public-overview-status-chip self-start md:self-auto ${statusClass}`}>
-                                {queueStatus}
+                                {displayQueueStatus}
                             </div>
                         </div>
                         <div className="shipping-summary-rows">
                             <div className="shipping-summary-row">
-                                <span className="shipping-summary-count">{summary.manifestCount ?? manifests.length}</span>
+                                <span className="shipping-summary-count">{summary.manifestCount ?? manifests.filter(item => !item.isComplete).length}</span>
                                 <span className="shipping-summary-label">Manifests</span>
                             </div>
                             <div className="shipping-summary-row">
-                                <span className="shipping-summary-count">{summary.batchCount ?? batches.length}</span>
-                                <span className="shipping-summary-label">Batches</span>
+                                <span className="shipping-summary-count">{summary.shippingLabelCount ?? batches.filter(item => !item.isComplete && item.isReady).length}</span>
+                                <span className="shipping-summary-label">Shipping Labels</span>
                             </div>
                             <div className="shipping-summary-row">
-                                <span className="shipping-summary-count">{summary.completedCount ?? [...manifests, ...batches].filter(item => item.isComplete).length}</span>
-                                <span className="shipping-summary-label">Completed</span>
+                                <span className="shipping-summary-count">{summary.packingSlipCount ?? batches.filter(item => !item.isComplete && item.isReady).length}</span>
+                                <span className="shipping-summary-label">Packing Slips</span>
                             </div>
                         </div>
                     </div>
@@ -1762,7 +1767,7 @@
                             {subtitle && <p className="section-subtitle mt-1">{subtitle}</p>}
                         </div>
                         <div className={`status-chip public-overview-status-chip self-start md:self-auto ${statusClass}`}>
-                            {queueStatus}
+                            {displayQueueStatus}
                         </div>
                     </div>
 

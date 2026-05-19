@@ -1522,11 +1522,15 @@ function buildShippingQueuePayload_() {
   trackingMap = getShippingTrackingMap_(documentsSheet);
   var manifests = buildShippingManifestPayloads_(scan.manifests, trackingMap);
   var batches = buildShippingBatchPayloads_(scan.batches, trackingMap);
-  var allDocumentsAvailable = batches.every(function(batch) { return batch.isReady; });
+  var openManifests = manifests.filter(function(item) { return !item.isComplete; });
+  var openReadyBatches = batches.filter(function(item) { return !item.isComplete && item.isReady; });
+  var openBatches = batches.filter(function(item) { return !item.isComplete; });
+  var allDocumentsAvailable = openBatches.every(function(batch) { return batch.isReady; });
   var completedCount = manifests.filter(function(item) { return item.isComplete; }).length +
     batches.filter(function(item) { return item.isComplete; }).length;
   var openCount = manifests.length + batches.length - completedCount;
-  var notReadyCount = batches.filter(function(item) { return !item.isReady; }).length;
+  var notReadyCount = openBatches.filter(function(item) { return !item.isReady; }).length;
+  var readyDocumentCount = openManifests.length + (openReadyBatches.length * 2);
   var totalVisibleItems = manifests.length + batches.length;
   var queueStatus = totalVisibleItems === 0 ? "Not Ready" : openCount === 0 && completedCount > 0 ? "Complete" : notReadyCount > 0 ? "Not Ready" : "Ready";
   var legacyDocuments = buildLegacyShippingDocumentsFromPayload_(manifests, batches);
@@ -1549,8 +1553,11 @@ function buildShippingQueuePayload_() {
     manifests: manifests,
     batches: batches,
     summary: {
-      manifestCount: manifests.length,
-      batchCount: batches.length,
+      manifestCount: openManifests.length,
+      batchCount: openReadyBatches.length,
+      packingSlipCount: openReadyBatches.length,
+      shippingLabelCount: openReadyBatches.length,
+      readyDocumentCount: readyDocumentCount,
       completedCount: completedCount,
       openCount: openCount,
       notReadyCount: notReadyCount
@@ -1905,7 +1912,7 @@ function buildShippingManifestPayloads_(manifests, trackingMap) {
       completedBy: tracking.completedBy || "",
       document: item.document
     };
-  }).sort(sortShippingItems_);
+  }).sort(sortShippingItemsByCompletion_);
 }
 
 function buildShippingBatchPayloads_(batches, trackingMap) {
@@ -1932,7 +1939,7 @@ function buildShippingBatchPayloads_(batches, trackingMap) {
       shippingLabels: item.shippingLabels,
       documents: item.documents
     };
-  }).sort(sortShippingBatchesByCompletion_);
+  }).sort(sortShippingItemsByCompletion_);
 }
 
 function isShippingBatchReady_(item) {
@@ -1955,7 +1962,7 @@ function sortShippingItems_(a, b) {
   return aKey.localeCompare(bKey);
 }
 
-function sortShippingBatchesByCompletion_(a, b) {
+function sortShippingItemsByCompletion_(a, b) {
   if (Boolean(a.isComplete) !== Boolean(b.isComplete)) {
     return a.isComplete ? 1 : -1;
   }
