@@ -1932,7 +1932,7 @@ function buildShippingBatchPayloads_(batches, trackingMap) {
       shippingLabels: item.shippingLabels,
       documents: item.documents
     };
-  }).sort(sortShippingItems_);
+  }).sort(sortShippingBatchesByCompletion_);
 }
 
 function isShippingBatchReady_(item) {
@@ -1953,6 +1953,13 @@ function sortShippingItems_(a, b) {
   var aKey = String(a.date || "") + "-" + String(a.number || "");
   var bKey = String(b.date || "") + "-" + String(b.number || "");
   return aKey.localeCompare(bKey);
+}
+
+function sortShippingBatchesByCompletion_(a, b) {
+  if (Boolean(a.isComplete) !== Boolean(b.isComplete)) {
+    return a.isComplete ? 1 : -1;
+  }
+  return sortShippingItems_(a, b);
 }
 
 function formatShippingDisplayDate_(dateKey) {
