@@ -1733,7 +1733,7 @@ function getShippingTrackingMap_(sheet) {
     if (!itemId) {
       continue;
     }
-    map[itemId] = {
+    var rowInfo = {
       rowNumber: i + 2,
       values: rows[i],
       displayValues: displayRows[i],
@@ -1746,6 +1746,22 @@ function getShippingTrackingMap_(sheet) {
       reopenedAtDisplay: String(displayRows[i][SHIPPING_DOCUMENT_COL.REOPENED_AT - 1] || "").trim(),
       reopenedBy: String(rows[i][SHIPPING_DOCUMENT_COL.REOPENED_BY - 1] || "").trim()
     };
+
+    if (map[itemId]) {
+      map[itemId].fileNames = mergeUniqueShippingList_(map[itemId].fileNames, rowInfo.fileNames);
+      if (rowInfo.status === "completed" || map[itemId].status !== "completed") {
+        map[itemId].status = rowInfo.status;
+        map[itemId].completedAt = rowInfo.completedAt;
+        map[itemId].completedAtDisplay = rowInfo.completedAtDisplay;
+        map[itemId].completedBy = rowInfo.completedBy;
+        map[itemId].reopenedAt = rowInfo.reopenedAt;
+        map[itemId].reopenedAtDisplay = rowInfo.reopenedAtDisplay;
+        map[itemId].reopenedBy = rowInfo.reopenedBy;
+      }
+      continue;
+    }
+
+    map[itemId] = rowInfo;
   }
   return map;
 }
@@ -1754,12 +1770,32 @@ function parseShippingTrackingJsonArray_(value) {
   if (Array.isArray(value)) {
     return value;
   }
-  try {
-    var parsed = JSON.parse(String(value || "[]"));
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (err) {
+  var text = String(value || "").trim();
+  if (!text) {
     return [];
   }
+  try {
+    var parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [text];
+  }
+}
+
+function mergeUniqueShippingList_(left, right) {
+  var seen = {};
+  var merged = [];
+  var addValue = function(value) {
+    var text = String(value || "").trim();
+    if (!text || seen[text]) {
+      return;
+    }
+    seen[text] = true;
+    merged.push(text);
+  };
+  (left || []).forEach(addValue);
+  (right || []).forEach(addValue);
+  return merged;
 }
 
 function isTrackedShippingBatchReady_(tracking) {
